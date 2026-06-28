@@ -1,0 +1,18 @@
+#ifndef DSPXMODEL_DSPXMODELORMGLOBAL_H
+#define DSPXMODEL_DSPXMODELORMGLOBAL_H
+
+#include <QtGlobal>
+
+#ifndef DSPXMODEL_ORM_EXPORT
+#  ifdef DSPXMODEL_ORM_STATIC
+#    define DSPXMODEL_ORM_EXPORT
+#  else
+#    ifdef DSPXMODEL_ORM_LIBRARY
+#      define DSPXMODEL_ORM_EXPORT Q_DECL_EXPORT
+#    else
+#      define DSPXMODEL_ORM_EXPORT Q_DECL_IMPORT
+#    endif
+#  endif
+#endif
+
+#endif // DSPXMODEL_DSPXMODELORMGLOBAL_H

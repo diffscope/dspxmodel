@@ -1,0 +1,3 @@
+[submodule "dini"]
+	path = lib/dini
+	url = ../../diffscope/dini.git
