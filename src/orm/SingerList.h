@@ -77,10 +77,12 @@ namespace dspx {
 
         /**
          * @brief Gets sources.
+         * @post sources() == nullptr || mixedSinger() == nullptr.
          */
         Sources *sources() const;
         /**
          * @brief Gets mixed singer.
+         * @post sources() == nullptr || mixedSinger() != nullptr.
          */
         MixedSinger *mixedSinger() const;
 

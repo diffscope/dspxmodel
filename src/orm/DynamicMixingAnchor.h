@@ -16,7 +16,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT DynamicMixingAnchor : public EntityObject {
         Q_OBJECT
-        Q_PROPERTY(int pos READ pos WRITE setPos NOTIFY posChanged)
+        Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QList<double> ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
         Q_PROPERTY(DynamicMixingAnchor *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(DynamicMixingAnchor *nextItem READ nextItem NOTIFY nextItemChanged)
@@ -25,19 +25,19 @@ namespace dspx {
         ~DynamicMixingAnchor() override;
 
         /**
-         * @brief Gets pos.
+         * @brief Gets position.
          *
          * This property is the position index of the dynamic mixing anchor in the dynamic mixing anchor sequence.
          *
-         * @post pos() >= 0.
+         * @post position() >= 0.
          */
-        int pos() const;
+        int position() const;
         /**
-         * @brief Sets pos.
-         * @pre pos >= 0.
-         * @post pos() == pos.
+         * @brief Sets position.
+         * @pre position >= 0.
+         * @post position() == position.
          */
-        void setPos(int pos);
+        void setPosition(int position);
 
         /**
          * @brief Gets ratio.
@@ -75,7 +75,7 @@ namespace dspx {
         DynamicMixingAnchorSequence *dynamicMixingAnchorSequence() const;
 
     signals:
-        void posChanged(int pos);
+        void positionChanged(int position);
         void ratioChanged(const QList<double> &ratio);
         void previousItemChanged(DynamicMixingAnchor *previousItem);
         void nextItemChanged(DynamicMixingAnchor *nextItem);

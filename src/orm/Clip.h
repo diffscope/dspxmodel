@@ -17,12 +17,13 @@ namespace dspx {
     class DSPXMODEL_ORM_EXPORT Clip : public EntityObject {
         Q_OBJECT
         Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
+        Q_PROPERTY(double gain READ gain WRITE setGain NOTIFY gainChanged)
         Q_PROPERTY(double pan READ pan WRITE setPan NOTIFY panChanged)
         Q_PROPERTY(bool mute READ mute WRITE setMute NOTIFY muteChanged)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(int length READ length WRITE setLength NOTIFY lengthChanged)
         Q_PROPERTY(int clipStart READ clipStart WRITE setClipStart NOTIFY clipStartChanged)
-        Q_PROPERTY(int clipLen READ clipLen WRITE setClipLen NOTIFY clipLenChanged)
+        Q_PROPERTY(int clipLength READ clipLength WRITE setClipLength NOTIFY clipLengthChanged)
         Q_PROPERTY(ClipType type READ type CONSTANT)
         Q_PROPERTY(int start READ start NOTIFY startChanged)
         Q_PROPERTY(Clip *previousItem READ previousItem NOTIFY previousItemChanged)
@@ -52,6 +53,18 @@ namespace dspx {
         void setName(const QString &name);
 
         /**
+         * @brief Gets gain.
+         * @post gain() >= 0.0.
+         */
+         double gain() const;
+        /**
+         * @brief Sets gain.
+         * @pre gain >= 0.0.
+         * @post gain() == gain.
+         */
+         void setGain(double gain);
+
+        /**
          * @brief Gets pan.
          * @post pan() >= -1 && pan() <= 1.
          */
@@ -76,7 +89,7 @@ namespace dspx {
         /**
          * @brief Gets position.
          *
-         * This property is the position of the clip in the clip sequence.
+         * This property is the position index of the clip in the clip sequence.
          *
          * @post position() >= 0.
          */
@@ -114,15 +127,18 @@ namespace dspx {
 
         /**
          * @brief Gets clip length.
-         * @post clipLen() >= 0.
+         *
+         * This property is the length index of the clip in the clip sequence.
+         *
+         * @post clipLength() >= 0.
          */
-        int clipLen() const;
+        int clipLength() const;
         /**
          * @brief Sets clip length.
-         * @pre clipLen >= 0.
-         * @post clipLen() == clipLen.
+         * @pre clipLength >= 0.
+         * @post clipLength() == clipLength.
          */
-        void setClipLen(int clipLen);
+        void setClipLength(int clipLength);
 
         /**
          * @brief Gets type.
@@ -159,12 +175,13 @@ namespace dspx {
 
     signals:
         void nameChanged(const QString &name);
+        void gainChanged(double gain);
         void panChanged(double pan);
         void muteChanged(bool mute);
         void positionChanged(int position);
         void lengthChanged(int length);
         void clipStartChanged(int clipStart);
-        void clipLenChanged(int clipLen);
+        void clipLengthChanged(int clipLength);
         void startChanged(int start);
         void previousItemChanged(Clip *previousItem);
         void nextItemChanged(Clip *nextItem);

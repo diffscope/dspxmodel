@@ -19,11 +19,11 @@ namespace dspx {
     class DSPXMODEL_ORM_EXPORT Note : public EntityObject {
         Q_OBJECT
         Q_PROPERTY(int centShift READ centShift WRITE setCentShift NOTIFY centShiftChanged)
-        Q_PROPERTY(int keyNum READ keyNum WRITE setKeyNum NOTIFY keyNumChanged)
+        Q_PROPERTY(int keyNumber READ keyNumber WRITE setKeyNumber NOTIFY keyNumberChanged)
         Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
         Q_PROPERTY(int length READ length WRITE setLength NOTIFY lengthChanged)
         Q_PROPERTY(QString lyric READ lyric WRITE setLyric NOTIFY lyricChanged)
-        Q_PROPERTY(int pos READ pos WRITE setPos NOTIFY posChanged)
+        Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QString originalPronunciation READ originalPronunciation WRITE setOriginalPronunciation NOTIFY originalPronunciationChanged)
         Q_PROPERTY(QString editedPronunciation READ editedPronunciation WRITE setEditedPronunciation NOTIFY editedPronunciationChanged)
         Q_PROPERTY(bool overlapped READ overlapped NOTIFY overlappedChanged)
@@ -57,15 +57,15 @@ namespace dspx {
 
         /**
          * @brief Gets key number.
-         * @post keyNum() >= 0 && keyNum() <= 127.
+         * @post keyNumber() >= 0 && keyNumber() < 128.
          */
-        int keyNum() const;
+        int keyNumber() const;
         /**
          * @brief Sets key number.
-         * @pre keyNum >= 0 && keyNum <= 127.
-         * @post keyNum() == keyNum.
+         * @pre keyNumber >= 0 && keyNumber < 128.
+         * @post keyNumber() == keyNumber.
          */
-        void setKeyNum(int keyNum);
+        void setKeyNumber(int keyNumber);
 
         /**
          * @brief Gets language.
@@ -79,6 +79,9 @@ namespace dspx {
 
         /**
          * @brief Gets length.
+         *
+         * This property is the length index of the note in the note sequence.
+         *
          * @post length() >= 0.
          */
         int length() const;
@@ -100,19 +103,19 @@ namespace dspx {
         void setLyric(const QString &lyric);
 
         /**
-         * @brief Gets pos.
+         * @brief Gets position.
          *
-         * This property is the position of the note in the note sequence.
+         * This property is the position index of the note in the note sequence.
          *
-         * @post pos() >= 0.
+         * @post position() >= 0.
          */
-        int pos() const;
+        int position() const;
         /**
-         * @brief Sets pos.
-         * @pre pos >= 0.
-         * @post pos() == pos.
+         * @brief Sets position.
+         * @pre position >= 0.
+         * @post position() == position.
          */
-        void setPos(int pos);
+        void setPosition(int position);
 
         /**
          * @brief Gets original pronunciation.
@@ -246,11 +249,11 @@ namespace dspx {
 
     signals:
         void centShiftChanged(int centShift);
-        void keyNumChanged(int keyNum);
+        void keyNumberChanged(int keyNumber);
         void languageChanged(const QString &language);
         void lengthChanged(int length);
         void lyricChanged(const QString &lyric);
-        void posChanged(int pos);
+        void positionChanged(int position);
         void originalPronunciationChanged(const QString &originalPronunciation);
         void editedPronunciationChanged(const QString &editedPronunciation);
         void overlappedChanged(bool overlapped);
@@ -259,7 +262,7 @@ namespace dspx {
         void vibratoAmplitudeChanged(int vibratoAmplitude);
         void vibratoEndChanged(double vibratoEnd);
         void vibratoFrequencyChanged(double vibratoFrequency);
-        void vibratoCentOffsetChanged(int vibratoCentOffset);
+        void vibratoOffsetChanged(int vibratoOffset);
         void vibratoPhaseChanged(double vibratoPhase);
         void vibratoStartChanged(double vibratoStart);
         void noteSequenceChanged(NoteSequence *noteSequence);

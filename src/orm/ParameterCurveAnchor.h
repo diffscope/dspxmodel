@@ -23,7 +23,6 @@ namespace dspx {
          * @brief Parameter curve role.
          */
         enum ParameterCurveRole {
-            Original,
             Transform,
             Edited,
         };

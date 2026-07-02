@@ -9,7 +9,7 @@
 namespace dspx {
 
     struct Handle {
-        quintptr d;
+        quint64 d;
 
         auto operator<=>(const Handle &) const = default;
         bool operator==(const Handle &) const = default;

@@ -16,7 +16,7 @@ namespace dspx{
      */
     class DSPXMODEL_ORM_EXPORT Label : public EntityObject {
         Q_OBJECT
-        Q_PROPERTY(int pos READ pos WRITE setPos NOTIFY posChanged)
+        Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged)
         Q_PROPERTY(Label *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(Label *nextItem READ nextItem NOTIFY nextItemChanged)
@@ -25,19 +25,19 @@ namespace dspx{
         ~Label() override;
 
         /**
-         * @brief Gets pos.
+         * @brief Gets position.
          *
          * This property is the position index of the label in the label sequence.
          *
-         * @post pos() >= 0.
+         * @post position() >= 0.
          */
-        int pos() const;
+        int position() const;
         /**
-         * @brief Sets pos.
-         * @pre pos >= 0.
-         * @post pos() == pos.
+         * @brief Sets position.
+         * @pre position >= 0.
+         * @post position() == position.
          */
-        void setPos(int pos);
+        void setPosition(int position);
 
         /**
          * @brief Gets text.
@@ -64,7 +64,7 @@ namespace dspx{
         LabelSequence *labelSequence() const;
 
     signals:
-        void posChanged(int pos);
+        void positionChanged(int position);
         void textChanged(const QString &text);
         void previousItemChanged(Label *previousItem);
         void nextItemChanged(Label *nextItem);

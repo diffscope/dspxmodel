@@ -40,6 +40,9 @@ namespace dspx {
          * @brief Gets start.
          *
          * This property is the start position in milliseconds from note on.
+         *
+         * This property is the position index of the phoneme in the phoneme sequence.
+         *
          */
         int start() const;
         /**

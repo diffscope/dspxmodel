@@ -14,7 +14,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Tempo : public EntityObject {
         Q_OBJECT
-        Q_PROPERTY(int pos READ pos WRITE setPos NOTIFY posChanged)
+        Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)
         Q_PROPERTY(Tempo *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(Tempo *nextItem READ nextItem NOTIFY nextItemChanged)
@@ -23,19 +23,19 @@ namespace dspx {
         ~Tempo() override;
 
         /**
-         * @brief Gets pos.
+         * @brief Gets position.
          *
          * This property is the position index of the tempo in the tempo sequence.
          *
-         * @post pos() >= 0.
+         * @post position() >= 0.
          */
-        int pos() const;
+        int position() const;
         /**
-         * @brief Sets pos.
-         * @pre pos >= 0.
-         * @post pos() == pos.
+         * @brief Sets position.
+         * @pre position >= 0.
+         * @post position() == position.
          */
-        void setPos(int pos);
+        void setPosition(int position);
 
         /**
          * @brief Gets value.
@@ -67,7 +67,7 @@ namespace dspx {
         TempoSequence *tempoSequence() const;
 
     signals:
-        void posChanged(int pos);
+        void positionChanged(int position);
         void valueChanged(double value);
         void previousItemChanged(Tempo *previousItem);
         void nextItemChanged(Tempo *nextItem);

@@ -14,7 +14,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT KeySignature : public EntityObject {
         Q_OBJECT
-        Q_PROPERTY(int pos READ pos WRITE setPos NOTIFY posChanged)
+        Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
         Q_PROPERTY(int tonality READ tonality WRITE setTonality NOTIFY tonalityChanged)
         Q_PROPERTY(AccidentalType accidentalType READ accidentalType WRITE setAccidentalType NOTIFY accidentalTypeChanged)
@@ -34,19 +34,19 @@ namespace dspx {
         ~KeySignature() override;
 
         /**
-         * @brief Gets pos.
+         * @brief Gets position.
          *
          * This property is the position index of the key signature in the key signature sequence.
          *
-         * @post pos() >= 0.
+         * @post position() >= 0.
          */
-        int pos() const;
+        int position() const;
         /**
-         * @brief Sets pos.
-         * @pre pos >= 0.
-         * @post pos() == pos.
+         * @brief Sets position.
+         * @pre position >= 0.
+         * @post position() == position.
          */
-        void setPos(int pos);
+        void setPosition(int position);
 
         /**
          * @brief Gets mode.
@@ -104,7 +104,7 @@ namespace dspx {
         KeySignatureSequence *keySignatureSequence() const;
 
     signals:
-        void posChanged(int pos);
+        void positionChanged(int position);
         void modeChanged(int mode);
         void tonalityChanged(int tonality);
         void accidentalTypeChanged(AccidentalType accidentalType);
