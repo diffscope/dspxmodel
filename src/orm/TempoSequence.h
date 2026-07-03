@@ -48,32 +48,23 @@ namespace dspx {
         Q_INVOKABLE QList<Tempo *> slice(int position, int length) const;
         /**
          * @brief Gets whether item is contained.
+         * @pre item == nullptr || item->model() == model().
          */
         Q_INVOKABLE bool contains(Tempo *item) const;
         /**
          * @brief Inserts item.
-         * @pre item is not null.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
          */
         Q_INVOKABLE bool insertItem(Tempo *item);
         /**
          * @brief Removes item.
-         * @pre item is not null.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
          */
         Q_INVOKABLE bool removeItem(Tempo *item);
-        /**
-         * @brief Moves item.
-         * @pre item is not null.
-         * @pre sequence is not null.
-         * @post If successful, item is contained in sequence.
-         * @returns true if successful, false if item is not contained in this sequence, or item is already contained in
-         * the target sequence or another sequence.
-         */
-        Q_INVOKABLE bool moveItem(Tempo *item, TempoSequence *sequence);
-
         /**
          * @brief Gets model.
          * @post model() != nullptr.
@@ -84,10 +75,10 @@ namespace dspx {
         void sizeChanged(int size);
         void firstItemChanged(Tempo *firstItem);
         void lastItemChanged(Tempo *lastItem);
-        void itemAboutToInsert(Tempo *item, TempoSequence *sequenceFromWhichMoved = nullptr);
-        void itemInserted(Tempo *item, TempoSequence *sequenceFromWhichMoved = nullptr);
-        void itemAboutToRemove(Tempo *item, TempoSequence *sequenceToWhichMoved = nullptr);
-        void itemRemoved(Tempo *item, TempoSequence *sequenceToWhichMoved = nullptr);
+        void itemAboutToInsert(Tempo *item);
+        void itemInserted(Tempo *item);
+        void itemAboutToRemove(Tempo *item);
+        void itemRemoved(Tempo *item);
 
     private:
         explicit TempoSequence(Model *model);

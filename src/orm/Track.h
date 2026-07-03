@@ -1,6 +1,7 @@
 #ifndef DSPXMODEL_TRACK_H
 #define DSPXMODEL_TRACK_H
 
+#include <QScopedPointer>
 #include <QString>
 
 #include <dspxmodelORM/EntityObject.h>
@@ -17,6 +18,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Track : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Track)
         Q_PROPERTY(int colorId READ colorId WRITE setColorId NOTIFY colorIdChanged)
         Q_PROPERTY(double height READ height WRITE setHeight NOTIFY heightChanged)
         Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
@@ -28,14 +30,13 @@ namespace dspx {
         Q_PROPERTY(ClipSequence *clips READ clips CONSTANT)
         Q_PROPERTY(TrackList *trackList READ trackList NOTIFY trackListChanged)
     public:
-        ~Track() override;
-
         /**
          * @brief Gets color id.
          */
         int colorId() const;
         /**
          * @brief Sets color id.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post colorId() == colorId.
          */
         void setColorId(int colorId);
@@ -46,6 +47,7 @@ namespace dspx {
         double height() const;
         /**
          * @brief Sets height.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post height() == height.
          */
         void setHeight(double height);
@@ -56,6 +58,7 @@ namespace dspx {
         QString name() const;
         /**
          * @brief Sets name.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post name() == name.
          */
         void setName(const QString &name);
@@ -67,6 +70,7 @@ namespace dspx {
         double gain() const;
         /**
          * @brief Sets gain.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre gain >= 0.0.
          * @post gain() == gain.
          */
@@ -79,6 +83,7 @@ namespace dspx {
         double pan() const;
         /**
          * @brief Sets pan.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre pan >= -1.0 && pan <= 1.0.
          * @post pan() == pan.
          */
@@ -90,6 +95,7 @@ namespace dspx {
         bool mute() const;
         /**
          * @brief Sets mute.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post mute() == mute.
          */
         void setMute(bool mute);
@@ -100,6 +106,7 @@ namespace dspx {
         bool solo() const;
         /**
          * @brief Sets solo.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post solo() == solo.
          */
         void setSolo(bool solo);
@@ -110,6 +117,7 @@ namespace dspx {
         bool record() const;
         /**
          * @brief Sets record.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post record() == record.
          */
         void setRecord(bool record);
@@ -137,6 +145,8 @@ namespace dspx {
         void trackListChanged(TrackList *trackList);
 
     private:
+        ~Track() override;
+
         explicit Track(Handle handle, Model *model);
 
         QScopedPointer<TrackPrivate> d_ptr;

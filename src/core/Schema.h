@@ -12,7 +12,7 @@ namespace dini {
     class VariantHandle;
 }
 
-namespace dspxmodel {
+namespace dspx {
 
     class DSPXMODEL_CORE_EXPORT Schema {
     public:

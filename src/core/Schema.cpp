@@ -16,7 +16,7 @@
 #include <dini/schema.h>
 #include <dini/transaction.h>
 
-namespace dspxmodel {
+namespace dspx {
 
     namespace {
 

@@ -1,13 +1,14 @@
 #ifndef DSPXMODEL_MODEL_H
 #define DSPXMODEL_MODEL_H
 
+#include <QScopedPointer>
 #include <QString>
 
 #include <dspxmodelORM/EntityObject.h>
 
 namespace dspx {
 
-    class Storage;
+    class Document;
 
     class AnchorNode;
     class AudioClip;
@@ -53,7 +54,13 @@ namespace dspx {
         Q_PROPERTY(TimeSignatureSequence *timeSignatures READ timeSignatures CONSTANT)
         Q_PROPERTY(TrackList *tracks READ tracks CONSTANT)
     public:
-        explicit Model(Storage *storage, QObject *parent = nullptr);
+        explicit Model(Document *document, QObject *parent = nullptr);
+
+        /**
+         * @brief Gets the bound document.
+         * @post document() != nullptr.
+         */
+        Document *document() const;
 
         /**
          * @brief Gets project name.
@@ -61,6 +68,7 @@ namespace dspx {
         QString projectName() const;
         /**
          * @brief Sets project name.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post projectName() == projectName.
          */
         void setProjectName(const QString &projectName);
@@ -71,6 +79,7 @@ namespace dspx {
         QString projectAuthor() const;
         /**
          * @brief Sets project author.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post projectAuthor() == projectAuthor.
          */
         void setProjectAuthor(const QString &projectAuthor);
@@ -82,6 +91,7 @@ namespace dspx {
         int globalCentShift() const;
         /**
          * @brief Sets global cent shift.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre globalCentShift >= -50 && globalCentShift <= 50.
          * @post globalCentShift() == globalCentShift.
          */
@@ -96,6 +106,7 @@ namespace dspx {
         bool multiChannelOutput() const;
         /**
          * @brief Sets multi-channel output.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post multiChannelOutput() == multiChannelOutput.
          */
         void setMultiChannelOutput(bool multiChannelOutput);
@@ -107,6 +118,7 @@ namespace dspx {
         double gain() const;
         /**
          * @brief Sets gain.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre gain >= 0.0.
          * @post gain() == gain.
          */
@@ -119,6 +131,7 @@ namespace dspx {
         double pan() const;
         /**
          * @brief Sets pan.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre pan >= -1.0 && pan <= 1.0.
          * @post pan() == pan.
          */
@@ -130,6 +143,7 @@ namespace dspx {
         bool mute() const;
         /**
          * @brief Sets mute.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post mute() == mute.
          */
         void setMute(bool mute);
@@ -140,6 +154,7 @@ namespace dspx {
         bool loopEnabled() const;
         /**
          * @brief Sets whether loop is enabled.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post loopEnabled() == loopEnabled.
          */
         void setLoopEnabled(bool loopEnabled);
@@ -151,6 +166,7 @@ namespace dspx {
         int loopStart() const;
         /**
          * @brief Sets loop start.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre loopStart >= 0.
          * @post loopStart() == loopStart.
          */
@@ -163,6 +179,7 @@ namespace dspx {
         int loopLength() const;
         /**
          * @brief Sets loop length.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre loopLength > 0.
          * @post loopLength() == loopLength.
          */
@@ -196,74 +213,96 @@ namespace dspx {
 
         /**
          * @brief Creates label.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createLabel() != nullptr.
          */
         Q_INVOKABLE Label *createLabel();
         /**
          * @brief Creates key signature.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createKeySignature() != nullptr.
          */
         Q_INVOKABLE KeySignature *createKeySignature();
         /**
          * @brief Creates tempo.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createTempo() != nullptr.
          */
         Q_INVOKABLE Tempo *createTempo();
         /**
          * @brief Creates time signature.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createTimeSignature() != nullptr.
          */
         Q_INVOKABLE TimeSignature *createTimeSignature();
         /**
          * @brief Creates track.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createTrack() != nullptr.
          */
         Q_INVOKABLE Track *createTrack();
         /**
          * @brief Creates audio clip.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createAudioClip() != nullptr.
          */
         Q_INVOKABLE AudioClip *createAudioClip();
         /**
          * @brief Creates singing clip.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createSingingClip() != nullptr.
          */
         Q_INVOKABLE SingingClip *createSingingClip();
         /**
          * @brief Creates note.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createNote() != nullptr.
          */
         Q_INVOKABLE Note *createNote();
         /**
          * @brief Creates phoneme.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createPhoneme() != nullptr.
          */
         Q_INVOKABLE Phoneme *createPhoneme();
         /**
          * @brief Creates anchor node.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createAnchorNode() != nullptr.
          */
         Q_INVOKABLE AnchorNode *createAnchorNode();
         /**
          * @brief Creates sources.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createSources() != nullptr.
          */
         Q_INVOKABLE Sources *createSources();
         /**
          * @brief Creates single singer.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createSingleSinger() != nullptr.
          */
         Q_INVOKABLE SingleSinger *createSingleSinger();
         /**
          * @brief Creates mixed singer.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createMixedSinger() != nullptr.
          */
         Q_INVOKABLE MixedSinger *createMixedSinger();
         /**
          * @brief Creates dynamic mixing anchor.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createDynamicMixingAnchor() != nullptr.
          */
         Q_INVOKABLE DynamicMixingAnchor *createDynamicMixingAnchor();
+
+        /**
+         * @brief Destroys an item and schedules its ORM object for deletion.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre item != nullptr.
+         * @post If successful, the item is removed from the document.
+         */
+        Q_INVOKABLE bool destroyItem(EntityObject *item);
 
     signals:
         void projectNameChanged(const QString &projectName);
@@ -278,6 +317,8 @@ namespace dspx {
         void loopLengthChanged(int loopLength);
 
     private:
+        ~Model() override;
+
         QScopedPointer<ModelPrivate> d_ptr;
     };
 

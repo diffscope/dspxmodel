@@ -1,11 +1,12 @@
 #ifndef DSPXMODEL_LABEL_H
 #define DSPXMODEL_LABEL_H
 
+#include <QScopedPointer>
 #include <QString>
 
 #include <dspxmodelORM/EntityObject.h>
 
-namespace dspx{
+namespace dspx {
 
     class LabelSequence;
 
@@ -16,14 +17,13 @@ namespace dspx{
      */
     class DSPXMODEL_ORM_EXPORT Label : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Label)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged)
         Q_PROPERTY(Label *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(Label *nextItem READ nextItem NOTIFY nextItemChanged)
         Q_PROPERTY(LabelSequence *labelSequence READ labelSequence NOTIFY labelSequenceChanged)
     public:
-        ~Label() override;
-
         /**
          * @brief Gets position.
          *
@@ -34,6 +34,7 @@ namespace dspx{
         int position() const;
         /**
          * @brief Sets position.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
          * @post position() == position.
          */
@@ -45,6 +46,7 @@ namespace dspx{
         QString text() const;
         /**
          * @brief Sets text.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post text() == text.
          */
         void setText(const QString &text);
@@ -71,6 +73,8 @@ namespace dspx{
         void labelSequenceChanged(LabelSequence *labelSequence);
 
     private:
+        ~Label() override;
+
         explicit Label(Handle handle, Model *model);
 
         QScopedPointer<LabelPrivate> d_ptr;

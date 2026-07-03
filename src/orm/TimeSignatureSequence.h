@@ -48,32 +48,23 @@ namespace dspx {
         Q_INVOKABLE QList<TimeSignature *> slice(int position, int length) const;
         /**
          * @brief Gets whether item is contained.
+         * @pre item == nullptr || item->model() == model().
          */
         Q_INVOKABLE bool contains(TimeSignature *item) const;
         /**
          * @brief Inserts item.
-         * @pre item is not null.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
          */
         Q_INVOKABLE bool insertItem(TimeSignature *item);
         /**
          * @brief Removes item.
-         * @pre item is not null.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
          */
         Q_INVOKABLE bool removeItem(TimeSignature *item);
-        /**
-         * @brief Moves item.
-         * @pre item is not null.
-         * @pre sequence is not null.
-         * @post If successful, item is contained in sequence.
-         * @returns true if successful, false if item is not contained in this sequence, or item is already contained in
-         * the target sequence or another sequence.
-         */
-        Q_INVOKABLE bool moveItem(TimeSignature *item, TimeSignatureSequence *sequence);
-
         /**
          * @brief Gets model.
          * @post model() != nullptr.
@@ -84,10 +75,10 @@ namespace dspx {
         void sizeChanged(int size);
         void firstItemChanged(TimeSignature *firstItem);
         void lastItemChanged(TimeSignature *lastItem);
-        void itemAboutToInsert(TimeSignature *item, TimeSignatureSequence *sequenceFromWhichMoved = nullptr);
-        void itemInserted(TimeSignature *item, TimeSignatureSequence *sequenceFromWhichMoved = nullptr);
-        void itemAboutToRemove(TimeSignature *item, TimeSignatureSequence *sequenceToWhichMoved = nullptr);
-        void itemRemoved(TimeSignature *item, TimeSignatureSequence *sequenceToWhichMoved = nullptr);
+        void itemAboutToInsert(TimeSignature *item);
+        void itemInserted(TimeSignature *item);
+        void itemAboutToRemove(TimeSignature *item);
+        void itemRemoved(TimeSignature *item);
 
     private:
         explicit TimeSignatureSequence(Model *model);

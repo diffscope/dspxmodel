@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -18,13 +19,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT LabelSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(LabelSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Label *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Label *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Model *model READ model CONSTANT)
     public:
-        ~LabelSequence() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -48,32 +48,25 @@ namespace dspx {
         Q_INVOKABLE QList<Label *> slice(int position, int length) const;
         /**
          * @brief Gets whether item is contained.
+         * @pre item == nullptr || item->model() == model().
          */
         Q_INVOKABLE bool contains(Label *item) const;
         /**
          * @brief Inserts item.
-         * @pre item is not null.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
          */
         Q_INVOKABLE bool insertItem(Label *item);
         /**
          * @brief Removes item.
-         * @pre item is not null.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre item != nullptr && item->model() == model().
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
          */
         Q_INVOKABLE bool removeItem(Label *item);
-        /**
-         * @brief Moves item.
-         * @pre item is not null.
-         * @pre sequence is not null.
-         * @post If successful, item is contained in sequence.
-         * @returns true if successful, false if item is not contained in this sequence, or item is already contained in
-         * the target sequence or another sequence.
-         */
-        Q_INVOKABLE bool moveItem(Label *item, LabelSequence *sequence);
-
         /**
          * @brief Gets model.
          * @post model() != nullptr.
@@ -84,12 +77,14 @@ namespace dspx {
         void sizeChanged(int size);
         void firstItemChanged(Label *firstItem);
         void lastItemChanged(Label *lastItem);
-        void itemAboutToInsert(Label *item, LabelSequence *sequenceFromWhichMoved = nullptr);
-        void itemInserted(Label *item, LabelSequence *sequenceFromWhichMoved = nullptr);
-        void itemAboutToRemove(Label *item, LabelSequence *sequenceToWhichMoved = nullptr);
-        void itemRemoved(Label *item, LabelSequence *sequenceToWhichMoved = nullptr);
+        void itemAboutToInsert(Label *item);
+        void itemInserted(Label *item);
+        void itemAboutToRemove(Label *item);
+        void itemRemoved(Label *item);
 
     private:
+        ~LabelSequence() override;
+
         explicit LabelSequence(Model *model);
 
         QScopedPointer<LabelSequencePrivate> d_ptr;

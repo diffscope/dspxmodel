@@ -2,6 +2,7 @@
 #define DSPXMODEL_ENTITYOBJECT_H
 
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/Handle.h>
 
@@ -16,15 +17,15 @@ namespace dspx {
         Q_DECLARE_PRIVATE(EntityObject)
         Q_PROPERTY(Model *model READ model CONSTANT)
     public:
-        ~EntityObject() override;
-
         Handle handle() const;
 
         Model *model() const;
 
-    private:
-        explicit EntityObject(QObject *parent = nullptr);
+    protected:
+        explicit EntityObject(Handle handle, Model *model, QObject *parent = nullptr);
+        ~EntityObject() override;
 
+    private:
         QScopedPointer<EntityObjectPrivate> d_ptr;
     };
 

@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_KEYSIGNATURE_H
 #define DSPXMODEL_KEYSIGNATURE_H
 
+#include <QScopedPointer>
+
 #include <dspxmodelORM/EntityObject.h>
 
 namespace dspx {
@@ -14,6 +16,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT KeySignature : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(KeySignature)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
         Q_PROPERTY(int tonality READ tonality WRITE setTonality NOTIFY tonalityChanged)
@@ -31,8 +34,6 @@ namespace dspx {
         };
         Q_ENUM(AccidentalType)
 
-        ~KeySignature() override;
-
         /**
          * @brief Gets position.
          *
@@ -43,6 +44,11 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
+         *
+         * If this key signature is contained in a key signature sequence and another item in the same sequence already
+         * has the target position, that item is removed from the sequence before this position is updated.
+         *
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
          * @post position() == position.
          */
@@ -59,6 +65,7 @@ namespace dspx {
         int mode() const;
         /**
          * @brief Sets mode.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre mode >= 0 && mode < 4096.
          * @post mode() == mode.
          */
@@ -74,6 +81,7 @@ namespace dspx {
         int tonality() const;
         /**
          * @brief Sets tonality.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre tonality >= 0 && tonality < 12.
          * @post tonality() == tonality.
          */
@@ -85,6 +93,7 @@ namespace dspx {
         AccidentalType accidentalType() const;
         /**
          * @brief Sets accidental type.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post accidentalType() == accidentalType.
          */
         void setAccidentalType(AccidentalType accidentalType);
@@ -113,6 +122,8 @@ namespace dspx {
         void keySignatureSequenceChanged(KeySignatureSequence *keySignatureSequence);
 
     private:
+        ~KeySignature() override;
+
         explicit KeySignature(Handle handle, Model *model);
 
         QScopedPointer<KeySignaturePrivate> d_ptr;
