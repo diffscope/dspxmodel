@@ -89,12 +89,13 @@ namespace dspx {
     }
 
     void LabelPrivate::setSequence(LabelSequence *newSequence, bool notify) {
+        Q_Q(Label);
         if (sequence == newSequence) {
             return;
         }
         sequence = newSequence;
         if (notify) {
-            emit q_func()->labelSequenceChanged(sequence);
+            emit q->labelSequenceChanged(sequence);
         }
     }
 

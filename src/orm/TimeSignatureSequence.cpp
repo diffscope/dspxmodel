@@ -42,6 +42,7 @@ namespace dspx {
     }
 
     void TimeSignatureSequencePrivate::refresh(bool notify) {
+        Q_Q(TimeSignatureSequence);
         auto *modelData = ModelPrivate::get(model);
         const auto view = modelData->engine->query(Schema::timeSignatureTable(), orderedTimeSignatureQuery(modelData->modelHandle));
         const auto newSize = static_cast<int>(view.count());
@@ -67,7 +68,6 @@ namespace dspx {
         if (!notify) {
             return;
         }
-        auto *q = q_func();
         if (sizeChanged) {
             emit q->sizeChanged(size);
         }

@@ -1,10 +1,17 @@
 #ifndef DSPXMODEL_NOTESEQUENCE_H
 #define DSPXMODEL_NOTESEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Note;
+}
 
 namespace dspx {
 
@@ -18,6 +25,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT NoteSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(NoteSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Note *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Note *lastItem READ lastItem NOTIFY lastItemChanged)
@@ -79,6 +87,17 @@ namespace dspx {
          * @post singingClip() != nullptr.
          */
         SingingClip *singingClip() const;
+
+        /**
+         * @brief Converts to OpenDSPX note sequence.
+         */
+        std::vector<opendspx::Note> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX note sequence.
+         * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre notes must be valid.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::Note> &notes);
 
     signals:
         void sizeChanged(int size);

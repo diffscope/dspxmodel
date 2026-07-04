@@ -5,6 +5,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Note;
+}
+
 namespace dspx {
 
     class NoteSequence;
@@ -18,6 +22,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Note : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Note)
         Q_PROPERTY(int centShift READ centShift WRITE setCentShift NOTIFY centShiftChanged)
         Q_PROPERTY(int keyNumber READ keyNumber WRITE setKeyNumber NOTIFY keyNumberChanged)
         Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
@@ -246,6 +251,17 @@ namespace dspx {
          * @brief Gets note sequence.
          */
         NoteSequence *noteSequence() const;
+
+        /**
+         * @brief Converts to OpenDSPX note.
+         */
+        opendspx::Note toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX note.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre note must be valid.
+         */
+        void fromOpenDSPX(const opendspx::Note &note);
 
     signals:
         void centShiftChanged(int centShift);

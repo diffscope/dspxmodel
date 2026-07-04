@@ -8,9 +8,9 @@
 namespace dspx {
 
     class TrackPrivate {
+        Q_DECLARE_PUBLIC(Track);
     public:
         explicit TrackPrivate(Track *q);
-        Track *q_func() const { return q_ptr; }
 
         DSPXMODEL_DECLARE_GET(Track)
         DSPXMODEL_FORWARD_CONSTRUCTOR(Track)
@@ -18,6 +18,7 @@ namespace dspx {
         void setTrackList(TrackList *list, bool notify);
 
         Track *q_ptr = nullptr;
+        ClipSequence *clips = nullptr;
         int colorId = 0;
         double height = 0.0;
         QString name;

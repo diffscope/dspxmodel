@@ -4,6 +4,15 @@
 #include <QList>
 #include <QObject>
 
+#include <memory>
+#include <vector>
+
+#include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Clip;
+}
+
 namespace dspx {
 
     class Clip;
@@ -16,6 +25,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT ClipSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(ClipSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Clip *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Clip *lastItem READ lastItem NOTIFY lastItemChanged)
@@ -70,6 +80,17 @@ namespace dspx {
          * the target sequence or another sequence.
          */
         Q_INVOKABLE bool moveItem(Clip *item, ClipSequence *sequence);
+
+        /**
+         * @brief Converts to OpenDSPX clip refs.
+         */
+        std::vector<std::shared_ptr<opendspx::Clip>> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX clip refs.
+         * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre clips must be valid.
+         */
+        void fromOpenDSPX(const std::vector<std::shared_ptr<opendspx::Clip>> &clips);
 
         /**
          * @brief Gets track.

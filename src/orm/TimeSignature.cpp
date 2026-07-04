@@ -91,12 +91,13 @@ namespace dspx {
     }
 
     void TimeSignaturePrivate::setSequence(TimeSignatureSequence *newSequence, bool notify) {
+        Q_Q(TimeSignature);
         if (sequence == newSequence) {
             return;
         }
         sequence = newSequence;
         if (notify) {
-            emit q_func()->timeSignatureSequenceChanged(sequence);
+            emit q->timeSignatureSequenceChanged(sequence);
         }
     }
 

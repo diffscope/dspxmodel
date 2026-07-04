@@ -6,6 +6,10 @@
 
 #include <dspxmodelORM/Clip.h>
 
+namespace opendspx {
+    struct AudioClip;
+}
+
 namespace dspx {
 
     /**
@@ -19,13 +23,16 @@ namespace dspx {
         Q_PROPERTY(QString formatEntryClassName MEMBER formatEntryClassName)
         Q_PROPERTY(QVariant userData MEMBER userData)
         Q_PROPERTY(QString sha512 MEMBER sha512)
-
+    public:
         QString absoluteDir;
         QString relativeDir;
         QString fileName;
         QString formatEntryClassName;
         QVariant userData;
         QString sha512;
+
+        bool operator==(const AudioPathInfo &other) const = default;
+        bool operator!=(const AudioPathInfo &other) const = default;
     };
 
     class AudioClipPrivate;
@@ -35,6 +42,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AudioClip : public Clip {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(AudioClip)
         Q_PROPERTY(AudioPathInfo path READ path WRITE setPath NOTIFY pathChanged)
     public:
         ~AudioClip() override;
@@ -49,6 +57,17 @@ namespace dspx {
          */
         void setPath(const AudioPathInfo &path);
 
+        /**
+         * @brief Converts to OpenDSPX audio clip.
+         */
+        opendspx::AudioClip toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX audio clip.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre clip must be valid.
+         */
+        void fromOpenDSPX(const opendspx::AudioClip &clip);
+
     signals:
         void pathChanged(const AudioPathInfo &path);
 
@@ -61,5 +80,6 @@ namespace dspx {
 }
 
 Q_DECLARE_METATYPE(dspx::AudioPathInfo)
+Q_DECLARE_TYPEINFO(dspx::AudioPathInfo, Q_RELOCATABLE_TYPE);
 
 #endif // DSPXMODEL_AUDIOCLIP_H

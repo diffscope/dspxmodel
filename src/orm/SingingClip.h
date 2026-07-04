@@ -3,6 +3,10 @@
 
 #include <dspxmodelORM/Clip.h>
 
+namespace opendspx {
+    struct SingingClip;
+}
+
 namespace dspx {
 
     class NoteSequence;
@@ -16,6 +20,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT SingingClip : public Clip {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(SingingClip)
         Q_PROPERTY(Sources *sources READ sources WRITE setSources NOTIFY sourcesChanged)
         Q_PROPERTY(NoteSequence *notes READ notes CONSTANT)
         Q_PROPERTY(ParameterMap *parameters READ parameters CONSTANT)
@@ -42,6 +47,17 @@ namespace dspx {
          * @post parameters() != nullptr.
          */
         ParameterMap *parameters() const;
+
+        /**
+         * @brief Converts to OpenDSPX singing clip.
+         */
+        opendspx::SingingClip toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX singing clip.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre clip must be valid.
+         */
+        void fromOpenDSPX(const opendspx::SingingClip &clip);
 
     signals:
         void sourcesChanged(Sources *sources);

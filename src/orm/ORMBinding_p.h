@@ -19,8 +19,10 @@
 namespace dspx {
 
     class ModelPrivate;
+    class Clip;
     class KeySignature;
     class Label;
+    class Note;
     class Tempo;
     class TimeSignature;
     class Track;
@@ -645,10 +647,16 @@ namespace dspx {
         const TableBinding &keySignatureTableBinding();
         const TableBinding &tempoTableBinding();
         const TableBinding &timeSignatureTableBinding();
+        const TableBinding &clipTableBinding();
+        const TableBinding &noteTableBinding();
         const ListBinding &trackListBinding();
 
+        void syncClipColumns(Clip *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyClipColumn(Clip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncLabelColumns(Label *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyLabelColumn(Label *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncNoteColumns(Note *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyNoteColumn(Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncKeySignatureColumns(KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyKeySignatureColumn(KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncTempoColumns(Tempo *item, const dini::ItemSnapshot &snapshot, bool notify);
@@ -662,6 +670,8 @@ namespace dspx {
         const OrderSpec &keySignatureOrderSpec();
         const OrderSpec &tempoOrderSpec();
         const OrderSpec &timeSignatureOrderSpec();
+        const OrderSpec &clipOrderSpec();
+        const OrderSpec &noteOrderSpec();
 
     }
 

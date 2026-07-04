@@ -93,12 +93,13 @@ namespace dspx {
     }
 
     void KeySignaturePrivate::setSequence(KeySignatureSequence *newSequence, bool notify) {
+        Q_Q(KeySignature);
         if (sequence == newSequence) {
             return;
         }
         sequence = newSequence;
         if (notify) {
-            emit q_func()->keySignatureSequenceChanged(sequence);
+            emit q->keySignatureSequenceChanged(sequence);
         }
     }
 

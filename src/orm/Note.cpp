@@ -1,0 +1,352 @@
+#include "Note.h"
+#include "Note_p.h"
+
+#include <cstdint>
+
+#include <dini/transaction.h>
+#include <opendspx/note.h>
+
+#include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/NoteSequence.h>
+#include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/private/Model_p.h>
+#include <dspxmodelORM/private/NoteSequence_p.h>
+#include <dspxmodelORM/private/ORMBinding_p.h>
+#include <dspxmodelORM/private/ORMUtils_p.h>
+
+namespace dspx {
+
+    namespace {
+
+        NoteSequence *noteOwnerFromValue(ModelPrivate &model, const dini::Value &value) {
+            const auto singingClipHandle = orm::handleFromValue(value);
+            auto *singingClip = singingClipHandle ? model.ensure<SingingClip>(singingClipHandle) : nullptr;
+            return singingClip ? singingClip->notes() : nullptr;
+        }
+
+        const std::vector<orm::ColumnBinding<Note>> &noteColumnBindings() {
+            static const std::vector<orm::ColumnBinding<Note>> bindings {
+                orm::intField<Note, NotePrivate>(Schema::noteCentShiftColumn(), &NotePrivate::centShift, &Note::centShiftChanged),
+                orm::intField<Note, NotePrivate>(Schema::noteKeyNumberColumn(), &NotePrivate::keyNumber, &Note::keyNumberChanged),
+                orm::stringField<Note, NotePrivate>(Schema::noteLanguageColumn(), &NotePrivate::language, &Note::languageChanged),
+                orm::intField<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged),
+                orm::stringField<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged),
+                orm::intField<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged),
+                orm::stringField<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged),
+                orm::stringField<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged),
+                orm::previousNextField<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged),
+                orm::previousNextField<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged),
+                {Schema::noteOverlappedCountColumn(), [](Note *q, const dini::Value &value) {
+                     auto *d = NotePrivate::get(q);
+                     const auto oldOverlapped = d->overlappedCount > 0;
+                     d->overlappedCount = static_cast<int>(value.asInt64());
+                     return oldOverlapped != (d->overlappedCount > 0);
+                 }, [](Note *q) {
+                     emit q->overlappedChanged(q->overlapped());
+                 }},
+                orm::intField<Note, NotePrivate>(Schema::noteVibratoAmplitudeColumn(), &NotePrivate::vibratoAmplitude, &Note::vibratoAmplitudeChanged),
+                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoEndColumn(), &NotePrivate::vibratoEnd, &Note::vibratoEndChanged),
+                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoFrequencyColumn(), &NotePrivate::vibratoFrequency, &Note::vibratoFrequencyChanged),
+                orm::intField<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged),
+                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged),
+                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged),
+                {Schema::noteParent().column(), [](Note *q, const dini::Value &value) {
+                     auto *model = ModelPrivate::get(q->model());
+                     auto *d = NotePrivate::get(q);
+                     auto *newSequence = noteOwnerFromValue(*model, value);
+                     const bool changed = d->sequence != newSequence;
+                     d->sequence = newSequence;
+                     return changed;
+                 }, [](Note *q) {
+                     emit q->noteSequenceChanged(NotePrivate::get(q)->sequence);
+                 }},
+            };
+            return bindings;
+        }
+
+    }
+
+    namespace orm {
+
+        const OrderSpec &noteOrderSpec() {
+            static const OrderSpec spec {{Schema::notePositionColumn(), Schema::noteLengthColumn(), Schema::noteKeyNumberColumn()}, true};
+            return spec;
+        }
+
+        const TableBinding &noteTableBinding() {
+            static const TableBinding binding = makeAssociatedTableBinding<Note, NoteSequence>({
+                .table = Schema::noteTable(),
+                .membershipColumns = {Schema::noteParent().column()},
+                .orderColumns = {Schema::notePositionColumn(), Schema::noteLengthColumn(), Schema::noteKeyNumberColumn()},
+                .moveSemantics = MoveSemantics::BetweenOwners,
+                .ensure = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) { return model.ensure<Note>(snapshot); },
+                .find = [](ModelPrivate &model, Handle handle) { return model.find<Note>(handle); },
+                .removeObject = [](ModelPrivate &model, Handle handle) { model.noteObjects.remove(handle); },
+                .sync = [](Note *item, const dini::ItemSnapshot &snapshot, bool notify) { syncNoteColumns(item, snapshot, notify); },
+                .applyColumn = [](Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) { return applyNoteColumn(item, column, value, notify); },
+                .ownerForSnapshot = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
+                    return noteOwnerFromValue(model, orm::snapshotValue(snapshot, Schema::noteParent().column()));
+                },
+                .ownerForChange = [](ModelPrivate &model, const dini::ColumnUpdatedChange &change, bool oldValue) {
+                    if (change.column == Schema::noteParent().column()) {
+                        return noteOwnerFromValue(model, oldValue ? change.oldValue : change.newValue);
+                    }
+                    auto *note = model.find<Note>(orm::handleFromId(change.itemId));
+                    return note ? note->noteSequence() : nullptr;
+                },
+                .setOwner = [](Note *item, NoteSequence *owner, bool notify) { NotePrivate::get(item)->setSequence(owner, notify); },
+                .refreshOwner = [](NoteSequence *owner, bool notify) { NoteSequencePrivate::get(owner)->refresh(notify); },
+                .itemAboutToInsert = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemAboutToInsert(item, movedFrom); },
+                .itemInserted = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemInserted(item, movedFrom); },
+                .itemAboutToRemove = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemAboutToRemove(item, movedTo); },
+                .itemRemoved = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemRemoved(item, movedTo); },
+            });
+            return binding;
+        }
+
+        void syncNoteColumns(Note *item, const dini::ItemSnapshot &snapshot, bool notify) {
+            syncColumnBindings(noteColumnBindings(), item, snapshot, notify);
+        }
+
+        bool applyNoteColumn(Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
+            return applyColumnBinding(noteColumnBindings(), item, column, value, notify);
+        }
+
+    }
+
+    NotePrivate::NotePrivate(Note *q) : q_ptr(q) {
+    }
+
+    void NotePrivate::setSequence(NoteSequence *newSequence, bool notify) {
+        Q_Q(Note);
+        if (sequence == newSequence) {
+            return;
+        }
+        sequence = newSequence;
+        if (notify) {
+            emit q->noteSequenceChanged(sequence);
+        }
+    }
+
+    Note::Note(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new NotePrivate(this)) {
+    }
+
+    Note::~Note() = default;
+
+    int Note::centShift() const {
+        Q_D(const Note);
+        return d->centShift;
+    }
+
+    void Note::setCentShift(int centShift) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteCentShiftColumn(), dini::Value(static_cast<std::int64_t>(centShift)));
+    }
+
+    int Note::keyNumber() const {
+        Q_D(const Note);
+        return d->keyNumber;
+    }
+
+    void Note::setKeyNumber(int keyNumber) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteKeyNumberColumn(), dini::Value(static_cast<std::int64_t>(keyNumber)));
+    }
+
+    QString Note::language() const {
+        Q_D(const Note);
+        return d->language;
+    }
+
+    void Note::setLanguage(const QString &language) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteLanguageColumn(), orm::valueFromString(language));
+    }
+
+    int Note::length() const {
+        Q_D(const Note);
+        return d->length;
+    }
+
+    void Note::setLength(int length) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteLengthColumn(), dini::Value(static_cast<std::int64_t>(length)));
+    }
+
+    QString Note::lyric() const {
+        Q_D(const Note);
+        return d->lyric;
+    }
+
+    void Note::setLyric(const QString &lyric) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteLyricColumn(), orm::valueFromString(lyric));
+    }
+
+    int Note::position() const {
+        Q_D(const Note);
+        return d->position;
+    }
+
+    void Note::setPosition(int position) {
+        ModelPrivate::get(model())->update(handle(), Schema::notePositionColumn(), dini::Value(static_cast<std::int64_t>(position)));
+    }
+
+    QString Note::originalPronunciation() const {
+        Q_D(const Note);
+        return d->originalPronunciation;
+    }
+
+    void Note::setOriginalPronunciation(const QString &originalPronunciation) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteOriginalPronunciationColumn(), orm::valueFromString(originalPronunciation));
+    }
+
+    QString Note::editedPronunciation() const {
+        Q_D(const Note);
+        return d->editedPronunciation;
+    }
+
+    void Note::setEditedPronunciation(const QString &editedPronunciation) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteEditedPronunciationColumn(), orm::valueFromString(editedPronunciation));
+    }
+
+    bool Note::overlapped() const {
+        Q_D(const Note);
+        return d->overlappedCount > 0;
+    }
+
+    Note *Note::previousItem() const {
+        Q_D(const Note);
+        if (!d->previous && d->previousHandle) {
+            d->previous = ModelPrivate::get(model())->ensure<Note>(d->previousHandle);
+        }
+        return d->previous;
+    }
+
+    Note *Note::nextItem() const {
+        Q_D(const Note);
+        if (!d->next && d->nextHandle) {
+            d->next = ModelPrivate::get(model())->ensure<Note>(d->nextHandle);
+        }
+        return d->next;
+    }
+
+    int Note::vibratoAmplitude() const {
+        Q_D(const Note);
+        return d->vibratoAmplitude;
+    }
+
+    void Note::setVibratoAmplitude(int vibratoAmplitude) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoAmplitudeColumn(), dini::Value(static_cast<std::int64_t>(vibratoAmplitude)));
+    }
+
+    double Note::vibratoEnd() const {
+        Q_D(const Note);
+        return d->vibratoEnd;
+    }
+
+    void Note::setVibratoEnd(double vibratoEnd) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoEndColumn(), dini::Value(vibratoEnd));
+    }
+
+    double Note::vibratoFrequency() const {
+        Q_D(const Note);
+        return d->vibratoFrequency;
+    }
+
+    void Note::setVibratoFrequency(double vibratoFrequency) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoFrequencyColumn(), dini::Value(vibratoFrequency));
+    }
+
+    int Note::vibratoOffset() const {
+        Q_D(const Note);
+        return d->vibratoOffset;
+    }
+
+    void Note::setVibratoOffset(int vibratoOffset) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoOffsetColumn(), dini::Value(static_cast<std::int64_t>(vibratoOffset)));
+    }
+
+    double Note::vibratoPhase() const {
+        Q_D(const Note);
+        return d->vibratoPhase;
+    }
+
+    void Note::setVibratoPhase(double vibratoPhase) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoPhaseColumn(), dini::Value(vibratoPhase));
+    }
+
+    double Note::vibratoStart() const {
+        Q_D(const Note);
+        return d->vibratoStart;
+    }
+
+    void Note::setVibratoStart(double vibratoStart) {
+        ModelPrivate::get(model())->update(handle(), Schema::noteVibratoStartColumn(), dini::Value(vibratoStart));
+    }
+
+    PhonemeSequence *Note::editedPhonemes() const {
+        Q_D(const Note);
+        return d->editedPhonemes;
+    }
+
+    PhonemeSequence *Note::originalPhonemes() const {
+        Q_D(const Note);
+        return d->originalPhonemes;
+    }
+
+    VibratoPointDataArray *Note::vibratoAmplitudeControlPoints() const {
+        Q_D(const Note);
+        return d->vibratoAmplitudeControlPoints;
+    }
+
+    VibratoPointDataArray *Note::vibratoFrequencyControlPoints() const {
+        Q_D(const Note);
+        return d->vibratoFrequencyControlPoints;
+    }
+
+    NoteSequence *Note::noteSequence() const {
+        Q_D(const Note);
+        return d->sequence;
+    }
+
+    opendspx::Note Note::toOpenDSPX() const {
+        opendspx::Note target {
+            .pos = position(),
+            .length = length(),
+            .keyNum = keyNumber(),
+            .centShift = centShift(),
+            .language = language().toStdString(),
+            .lyric = lyric().toStdString(),
+            .pronunciation = {
+                .original = originalPronunciation().toStdString(),
+                .edited = editedPronunciation().toStdString(),
+            },
+            .vibrato = {
+                .start = vibratoStart(),
+                .end = vibratoEnd(),
+                .amp = vibratoAmplitude(),
+                .freq = vibratoFrequency(),
+                .phase = vibratoPhase(),
+                .offset = vibratoOffset(),
+            },
+        };
+        OpenDSPXConversion::convertNoteToOpenDSPX(this, target);
+        return target;
+    }
+
+    void Note::fromOpenDSPX(const opendspx::Note &note) {
+        setPosition(note.pos);
+        setLength(note.length);
+        setKeyNumber(note.keyNum);
+        setCentShift(note.centShift);
+        setLanguage(QString::fromStdString(note.language));
+        setLyric(QString::fromStdString(note.lyric));
+        setOriginalPronunciation(QString::fromStdString(note.pronunciation.original));
+        setEditedPronunciation(QString::fromStdString(note.pronunciation.edited));
+        setVibratoStart(note.vibrato.start);
+        setVibratoEnd(note.vibrato.end);
+        setVibratoAmplitude(note.vibrato.amp);
+        setVibratoFrequency(note.vibrato.freq);
+        setVibratoPhase(note.vibrato.phase);
+        setVibratoOffset(note.vibrato.offset);
+        OpenDSPXConversion::convertNoteFromOpenDSPX(this, note);
+    }
+
+}

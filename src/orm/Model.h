@@ -16,6 +16,7 @@ namespace dspx {
 
     class AnchorNode;
     class AudioClip;
+    class Clip;
     class DynamicMixingAnchor;
     class KeySignature;
     class KeySignatureSequence;

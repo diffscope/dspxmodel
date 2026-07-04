@@ -14,8 +14,12 @@
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
+#include <dspxmodelORM/private/AudioClip_p.h>
+#include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
+#include <dspxmodelORM/private/Note_p.h>
+#include <dspxmodelORM/private/SingingClip_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TimeSignature_p.h>
 #include <dspxmodelORM/private/Track_p.h>
@@ -64,6 +68,8 @@ namespace dspx {
         QHash<Handle, T *> &objectMap() {
             if constexpr (std::is_same_v<T, Label>) {
                 return labelObjects;
+            } else if constexpr (std::is_same_v<T, Note>) {
+                return noteObjects;
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return keySignatureObjects;
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -72,6 +78,12 @@ namespace dspx {
                 return timeSignatureObjects;
             } else if constexpr (std::is_same_v<T, Track>) {
                 return trackObjects;
+            } else if constexpr (std::is_same_v<T, Clip>) {
+                return clipObjects;
+            } else if constexpr (std::is_same_v<T, AudioClip>) {
+                return audioClipObjects;
+            } else if constexpr (std::is_same_v<T, SingingClip>) {
+                return singingClipObjects;
             } else {
                 static_assert(std::is_same_v<T, void>);
                 return {};
@@ -87,6 +99,8 @@ namespace dspx {
         static T *createObject(Handle handle, Model *model) {
             if constexpr (std::is_same_v<T, Label>) {
                 return LabelPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, Note>) {
+                return NotePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return KeySignaturePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -95,6 +109,10 @@ namespace dspx {
                 return TimeSignaturePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Track>) {
                 return TrackPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, AudioClip>) {
+                return AudioClipPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, SingingClip>) {
+                return SingingClipPrivate::create(handle, model);
             } else {
                 static_assert(std::is_same_v<T, void>);
                 return nullptr;
@@ -114,8 +132,13 @@ namespace dspx {
 
         template <typename T>
         T *ensure(const dini::ItemSnapshot &snapshot) {
+            Q_Q(Model);
             if constexpr (std::is_same_v<T, Label>) {
                 if (!orm::isContainer(snapshot, Schema::labelTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Note>) {
+                if (!orm::isContainer(snapshot, Schema::noteTable())) {
                     return nullptr;
                 }
             } else if constexpr (std::is_same_v<T, KeySignature>) {
@@ -134,6 +157,20 @@ namespace dspx {
                 if (!orm::isContainer(snapshot, Schema::trackList())) {
                     return nullptr;
                 }
+            } else if constexpr (std::is_same_v<T, Clip>) {
+                if (!orm::isContainer(snapshot, Schema::clipTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, AudioClip>) {
+                if (!orm::isContainer(snapshot, Schema::clipTable()) || !snapshot.variant.has_value() ||
+                    snapshot.variant.value() != Schema::audioClipVariant()) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, SingingClip>) {
+                if (!orm::isContainer(snapshot, Schema::clipTable()) || !snapshot.variant.has_value() ||
+                    snapshot.variant.value() != Schema::singingClipVariant()) {
+                    return nullptr;
+                }
             } else {
                 static_assert(std::is_same_v<T, void>);
             }
@@ -141,10 +178,40 @@ namespace dspx {
             if (auto it = objectMap<T>().find(handle); it != objectMap<T>().end()) {
                 return it.value();
             }
-            auto *object = createObject<T>(handle, q_func());
+            if constexpr (std::is_same_v<T, Clip>) {
+                Clip *object = nullptr;
+                if (snapshot.variant.has_value() && snapshot.variant.value() == Schema::audioClipVariant()) {
+                    object = AudioClipPrivate::create(handle, q);
+                    audioClipObjects.insert(handle, static_cast<AudioClip *>(object));
+                } else if (snapshot.variant.has_value() && snapshot.variant.value() == Schema::singingClipVariant()) {
+                    object = SingingClipPrivate::create(handle, q);
+                    singingClipObjects.insert(handle, static_cast<SingingClip *>(object));
+                }
+                if (!object) {
+                    return nullptr;
+                }
+                clipObjects.insert(handle, object);
+                orm::syncClipColumns(object, snapshot, false);
+                return object;
+            }
+            if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                if (auto it = clipObjects.find(handle); it != clipObjects.end()) {
+                    if (auto *object = qobject_cast<T *>(it.value())) {
+                        objectMap<T>().insert(handle, object);
+                        return object;
+                    }
+                    return nullptr;
+                }
+            }
+            auto *object = createObject<T>(handle, q);
             objectMap<T>().insert(handle, object);
+            if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                clipObjects.insert(handle, object);
+            }
             if constexpr (std::is_same_v<T, Label>) {
                 orm::syncLabelColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, Note>) {
+                orm::syncNoteColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 orm::syncKeySignatureColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -153,6 +220,8 @@ namespace dspx {
                 orm::syncTimeSignatureColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, Track>) {
                 orm::syncTrackColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                orm::syncClipColumns(object, snapshot, false);
             }
             return object;
         }
@@ -192,10 +261,14 @@ namespace dspx {
         std::vector<const orm::ListBinding *> listBindings;
 
         QHash<Handle, Label *> labelObjects;
+        QHash<Handle, Note *> noteObjects;
         QHash<Handle, KeySignature *> keySignatureObjects;
         QHash<Handle, Tempo *> tempoObjects;
         QHash<Handle, TimeSignature *> timeSignatureObjects;
         QHash<Handle, Track *> trackObjects;
+        QHash<Handle, Clip *> clipObjects;
+        QHash<Handle, AudioClip *> audioClipObjects;
+        QHash<Handle, SingingClip *> singingClipObjects;
 
         QString projectName;
         QString projectAuthor;

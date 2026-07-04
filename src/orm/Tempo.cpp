@@ -90,12 +90,13 @@ namespace dspx {
     }
 
     void TempoPrivate::setSequence(TempoSequence *newSequence, bool notify) {
+        Q_Q(Tempo);
         if (sequence == newSequence) {
             return;
         }
         sequence = newSequence;
         if (notify) {
-            emit q_func()->tempoSequenceChanged(sequence);
+            emit q->tempoSequenceChanged(sequence);
         }
     }
 

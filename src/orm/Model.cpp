@@ -16,10 +16,12 @@
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
+#include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
 #include <dspxmodelORM/private/KeySignatureSequence_p.h>
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/LabelSequence_p.h>
+#include <dspxmodelORM/private/Note_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
@@ -157,13 +159,13 @@ namespace dspx {
     }
 
     void ModelPrivate::initialize() {
-        auto *q = q_func();
+        Q_Q(Model);
         labels = LabelSequencePrivate::create(q);
         keySignatures = KeySignatureSequencePrivate::create(q);
         tempos = TempoSequencePrivate::create(q);
         timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
-        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding()};
+        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::noteTableBinding()};
         listBindings = {&orm::trackListBinding()};
 
         syncModel(false);
@@ -175,6 +177,7 @@ namespace dspx {
     }
 
     void ModelPrivate::syncModel(bool notify) {
+        Q_Q(Model);
         const auto snapshot = engine->read(orm::idFromHandle(modelHandle));
         const auto newProjectName = orm::stringFromValue(orm::snapshotValue(snapshot, Schema::modelProjectNameColumn()));
         const auto newProjectAuthor = orm::stringFromValue(orm::snapshotValue(snapshot, Schema::modelProjectAuthorColumn()));
@@ -212,7 +215,6 @@ namespace dspx {
         if (!notify) {
             return;
         }
-        auto *q = q_func();
         if (projectNameChanged) {
             emit q->projectNameChanged(projectName);
         }
@@ -624,15 +626,27 @@ namespace dspx {
     }
 
     AudioClip *Model::createAudioClip() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::clipTable(), {
+            dini::ColumnValue {.column = Schema::clipParent().column(), .value = dini::Value::null()},
+        }, Schema::audioClipVariant());
+        return d->ensure<AudioClip>(orm::handleFromId(id));
     }
 
     SingingClip *Model::createSingingClip() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::clipTable(), {
+            dini::ColumnValue {.column = Schema::clipParent().column(), .value = dini::Value::null()},
+        }, Schema::singingClipVariant());
+        return d->ensure<SingingClip>(orm::handleFromId(id));
     }
 
     Note *Model::createNote() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::noteTable(), {
+            dini::ColumnValue {.column = Schema::noteParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<Note>(orm::handleFromId(id));
     }
 
     Phoneme *Model::createPhoneme() {
@@ -669,4 +683,3 @@ namespace dspx {
     }
 
 }
-

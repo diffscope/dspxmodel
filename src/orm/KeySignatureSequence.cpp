@@ -43,6 +43,7 @@ namespace dspx {
     }
 
     void KeySignatureSequencePrivate::refresh(bool notify) {
+        Q_Q(KeySignatureSequence);
         auto *modelData = ModelPrivate::get(model);
         const auto view =
             modelData->engine->query(Schema::keySignatureTable(), orderedKeySignatureQuery(modelData->modelHandle));
@@ -69,7 +70,6 @@ namespace dspx {
         if (!notify) {
             return;
         }
-        auto *q = q_func();
         if (sizeChanged) {
             emit q->sizeChanged(size);
         }

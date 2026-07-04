@@ -8,6 +8,7 @@
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/private/ClipSequence_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
@@ -47,16 +48,20 @@ namespace dspx {
     }
 
     void TrackPrivate::setTrackList(TrackList *newList, bool notify) {
+        Q_Q(Track);
         if (trackList == newList) {
             return;
         }
         trackList = newList;
         if (notify) {
-            emit q_func()->trackListChanged(trackList);
+            emit q->trackListChanged(trackList);
         }
     }
 
     Track::Track(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new TrackPrivate(this)) {
+        Q_D(Track);
+        d->clips = ClipSequencePrivate::create(this);
+        ClipSequencePrivate::get(d->clips)->refresh(false);
     }
 
     Track::~Track() = default;
@@ -126,7 +131,7 @@ namespace dspx {
     }
 
     ClipSequence *Track::clips() const {
-        return nullptr;
+        return TrackPrivate::get(this)->clips;
     }
 
     TrackList *Track::trackList() const {
@@ -142,6 +147,7 @@ namespace dspx {
             .mute = mute(),
             .solo = solo(),
         };
+        target.clips = clips()->toOpenDSPX();
         target.workspace["diffscope"] = nlohmann::json::object({
             {"colorId", colorId()},
             {"height", height()},
@@ -157,6 +163,7 @@ namespace dspx {
         setPan(track.control.pan);
         setMute(track.control.mute);
         setSolo(track.control.solo);
+        clips()->fromOpenDSPX(track.clips);
         if (auto it = track.workspace.find("diffscope"); it != track.workspace.end()) {
             const auto &workspace = it->second;
             if (auto v = conv::optionalChain(workspace, "colorId"); v.is_number_integer()) {

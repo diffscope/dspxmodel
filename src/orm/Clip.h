@@ -1,9 +1,15 @@
 #ifndef DSPXMODEL_CLIP_H
 #define DSPXMODEL_CLIP_H
 
+#include <memory>
+
 #include <QString>
 
 #include <dspxmodelORM/EntityObject.h>
+
+namespace opendspx {
+    struct Clip;
+}
 
 namespace dspx {
 
@@ -16,6 +22,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Clip : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Clip)
         Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
         Q_PROPERTY(double gain READ gain WRITE setGain NOTIFY gainChanged)
         Q_PROPERTY(double pan READ pan WRITE setPan NOTIFY panChanged)
@@ -173,6 +180,17 @@ namespace dspx {
          */
         ClipSequence *clipSequence() const;
 
+        /**
+         * @brief Converts to OpenDSPX clip ref.
+         */
+        std::shared_ptr<opendspx::Clip> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX clip.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre clip must be valid.
+         */
+        void fromOpenDSPX(const std::shared_ptr<opendspx::Clip> &clip);
+
     signals:
         void nameChanged(const QString &name);
         void gainChanged(double gain);
@@ -190,6 +208,9 @@ namespace dspx {
 
     protected:
         explicit Clip(Handle handle, Model *model);
+
+        void fromOpenDSPXBase(const opendspx::Clip &clip);
+        void toOpenDSPXBase(opendspx::Clip &clip) const;
 
         QScopedPointer<ClipPrivate> d_ptr;
     };
