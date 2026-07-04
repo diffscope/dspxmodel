@@ -6,6 +6,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Label;
+}
+
 namespace dspx {
 
     class LabelSequence;
@@ -64,6 +68,17 @@ namespace dspx {
          * @brief Gets label sequence.
          */
         LabelSequence *labelSequence() const;
+
+        /**
+         * @brief Converts to OpenDSPX label.
+         */
+        opendspx::Label toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX label.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre label must be valid.
+         */
+        void fromOpenDSPX(const opendspx::Label &label);
 
     signals:
         void positionChanged(int position);

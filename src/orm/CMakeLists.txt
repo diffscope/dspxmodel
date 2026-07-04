@@ -5,9 +5,11 @@ project(dspxmodelORM
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
+find_package(opendspx CONFIG REQUIRED)
+
 dspxmodel_add_library(${PROJECT_NAME} AUTOGEN
     SOURCES ${_src}
-    LINKS dspxmodelCore
+    LINKS dspxmodelCore opendspx
     QT_LINKS Core
     QT_INCLUDE_PRIVATE Core
     INCLUDE_PRIVATE *

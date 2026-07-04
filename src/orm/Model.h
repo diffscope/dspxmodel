@@ -6,6 +6,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Model;
+}
+
 namespace dspx {
 
     class Document;
@@ -210,6 +214,17 @@ namespace dspx {
          * @post tracks() != nullptr.
          */
         TrackList *tracks() const;
+
+        /**
+         * @brief Converts to OpenDSPX model.
+         */
+        opendspx::Model toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX model.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre model must be valid.
+         */
+        void fromOpenDspx(const opendspx::Model &model);
 
         /**
          * @brief Creates label.

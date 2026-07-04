@@ -6,8 +6,10 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
@@ -166,6 +168,24 @@ namespace dspx {
         return TrackListPrivate::get(this)->model;
     }
 
+    std::vector<opendspx::Track> TrackList::toOpenDSPX() const {
+        std::vector<opendspx::Track> result;
+        result.reserve(static_cast<std::size_t>(size()));
+        for (auto track : items()) {
+            result.push_back(track->toOpenDSPX());
+        }
+        return result;
+    }
+
+    void TrackList::fromOpenDSPX(const std::vector<opendspx::Track> &tracks) {
+        while (size() > 0) {
+            removeItem(size() - 1);
+        }
+        for (const auto &source : tracks) {
+            auto track = model()->createTrack();
+            track->fromOpenDSPX(source);
+            insertItem(size(), track);
+        }
+    }
+
 }
-
-

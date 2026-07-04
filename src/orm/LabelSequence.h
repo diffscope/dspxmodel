@@ -1,11 +1,17 @@
 #ifndef DSPXMODEL_LABELSEQUENCE_H
 #define DSPXMODEL_LABELSEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Label;
+}
 
 namespace dspx {
 
@@ -72,6 +78,17 @@ namespace dspx {
          * @post model() != nullptr.
          */
         Model *model() const;
+
+        /**
+         * @brief Converts to OpenDSPX label sequence.
+         */
+        std::vector<opendspx::Label> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX label sequence.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre labels must be valid.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::Label> &labels);
 
     signals:
         void sizeChanged(int size);

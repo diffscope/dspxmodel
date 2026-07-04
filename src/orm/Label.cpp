@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include <dini/transaction.h>
+#include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/private/LabelSequence_p.h>
@@ -52,6 +53,7 @@ namespace dspx {
                 .moveSemantics = MoveSemantics::None,
                 .ensure = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) { return model.ensure<Label>(snapshot); },
                 .find = [](ModelPrivate &model, Handle handle) { return model.find<Label>(handle); },
+                .removeObject = [](ModelPrivate &model, Handle handle) { model.labelObjects.remove(handle); },
                 .sync = [](Label *item, const dini::ItemSnapshot &snapshot, bool notify) { syncLabelColumns(item, snapshot, notify); },
                 .applyColumn = [](Label *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) { return applyLabelColumn(item, column, value, notify); },
                 .ownerForSnapshot = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
@@ -138,6 +140,18 @@ namespace dspx {
     LabelSequence *Label::labelSequence() const {
         Q_D(const Label);
         return d->sequence;
+    }
+
+    opendspx::Label Label::toOpenDSPX() const {
+        return {
+            .pos = position(),
+            .text = text().toStdString(),
+        };
+    }
+
+    void Label::fromOpenDSPX(const opendspx::Label &label) {
+        setPosition(label.pos);
+        setText(QString::fromStdString(label.text));
     }
 
 }

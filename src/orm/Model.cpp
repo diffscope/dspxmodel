@@ -7,17 +7,25 @@
 #include <stdexcept>
 #include <variant>
 
+#include <opendspx/model.h>
+
 #include <dini/engine.h>
 #include <dini/transaction.h>
 
 #include <dspxmodelCore/Document.h>
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
 #include <dspxmodelORM/private/KeySignatureSequence_p.h>
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/LabelSequence_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/Tempo_p.h>
+#include <dspxmodelORM/private/TempoSequence_p.h>
+#include <dspxmodelORM/private/TimeSignature_p.h>
+#include <dspxmodelORM/private/TimeSignatureSequence_p.h>
 #include <dspxmodelORM/private/Track_p.h>
 #include <dspxmodelORM/private/TrackList_p.h>
 
@@ -152,8 +160,10 @@ namespace dspx {
         auto *q = q_func();
         labels = LabelSequencePrivate::create(q);
         keySignatures = KeySignatureSequencePrivate::create(q);
+        tempos = TempoSequencePrivate::create(q);
+        timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
-        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding()};
+        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding()};
         listBindings = {&orm::trackListBinding()};
 
         syncModel(false);
@@ -242,6 +252,8 @@ namespace dspx {
     void ModelPrivate::refreshContainers(bool notify) {
         LabelSequencePrivate::get(labels)->refresh(notify);
         KeySignatureSequencePrivate::get(keySignatures)->refresh(notify);
+        TempoSequencePrivate::get(tempos)->refresh(notify);
+        TimeSignatureSequencePrivate::get(timeSignatures)->refresh(notify);
         TrackListPrivate::get(tracks)->refresh(notify, notify);
     }
 
@@ -487,16 +499,90 @@ namespace dspx {
     }
 
     TempoSequence *Model::tempos() const {
-        return nullptr;
+        Q_D(const Model);
+        return d->tempos;
     }
 
     TimeSignatureSequence *Model::timeSignatures() const {
-        return nullptr;
+        Q_D(const Model);
+        return d->timeSignatures;
     }
 
     TrackList *Model::tracks() const {
         Q_D(const Model);
         return d->tracks;
+    }
+
+    opendspx::Model Model::toOpenDSPX() const {
+        auto target = opendspx::Model{
+            .content = {
+                .global = {
+                    .author = projectAuthor().toStdString(),
+                    .name = projectName().toStdString(),
+                    .centShift = globalCentShift(),
+                },
+                .master = {
+                    .control = {
+                        .gain = conv::toDecibel(gain()),
+                        .pan = pan(),
+                        .mute = mute(),
+                    }
+                },
+                .timeline = {
+                    .labels = labels()->toOpenDSPX(),
+                    .tempos = tempos()->toOpenDSPX(),
+                    .timeSignatures = timeSignatures()->toOpenDSPX(),
+                },
+                .tracks = tracks()->toOpenDSPX(),
+                .workspace = {
+                    {"diffscope", nlohmann::json::object({
+                        {"loop", nlohmann::json{
+                            {"enabled", loopEnabled()},
+                            {"start", loopStart()},
+                            {"length", loopLength()},
+                        }},
+                        {"master", nlohmann::json{
+                            {"multiChannelOutput", multiChannelOutput()}
+                        }},
+                        {"keySignatures", keySignatures()->toOpenDSPX()}
+                    })}
+                }
+            }
+        };
+        OpenDSPXConversion::convertModelToOpenDSPX(this, target);
+        return target;
+
+    }
+
+    void Model::fromOpenDspx(const opendspx::Model &model) {
+        setProjectAuthor(QString::fromStdString(model.content.global.author));
+        setProjectName(QString::fromStdString(model.content.global.name));
+        setGlobalCentShift(model.content.global.centShift);
+        setGain(conv::fromDecibel(model.content.master.control.gain));
+        setPan(model.content.master.control.pan);
+        setMute(model.content.master.control.mute);
+        labels()->fromOpenDSPX(model.content.timeline.labels);
+        tempos()->fromOpenDSPX(model.content.timeline.tempos);
+        timeSignatures()->fromOpenDSPX(model.content.timeline.timeSignatures);
+        tracks()->fromOpenDSPX(model.content.tracks);
+        if (auto it = model.content.workspace.find("diffscope"); it != model.content.workspace.end()) {
+            const auto &workspace = it->second;
+            if (auto v = conv::optionalChain(workspace, "loop", "enabled"); v.is_boolean()) {
+                setLoopEnabled(v.get<bool>());
+            }
+            if (auto v = conv::optionalChain(workspace, "loop", "start"); v.is_number_integer() && v.get<int>() >= 0) {
+                setLoopStart(v.get<int>());
+            }
+            if (auto v = conv::optionalChain(workspace, "loop", "length"); v.is_number_integer() && v.get<int>() > 0) {
+                setLoopLength(v.get<int>());
+            }
+            if (auto v = conv::optionalChain(workspace, "master", "multiChannelOutput"); v.is_boolean()) {
+                setMultiChannelOutput(v.get<bool>());
+            }
+            if (auto v = conv::optionalChain(workspace, "keySignatures"); v.is_array()) {
+                keySignatures()->fromOpenDSPX(v.get<std::vector<nlohmann::json>>());
+            }
+        }
     }
 
     Label *Model::createLabel() {
@@ -516,11 +602,19 @@ namespace dspx {
     }
 
     Tempo *Model::createTempo() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::tempoTable(), {
+            dini::ColumnValue {.column = Schema::tempoParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<Tempo>(orm::handleFromId(id));
     }
 
     TimeSignature *Model::createTimeSignature() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::timeSignatureTable(), {
+            dini::ColumnValue {.column = Schema::timeSignatureParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<TimeSignature>(orm::handleFromId(id));
     }
 
     Track *Model::createTrack() {
@@ -575,6 +669,4 @@ namespace dspx {
     }
 
 }
-
-
 

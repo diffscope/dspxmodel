@@ -1,10 +1,17 @@
 #ifndef DSPXMODEL_TEMPOSEQUENCE_H
 #define DSPXMODEL_TEMPOSEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Tempo;
+}
 
 namespace dspx {
 
@@ -18,13 +25,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT TempoSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(TempoSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Tempo *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Tempo *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Model *model READ model CONSTANT)
     public:
-        ~TempoSequence() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -53,6 +59,11 @@ namespace dspx {
         Q_INVOKABLE bool contains(Tempo *item) const;
         /**
          * @brief Inserts item.
+         *
+         * If another item in this sequence already has the inserted item's position, that item is removed from this
+         * sequence before the inserted item is added.
+         *
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item != nullptr && item->model() == model().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
@@ -60,6 +71,7 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(Tempo *item);
         /**
          * @brief Removes item.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item != nullptr && item->model() == model().
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -71,6 +83,17 @@ namespace dspx {
          */
         Model *model() const;
 
+        /**
+         * @brief Converts to OpenDSPX tempo sequence.
+         */
+        std::vector<opendspx::Tempo> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX tempo sequence.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre tempos must be valid.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::Tempo> &tempos);
+
     signals:
         void sizeChanged(int size);
         void firstItemChanged(Tempo *firstItem);
@@ -81,6 +104,8 @@ namespace dspx {
         void itemRemoved(Tempo *item);
 
     private:
+        ~TempoSequence() override;
+
         explicit TempoSequence(Model *model);
 
         QScopedPointer<TempoSequencePrivate> d_ptr;

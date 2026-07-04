@@ -6,9 +6,11 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/private/Label_p.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
@@ -139,7 +141,23 @@ namespace dspx {
         return LabelSequencePrivate::get(this)->model;
     }
 
+    std::vector<opendspx::Label> LabelSequence::toOpenDSPX() const {
+        std::vector<opendspx::Label> result;
+        for (auto label = firstItem(); label; label = label->nextItem()) {
+            result.push_back(label->toOpenDSPX());
+        }
+        return result;
+    }
+
+    void LabelSequence::fromOpenDSPX(const std::vector<opendspx::Label> &labels) {
+        while (size() > 0) {
+            removeItem(firstItem());
+        }
+        for (const auto &source : labels) {
+            auto label = model()->createLabel();
+            label->fromOpenDSPX(source);
+            insertItem(label);
+        }
+    }
+
 }
-
-
-

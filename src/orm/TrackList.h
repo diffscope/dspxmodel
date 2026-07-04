@@ -1,11 +1,17 @@
 #ifndef DSPXMODEL_TRACKLIST_H
 #define DSPXMODEL_TRACKLIST_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Track;
+}
 
 namespace dspx {
 
@@ -72,6 +78,17 @@ namespace dspx {
          * @post model() != nullptr.
          */
         Model *model() const;
+
+        /**
+         * @brief Converts to OpenDSPX track list.
+         */
+        std::vector<opendspx::Track> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX track list.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre tracks must be valid.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::Track> &tracks);
 
     signals:
         void sizeChanged(int size);

@@ -7,10 +7,12 @@
 #include <dini/transaction.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/KeySignatureSequence_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <nlohmann/json.hpp>
 
 namespace dspx {
 
@@ -55,6 +57,7 @@ namespace dspx {
                 .moveSemantics = MoveSemantics::None,
                 .ensure = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) { return model.ensure<KeySignature>(snapshot); },
                 .find = [](ModelPrivate &model, Handle handle) { return model.find<KeySignature>(handle); },
+                .removeObject = [](ModelPrivate &model, Handle handle) { model.keySignatureObjects.remove(handle); },
                 .sync = [](KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify) { syncColumnBindings(keySignatureColumnBindings(), item, snapshot, notify); },
                 .applyColumn = [](KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) { return applyColumnBinding(keySignatureColumnBindings(), item, column, value, notify); },
                 .ownerForSnapshot = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
@@ -74,6 +77,14 @@ namespace dspx {
                 .itemRemoved = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemRemoved(item); },
             });
             return binding;
+        }
+
+        void syncKeySignatureColumns(KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify) {
+            syncColumnBindings(keySignatureColumnBindings(), item, snapshot, notify);
+        }
+
+        bool applyKeySignatureColumn(KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
+            return applyColumnBinding(keySignatureColumnBindings(), item, column, value, notify);
         }
 
     }
@@ -166,6 +177,33 @@ namespace dspx {
     KeySignatureSequence *KeySignature::keySignatureSequence() const {
         Q_D(const KeySignature);
         return d->sequence;
+    }
+
+    nlohmann::json KeySignature::toOpenDSPX() const {
+        return nlohmann::json::object({
+            {"pos", position()},
+            {"mode", mode()},
+            {"tonality", tonality()},
+            {"accidentalType", accidentalType()},
+        });
+    }
+
+    void KeySignature::fromOpenDSPX(const nlohmann::json &keySignature) {
+        if (auto v = conv::optionalChain(keySignature, "pos"); v.is_number_integer() && v.get<int>() >= 0) {
+            setPosition(v.get<int>());
+        }
+        if (auto v = conv::optionalChain(keySignature, "mode"); v.is_number_integer() && v.get<int>() >= 0 && v.get<int>() < 4096) {
+            setMode(v.get<int>());
+        }
+        if (auto v = conv::optionalChain(keySignature, "tonality"); v.is_number_integer() && v.get<int>() >= 0 && v.get<int>() < 12) {
+            setTonality(v.get<int>());
+        }
+        if (auto v = conv::optionalChain(keySignature, "accidentalType"); v.is_number_integer()) {
+            const auto value = v.get<int>();
+            if (value == Flat || value == Sharp) {
+                setAccidentalType(static_cast<AccidentalType>(value));
+            }
+        }
     }
 
 }

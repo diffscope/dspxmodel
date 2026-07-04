@@ -1,7 +1,13 @@
 #ifndef DSPXMODEL_TEMPO_H
 #define DSPXMODEL_TEMPO_H
 
+#include <QScopedPointer>
+
 #include <dspxmodelORM/EntityObject.h>
+
+namespace opendspx {
+    struct Tempo;
+}
 
 namespace dspx {
 
@@ -14,14 +20,13 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Tempo : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Tempo)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)
         Q_PROPERTY(Tempo *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(Tempo *nextItem READ nextItem NOTIFY nextItemChanged)
         Q_PROPERTY(TempoSequence *tempoSequence READ tempoSequence NOTIFY tempoSequenceChanged)
     public:
-        ~Tempo() override;
-
         /**
          * @brief Gets position.
          *
@@ -32,6 +37,11 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
+         *
+         * If this tempo is contained in a tempo sequence and another item in the same sequence already has the target
+         * position, that item is removed from the sequence before this position is updated.
+         *
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
          * @post position() == position.
          */
@@ -47,6 +57,7 @@ namespace dspx {
         double value() const;
         /**
          * @brief Sets value.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre value >= 10 && value <= 1000.
          * @post value() == value.
          */
@@ -66,6 +77,17 @@ namespace dspx {
          */
         TempoSequence *tempoSequence() const;
 
+        /**
+         * @brief Converts to OpenDSPX tempo.
+         */
+        opendspx::Tempo toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX tempo.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre tempo must be valid.
+         */
+        void fromOpenDSPX(const opendspx::Tempo &tempo);
+
     signals:
         void positionChanged(int position);
         void valueChanged(double value);
@@ -74,6 +96,8 @@ namespace dspx {
         void tempoSequenceChanged(TempoSequence *tempoSequence);
 
     private:
+        ~Tempo() override;
+
         explicit Tempo(Handle handle, Model *model);
 
         QScopedPointer<TempoPrivate> d_ptr;

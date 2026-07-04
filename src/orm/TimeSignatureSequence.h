@@ -1,10 +1,17 @@
 #ifndef DSPXMODEL_TIMESIGNATURESEQUENCE_H
 #define DSPXMODEL_TIMESIGNATURESEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct TimeSignature;
+}
 
 namespace dspx {
 
@@ -18,13 +25,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT TimeSignatureSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(TimeSignatureSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(TimeSignature *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(TimeSignature *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Model *model READ model CONSTANT)
     public:
-        ~TimeSignatureSequence() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -53,6 +59,11 @@ namespace dspx {
         Q_INVOKABLE bool contains(TimeSignature *item) const;
         /**
          * @brief Inserts item.
+         *
+         * If another item in this sequence already has the inserted item's index, that item is removed from this
+         * sequence before the inserted item is added.
+         *
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item != nullptr && item->model() == model().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
@@ -60,6 +71,7 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(TimeSignature *item);
         /**
          * @brief Removes item.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item != nullptr && item->model() == model().
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -71,6 +83,17 @@ namespace dspx {
          */
         Model *model() const;
 
+        /**
+         * @brief Converts to OpenDSPX time signature sequence.
+         */
+        std::vector<opendspx::TimeSignature> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX time signature sequence.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre timeSignatures must be valid.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::TimeSignature> &timeSignatures);
+
     signals:
         void sizeChanged(int size);
         void firstItemChanged(TimeSignature *firstItem);
@@ -81,6 +104,8 @@ namespace dspx {
         void itemRemoved(TimeSignature *item);
 
     private:
+        ~TimeSignatureSequence() override;
+
         explicit TimeSignatureSequence(Model *model);
 
         QScopedPointer<TimeSignatureSequencePrivate> d_ptr;

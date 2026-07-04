@@ -1,11 +1,14 @@
 #ifndef DSPXMODEL_KEYSIGNATURESEQUENCE_H
 #define DSPXMODEL_KEYSIGNATURESEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <nlohmann/json_fwd.hpp>
 
 namespace dspx {
 
@@ -76,6 +79,17 @@ namespace dspx {
          * @post model() != nullptr.
          */
         Model *model() const;
+
+        /**
+         * @brief Converts to OpenDSPX key signature sequence.
+         */
+        nlohmann::json toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX key signature sequence.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre keySignatures must be valid.
+         */
+        void fromOpenDSPX(const nlohmann::json &keySignatures);
 
     signals:
         void sizeChanged(int size);

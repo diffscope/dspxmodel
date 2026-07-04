@@ -21,6 +21,8 @@ namespace dspx {
     class ModelPrivate;
     class KeySignature;
     class Label;
+    class Tempo;
+    class TimeSignature;
     class Track;
 
     namespace orm {
@@ -321,6 +323,7 @@ namespace dspx {
 
             std::function<Object *(ModelPrivate &, const dini::ItemSnapshot &)> ensure;
             std::function<Object *(ModelPrivate &, Handle)> find;
+            std::function<void(ModelPrivate &, Handle)> removeObject;
             std::function<void(Object *, const dini::ItemSnapshot &, bool)> sync;
             std::function<bool(Object *, const dini::ColumnHandle &, const dini::Value &, bool)> applyColumn;
 
@@ -381,7 +384,9 @@ namespace dspx {
                     if (spec.setOwner) {
                         spec.setOwner(item, nullptr, true);
                     }
-                    spec.removeObject(model, handleFromId(snapshot.id));
+                    if (spec.removeObject) {
+                        spec.removeObject(model, handleFromId(snapshot.id));
+                    }
                     if (owner && spec.refreshOwner) {
                         spec.refreshOwner(owner, true);
                     }
@@ -638,21 +643,28 @@ namespace dspx {
         const TableBinding &modelTableBinding();
         const TableBinding &labelTableBinding();
         const TableBinding &keySignatureTableBinding();
+        const TableBinding &tempoTableBinding();
+        const TableBinding &timeSignatureTableBinding();
         const ListBinding &trackListBinding();
 
         void syncLabelColumns(Label *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyLabelColumn(Label *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncKeySignatureColumns(KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyKeySignatureColumn(KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncTempoColumns(Tempo *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyTempoColumn(Tempo *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncTimeSignatureColumns(TimeSignature *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyTimeSignatureColumn(TimeSignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncTrackColumns(Track *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyTrackColumn(Track *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
 
         const OrderSpec &labelOrderSpec();
         const OrderSpec &keySignatureOrderSpec();
+        const OrderSpec &tempoOrderSpec();
+        const OrderSpec &timeSignatureOrderSpec();
 
     }
 
 }
 
 #endif // DSPXMODEL_ORMBINDING_P_H
-

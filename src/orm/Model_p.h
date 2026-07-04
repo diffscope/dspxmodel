@@ -16,7 +16,10 @@
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
+#include <dspxmodelORM/private/Tempo_p.h>
+#include <dspxmodelORM/private/TimeSignature_p.h>
 #include <dspxmodelORM/private/Track_p.h>
+#include <dspxmodelCore/Schema.h>
 
 namespace dini {
     class DocumentEngine;
@@ -63,6 +66,10 @@ namespace dspx {
                 return labelObjects;
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return keySignatureObjects;
+            } else if constexpr (std::is_same_v<T, Tempo>) {
+                return tempoObjects;
+            } else if constexpr (std::is_same_v<T, TimeSignature>) {
+                return timeSignatureObjects;
             } else if constexpr (std::is_same_v<T, Track>) {
                 return trackObjects;
             } else {
@@ -72,11 +79,20 @@ namespace dspx {
         }
 
         template <typename T>
+        const QHash<Handle, T *> &objectMap() const {
+            return const_cast<ModelPrivate *>(this)->objectMap<T>();
+        }
+
+        template <typename T>
         static T *createObject(Handle handle, Model *model) {
             if constexpr (std::is_same_v<T, Label>) {
                 return LabelPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return KeySignaturePrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, Tempo>) {
+                return TempoPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, TimeSignature>) {
+                return TimeSignaturePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Track>) {
                 return TrackPrivate::create(handle, model);
             } else {
@@ -98,16 +114,46 @@ namespace dspx {
 
         template <typename T>
         T *ensure(const dini::ItemSnapshot &snapshot) {
-            if (!orm::isContainer(snapshot, Schema::labelTable())) {
-                return nullptr;
+            if constexpr (std::is_same_v<T, Label>) {
+                if (!orm::isContainer(snapshot, Schema::labelTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, KeySignature>) {
+                if (!orm::isContainer(snapshot, Schema::keySignatureTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Tempo>) {
+                if (!orm::isContainer(snapshot, Schema::tempoTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, TimeSignature>) {
+                if (!orm::isContainer(snapshot, Schema::timeSignatureTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Track>) {
+                if (!orm::isContainer(snapshot, Schema::trackList())) {
+                    return nullptr;
+                }
+            } else {
+                static_assert(std::is_same_v<T, void>);
             }
             const auto handle = orm::handleFromId(snapshot.id);
             if (auto it = objectMap<T>().find(handle); it != objectMap<T>().end()) {
                 return it.value();
             }
             auto *object = createObject<T>(handle, q_func());
-            labelObjects.insert(handle, object);
-            orm::syncLabelColumns(object, snapshot, false);
+            objectMap<T>().insert(handle, object);
+            if constexpr (std::is_same_v<T, Label>) {
+                orm::syncLabelColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, KeySignature>) {
+                orm::syncKeySignatureColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, Tempo>) {
+                orm::syncTempoColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, TimeSignature>) {
+                orm::syncTimeSignatureColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, Track>) {
+                orm::syncTrackColumns(object, snapshot, false);
+            }
             return object;
         }
 
@@ -138,6 +184,8 @@ namespace dspx {
 
         LabelSequence *labels = nullptr;
         KeySignatureSequence *keySignatures = nullptr;
+        TempoSequence *tempos = nullptr;
+        TimeSignatureSequence *timeSignatures = nullptr;
         TrackList *tracks = nullptr;
 
         std::vector<const orm::TableBinding *> tableBindings;
@@ -145,6 +193,8 @@ namespace dspx {
 
         QHash<Handle, Label *> labelObjects;
         QHash<Handle, KeySignature *> keySignatureObjects;
+        QHash<Handle, Tempo *> tempoObjects;
+        QHash<Handle, TimeSignature *> timeSignatureObjects;
         QHash<Handle, Track *> trackObjects;
 
         QString projectName;

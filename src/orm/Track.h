@@ -6,6 +6,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Track;
+}
+
 namespace dspx {
 
     class ClipSequence;
@@ -132,6 +136,17 @@ namespace dspx {
          * @brief Gets track list.
          */
         TrackList *trackList() const;
+
+        /**
+         * @brief Converts to OpenDSPX track.
+         */
+        opendspx::Track toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX track.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre track must be valid.
+         */
+        void fromOpenDSPX(const opendspx::Track &track);
 
     signals:
         void colorIdChanged(int colorId);

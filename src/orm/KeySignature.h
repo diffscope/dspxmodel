@@ -4,6 +4,7 @@
 #include <QScopedPointer>
 
 #include <dspxmodelORM/EntityObject.h>
+#include <nlohmann/json_fwd.hpp>
 
 namespace dspx {
 
@@ -111,6 +112,17 @@ namespace dspx {
          * @brief Gets key signature sequence.
          */
         KeySignatureSequence *keySignatureSequence() const;
+
+        /**
+         * @brief Converts to OpenDSPX key signature.
+         */
+        nlohmann::json toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX key signature.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre keySignature must be valid.
+         */
+        void fromOpenDSPX(const nlohmann::json &keySignature);
 
     signals:
         void positionChanged(int position);

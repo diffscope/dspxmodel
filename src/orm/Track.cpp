@@ -4,8 +4,11 @@
 #include <cstdint>
 
 #include <dini/transaction.h>
+#include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
@@ -130,6 +133,45 @@ namespace dspx {
         return TrackPrivate::get(this)->trackList;
     }
 
+    opendspx::Track Track::toOpenDSPX() const {
+        opendspx::Track target;
+        target.name = name().toStdString();
+        target.control = {
+            .gain = conv::toDecibel(gain()),
+            .pan = pan(),
+            .mute = mute(),
+            .solo = solo(),
+        };
+        target.workspace["diffscope"] = nlohmann::json::object({
+            {"colorId", colorId()},
+            {"height", height()},
+            {"record", record()},
+        });
+        OpenDSPXConversion::convertTrackToOpenDSPX(this, target);
+        return target;
+    }
+
+    void Track::fromOpenDSPX(const opendspx::Track &track) {
+        setName(QString::fromStdString(track.name));
+        setGain(conv::fromDecibel(track.control.gain));
+        setPan(track.control.pan);
+        setMute(track.control.mute);
+        setSolo(track.control.solo);
+        if (auto it = track.workspace.find("diffscope"); it != track.workspace.end()) {
+            const auto &workspace = it->second;
+            if (auto v = conv::optionalChain(workspace, "colorId"); v.is_number_integer()) {
+                setColorId(v.get<int>());
+            }
+            if (auto v = conv::optionalChain(workspace, "height"); v.is_number()) {
+                setHeight(v.get<double>());
+            }
+            if (auto v = conv::optionalChain(workspace, "record"); v.is_boolean()) {
+                setRecord(v.get<bool>());
+            }
+        }
+        OpenDSPXConversion::convertTrackFromOpenDSPX(this, track);
+    }
+
     namespace orm {
 
         void syncTrackColumns(Track *item, const dini::ItemSnapshot &snapshot, bool notify) {
@@ -143,4 +185,3 @@ namespace dspx {
     }
 
 }
-

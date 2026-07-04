@@ -1,6 +1,7 @@
 #include "KeySignatureSequence.h"
 #include "KeySignatureSequence_p.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
@@ -9,9 +10,11 @@
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <nlohmann/json.hpp>
 
 namespace dspx {
 
@@ -162,6 +165,28 @@ namespace dspx {
 
     Model *KeySignatureSequence::model() const {
         return KeySignatureSequencePrivate::get(this)->model;
+    }
+
+    nlohmann::json KeySignatureSequence::toOpenDSPX() const {
+        nlohmann::json result = nlohmann::json::array();
+        for (auto keySignature = firstItem(); keySignature; keySignature = keySignature->nextItem()) {
+            result.push_back(keySignature->toOpenDSPX());
+        }
+        return result;
+    }
+
+    void KeySignatureSequence::fromOpenDSPX(const nlohmann::json &keySignatures) {
+        while (size() > 0) {
+            removeItem(firstItem());
+        }
+        if (!keySignatures.is_array()) {
+            return;
+        }
+        for (const auto &source : keySignatures) {
+            auto keySignature = model()->createKeySignature();
+            keySignature->fromOpenDSPX(source);
+            insertItem(keySignature);
+        }
     }
 
 }
