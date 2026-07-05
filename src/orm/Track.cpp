@@ -2,6 +2,7 @@
 #include "Track_p.h"
 
 #include <cstdint>
+#include <utility>
 
 #include <dini/transaction.h>
 #include <opendspx/model.h>
@@ -28,6 +29,7 @@ namespace dspx {
                 orm::boolField<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged),
                 orm::boolField<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged),
                 orm::boolField<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged),
+                orm::binaryField<Track, TrackPrivate>(Schema::trackWorkspaceColumn(), &TrackPrivate::workspaceData, nullptr),
                 {Schema::trackParent().column(), [](Track *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TrackPrivate::get(q);
@@ -58,6 +60,15 @@ namespace dspx {
         }
     }
 
+    dini::ByteArray TrackPrivate::workspace() const {
+        return workspaceData;
+    }
+
+    void TrackPrivate::setWorkspace(dini::ByteArray workspace) {
+        Q_Q(Track);
+        ModelPrivate::get(q->model())->update(q->handle(), Schema::trackWorkspaceColumn(), dini::Value(std::move(workspace)));
+    }
+
     Track::Track(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new TrackPrivate(this)) {
         Q_D(Track);
         d->clips = ClipSequencePrivate::create(this);
@@ -67,7 +78,8 @@ namespace dspx {
     Track::~Track() = default;
 
     int Track::colorId() const {
-        return TrackPrivate::get(this)->colorId;
+        Q_D(const Track);
+        return d->colorId;
     }
 
     void Track::setColorId(int colorId) {
@@ -75,7 +87,8 @@ namespace dspx {
     }
 
     double Track::height() const {
-        return TrackPrivate::get(this)->height;
+        Q_D(const Track);
+        return d->height;
     }
 
     void Track::setHeight(double height) {
@@ -83,7 +96,8 @@ namespace dspx {
     }
 
     QString Track::name() const {
-        return TrackPrivate::get(this)->name;
+        Q_D(const Track);
+        return d->name;
     }
 
     void Track::setName(const QString &name) {
@@ -91,7 +105,8 @@ namespace dspx {
     }
 
     double Track::gain() const {
-        return TrackPrivate::get(this)->gain;
+        Q_D(const Track);
+        return d->gain;
     }
 
     void Track::setGain(double gain) {
@@ -99,7 +114,8 @@ namespace dspx {
     }
 
     double Track::pan() const {
-        return TrackPrivate::get(this)->pan;
+        Q_D(const Track);
+        return d->pan;
     }
 
     void Track::setPan(double pan) {
@@ -107,7 +123,8 @@ namespace dspx {
     }
 
     bool Track::mute() const {
-        return TrackPrivate::get(this)->mute;
+        Q_D(const Track);
+        return d->mute;
     }
 
     void Track::setMute(bool mute) {
@@ -115,7 +132,8 @@ namespace dspx {
     }
 
     bool Track::solo() const {
-        return TrackPrivate::get(this)->solo;
+        Q_D(const Track);
+        return d->solo;
     }
 
     void Track::setSolo(bool solo) {
@@ -123,7 +141,8 @@ namespace dspx {
     }
 
     bool Track::record() const {
-        return TrackPrivate::get(this)->record;
+        Q_D(const Track);
+        return d->record;
     }
 
     void Track::setRecord(bool record) {
@@ -131,14 +150,17 @@ namespace dspx {
     }
 
     ClipSequence *Track::clips() const {
-        return TrackPrivate::get(this)->clips;
+        Q_D(const Track);
+        return d->clips;
     }
 
     TrackList *Track::trackList() const {
-        return TrackPrivate::get(this)->trackList;
+        Q_D(const Track);
+        return d->trackList;
     }
 
     opendspx::Track Track::toOpenDSPX() const {
+        Q_D(const Track);
         opendspx::Track target;
         target.name = name().toStdString();
         target.control = {
@@ -148,16 +170,18 @@ namespace dspx {
             .solo = solo(),
         };
         target.clips = clips()->toOpenDSPX();
-        target.workspace["diffscope"] = nlohmann::json::object({
-            {"colorId", colorId()},
-            {"height", height()},
-            {"record", record()},
-        });
+        target.workspace = conv::deserializeWorkspace(d->workspace());
+        auto &diffscope = conv::ensureObject(target.workspace["diffscope"]);
+        diffscope["colorId"] = colorId();
+        diffscope["height"] = height();
+        diffscope["record"] = record();
         OpenDSPXConversion::convertTrackToOpenDSPX(this, target);
         return target;
     }
 
     void Track::fromOpenDSPX(const opendspx::Track &track) {
+        Q_D(Track);
+        d->setWorkspace(conv::serializeWorkspace(track.workspace));
         setName(QString::fromStdString(track.name));
         setGain(conv::fromDecibel(track.control.gain));
         setPan(track.control.pan);

@@ -3,6 +3,8 @@
 
 #include <dspxmodelORM/Track.h>
 
+#include <dini/types.h>
+
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
 namespace dspx {
@@ -16,6 +18,8 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(Track)
 
         void setTrackList(TrackList *list, bool notify);
+        dini::ByteArray workspace() const;
+        void setWorkspace(dini::ByteArray workspace);
 
         Track *q_ptr = nullptr;
         ClipSequence *clips = nullptr;
@@ -27,6 +31,7 @@ namespace dspx {
         bool mute = false;
         bool solo = false;
         bool record = false;
+        dini::ByteArray workspaceData;
         TrackList *trackList = nullptr;
     };
 

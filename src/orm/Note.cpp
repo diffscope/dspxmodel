@@ -2,6 +2,7 @@
 #include "Note_p.h"
 
 #include <cstdint>
+#include <utility>
 
 #include <dini/transaction.h>
 #include <opendspx/note.h>
@@ -9,11 +10,14 @@
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/NoteSequence.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/PhonemeSequence.h>
 #include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/NoteSequence_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/PhonemeSequence_p.h>
 
 namespace dspx {
 
@@ -51,6 +55,7 @@ namespace dspx {
                 orm::intField<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged),
                 orm::doubleField<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged),
                 orm::doubleField<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged),
+                orm::binaryField<Note, NotePrivate>(Schema::noteWorkspaceColumn(), &NotePrivate::workspaceData, nullptr),
                 {Schema::noteParent().column(), [](Note *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = NotePrivate::get(q);
@@ -129,7 +134,19 @@ namespace dspx {
         }
     }
 
+    dini::ByteArray NotePrivate::workspace() const {
+        return workspaceData;
+    }
+
+    void NotePrivate::setWorkspace(dini::ByteArray workspace) {
+        Q_Q(Note);
+        ModelPrivate::get(q->model())->update(q->handle(), Schema::noteWorkspaceColumn(), dini::Value(std::move(workspace)));
+    }
+
     Note::Note(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new NotePrivate(this)) {
+        Q_D(Note);
+        d->originalPhonemes = PhonemeSequencePrivate::create(this, PhonemeSequence::Original);
+        d->editedPhonemes = PhonemeSequencePrivate::create(this, PhonemeSequence::Edited);
     }
 
     Note::~Note() = default;
@@ -307,6 +324,7 @@ namespace dspx {
     }
 
     opendspx::Note Note::toOpenDSPX() const {
+        Q_D(const Note);
         opendspx::Note target {
             .pos = position(),
             .length = length(),
@@ -318,6 +336,10 @@ namespace dspx {
                 .original = originalPronunciation().toStdString(),
                 .edited = editedPronunciation().toStdString(),
             },
+            .phonemes = {
+                .original = originalPhonemes()->toOpenDSPX(),
+                .edited = editedPhonemes()->toOpenDSPX(),
+            },
             .vibrato = {
                 .start = vibratoStart(),
                 .end = vibratoEnd(),
@@ -327,11 +349,14 @@ namespace dspx {
                 .offset = vibratoOffset(),
             },
         };
+        target.workspace = conv::deserializeWorkspace(d->workspace());
         OpenDSPXConversion::convertNoteToOpenDSPX(this, target);
         return target;
     }
 
     void Note::fromOpenDSPX(const opendspx::Note &note) {
+        Q_D(Note);
+        d->setWorkspace(conv::serializeWorkspace(note.workspace));
         setPosition(note.pos);
         setLength(note.length);
         setKeyNumber(note.keyNum);
@@ -340,6 +365,8 @@ namespace dspx {
         setLyric(QString::fromStdString(note.lyric));
         setOriginalPronunciation(QString::fromStdString(note.pronunciation.original));
         setEditedPronunciation(QString::fromStdString(note.pronunciation.edited));
+        originalPhonemes()->fromOpenDSPX(note.phonemes.original);
+        editedPhonemes()->fromOpenDSPX(note.phonemes.edited);
         setVibratoStart(note.vibrato.start);
         setVibratoEnd(note.vibrato.end);
         setVibratoAmplitude(note.vibrato.amp);

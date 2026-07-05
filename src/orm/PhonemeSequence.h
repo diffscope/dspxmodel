@@ -1,10 +1,17 @@
 #ifndef DSPXMODEL_PHONEMESEQUENCE_H
 #define DSPXMODEL_PHONEMESEQUENCE_H
 
+#include <vector>
+
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Phoneme;
+}
 
 namespace dspx {
 
@@ -18,6 +25,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT PhonemeSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(PhonemeSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Phoneme *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Phoneme *lastItem READ lastItem NOTIFY lastItemChanged)
@@ -32,8 +40,6 @@ namespace dspx {
             Edited,
         };
         Q_ENUM(PhonemeRole)
-
-        ~PhonemeSequence() override;
 
         /**
          * @brief Gets size.
@@ -93,6 +99,16 @@ namespace dspx {
          */
         Note *note() const;
 
+        /**
+         * @brief Converts to OpenDSPX phonemes.
+         */
+        std::vector<opendspx::Phoneme> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX phonemes.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::Phoneme> &phonemes);
+
     signals:
         void sizeChanged(int size);
         void firstItemChanged(Phoneme *firstItem);
@@ -103,6 +119,8 @@ namespace dspx {
         void itemRemoved(Phoneme *item, PhonemeSequence *sequenceToWhichMoved = nullptr);
 
     private:
+        ~PhonemeSequence() override;
+
         explicit PhonemeSequence(Note *note, PhonemeRole role);
 
         QScopedPointer<PhonemeSequencePrivate> d_ptr;

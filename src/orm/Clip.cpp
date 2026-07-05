@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include <dini/transaction.h>
 #include <opendspx/audioclip.h>
@@ -60,6 +61,7 @@ namespace dspx {
                  }, [](Clip *q) {
                      emit q->overlappedChanged(q->overlapped());
                  }},
+                orm::binaryField<Clip, ClipPrivate>(Schema::clipWorkspaceColumn(), &ClipPrivate::workspaceData, nullptr),
                 {Schema::clipParent().column(), [](Clip *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = ClipPrivate::get(q);
@@ -149,6 +151,15 @@ namespace dspx {
         if (notify) {
             emit q->clipSequenceChanged(sequence);
         }
+    }
+
+    dini::ByteArray ClipPrivate::workspace() const {
+        return workspaceData;
+    }
+
+    void ClipPrivate::setWorkspace(dini::ByteArray workspace) {
+        Q_Q(Clip);
+        ModelPrivate::get(q->model())->update(q->handle(), Schema::clipWorkspaceColumn(), dini::Value(std::move(workspace)));
     }
 
     Clip::Clip(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new ClipPrivate(this)) {
@@ -297,6 +308,8 @@ namespace dspx {
     }
 
     void Clip::fromOpenDSPXBase(const opendspx::Clip &clip) {
+        Q_D(Clip);
+        d->setWorkspace(conv::serializeWorkspace(clip.workspace));
         setName(QString::fromStdString(clip.name));
         setGain(conv::fromDecibel(clip.control.gain));
         setPan(clip.control.pan);
@@ -308,6 +321,8 @@ namespace dspx {
     }
 
     void Clip::toOpenDSPXBase(opendspx::Clip &clip) const {
+        Q_D(const Clip);
+        clip.workspace = conv::deserializeWorkspace(d->workspace());
         clip.name = name().toStdString();
         clip.control = {
             .gain = conv::toDecibel(gain()),

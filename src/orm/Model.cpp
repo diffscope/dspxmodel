@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
+#include <utility>
 #include <variant>
 
 #include <opendspx/model.h>
@@ -24,6 +25,7 @@
 #include <dspxmodelORM/private/Note_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/Phoneme_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TempoSequence_p.h>
 #include <dspxmodelORM/private/TimeSignature_p.h>
@@ -128,6 +130,7 @@ namespace dspx {
                  }, [](ModelPrivate *self) {
                      emit self->q_ptr->loopLengthChanged(self->loopLength);
                  }},
+                orm::binaryField<ModelPrivate>(Schema::modelWorkspaceColumn(), &ModelPrivate::workspaceData, nullptr),
             };
             return bindings;
         }
@@ -165,7 +168,7 @@ namespace dspx {
         tempos = TempoSequencePrivate::create(q);
         timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
-        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::noteTableBinding()};
+        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::noteTableBinding(), &orm::phonemeTableBinding()};
         listBindings = {&orm::trackListBinding()};
 
         syncModel(false);
@@ -189,6 +192,7 @@ namespace dspx {
         const auto newLoopEnabled = orm::snapshotValue(snapshot, Schema::modelLoopEnabledColumn()).asBool();
         const auto newLoopStart = static_cast<int>(orm::snapshotValue(snapshot, Schema::modelLoopStartColumn()).asInt64());
         const auto newLoopLength = static_cast<int>(orm::snapshotValue(snapshot, Schema::modelLoopLengthColumn()).asInt64());
+        auto newWorkspace = orm::binaryFromValue(orm::snapshotValue(snapshot, Schema::modelWorkspaceColumn()));
 
         const bool projectNameChanged = projectName != newProjectName;
         const bool projectAuthorChanged = projectAuthor != newProjectAuthor;
@@ -211,6 +215,7 @@ namespace dspx {
         loopEnabled = newLoopEnabled;
         loopStart = newLoopStart;
         loopLength = newLoopLength;
+        workspaceData = std::move(newWorkspace);
 
         if (!notify) {
             return;
@@ -251,6 +256,14 @@ namespace dspx {
         return orm::applyColumnBinding(modelColumnBindings(), this, column, value, notify);
     }
 
+    dini::ByteArray ModelPrivate::workspace() const {
+        return workspaceData;
+    }
+
+    void ModelPrivate::setWorkspace(dini::ByteArray workspace) {
+        update(modelHandle, Schema::modelWorkspaceColumn(), dini::Value(std::move(workspace)));
+    }
+
     void ModelPrivate::refreshContainers(bool notify) {
         LabelSequencePrivate::get(labels)->refresh(notify);
         KeySignatureSequencePrivate::get(keySignatures)->refresh(notify);
@@ -275,9 +288,46 @@ namespace dspx {
         if (destroying || event.kind != dini::EventKind::AfterApply) {
             return;
         }
+        std::vector<dini::ColumnUpdatedChange> pendingColumnUpdates;
+        auto flushColumnUpdates = [&]() {
+            if (pendingColumnUpdates.empty()) {
+                return;
+            }
+
+            std::vector<bool> handled(pendingColumnUpdates.size(), false);
+            for (const auto *binding : tableBindings) {
+                if (!binding || !binding->columnUpdates) {
+                    continue;
+                }
+                std::vector<dini::ColumnUpdatedChange> bindingUpdates;
+                for (std::size_t i = 0; i < pendingColumnUpdates.size(); ++i) {
+                    if (pendingColumnUpdates[i].column.containerId() == binding->table.containerId()) {
+                        bindingUpdates.push_back(pendingColumnUpdates[i]);
+                        handled[i] = true;
+                    }
+                }
+                if (!bindingUpdates.empty()) {
+                    binding->columnUpdates(*this, bindingUpdates);
+                }
+            }
+
+            for (std::size_t i = 0; i < pendingColumnUpdates.size(); ++i) {
+                if (!handled[i]) {
+                    applyColumnUpdated(pendingColumnUpdates[i]);
+                }
+            }
+            pendingColumnUpdates.clear();
+        };
+
         for (const auto &operation : event.changeSet.operations()) {
+            if (operation.kind() == dini::ChangeOperationKind::ColumnUpdated) {
+                pendingColumnUpdates.push_back(std::get<dini::ColumnUpdatedChange>(operation.payload()));
+                continue;
+            }
+            flushColumnUpdates();
             applyOperation(operation);
         }
+        flushColumnUpdates();
     }
 
     const orm::TableBinding *ModelPrivate::tableBinding(dini::ContainerId containerId) const {
@@ -516,6 +566,7 @@ namespace dspx {
     }
 
     opendspx::Model Model::toOpenDSPX() const {
+        Q_D(const Model);
         auto target = opendspx::Model{
             .content = {
                 .global = {
@@ -536,27 +587,25 @@ namespace dspx {
                     .timeSignatures = timeSignatures()->toOpenDSPX(),
                 },
                 .tracks = tracks()->toOpenDSPX(),
-                .workspace = {
-                    {"diffscope", nlohmann::json::object({
-                        {"loop", nlohmann::json{
-                            {"enabled", loopEnabled()},
-                            {"start", loopStart()},
-                            {"length", loopLength()},
-                        }},
-                        {"master", nlohmann::json{
-                            {"multiChannelOutput", multiChannelOutput()}
-                        }},
-                        {"keySignatures", keySignatures()->toOpenDSPX()}
-                    })}
-                }
             }
         };
+        target.content.workspace = conv::deserializeWorkspace(d->workspace());
+        auto &diffscope = conv::ensureObject(target.content.workspace["diffscope"]);
+        auto &loop = conv::ensureObjectMember(diffscope, "loop");
+        loop["enabled"] = loopEnabled();
+        loop["start"] = loopStart();
+        loop["length"] = loopLength();
+        auto &master = conv::ensureObjectMember(diffscope, "master");
+        master["multiChannelOutput"] = multiChannelOutput();
+        diffscope["keySignatures"] = keySignatures()->toOpenDSPX();
         OpenDSPXConversion::convertModelToOpenDSPX(this, target);
         return target;
 
     }
 
     void Model::fromOpenDspx(const opendspx::Model &model) {
+        Q_D(Model);
+        d->setWorkspace(conv::serializeWorkspace(model.content.workspace));
         setProjectAuthor(QString::fromStdString(model.content.global.author));
         setProjectName(QString::fromStdString(model.content.global.name));
         setGlobalCentShift(model.content.global.centShift);
@@ -585,6 +634,7 @@ namespace dspx {
                 keySignatures()->fromOpenDSPX(v.get<std::vector<nlohmann::json>>());
             }
         }
+        OpenDSPXConversion::convertModelFromOpenDSPX(this, model);
     }
 
     Label *Model::createLabel() {
@@ -650,7 +700,12 @@ namespace dspx {
     }
 
     Phoneme *Model::createPhoneme() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::phonemeTable(), {
+            dini::ColumnValue {.column = Schema::phonemeParent().column(), .value = dini::Value::null()},
+            dini::ColumnValue {.column = Schema::phonemeRoleColumn(), .value = dini::Value::null()},
+        });
+        return d->ensure<Phoneme>(orm::handleFromId(id));
     }
 
     AnchorNode *Model::createAnchorNode() {

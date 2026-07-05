@@ -3,6 +3,8 @@
 
 #include <dspxmodelORM/Clip.h>
 
+#include <dini/types.h>
+
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
 namespace dspx {
@@ -16,6 +18,8 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(Clip)
 
         void setSequence(ClipSequence *sequence, bool notify);
+        dini::ByteArray workspace() const;
+        void setWorkspace(dini::ByteArray workspace);
 
         Clip *q_ptr = nullptr;
         QString name;
@@ -32,6 +36,7 @@ namespace dspx {
         mutable Clip *previous = nullptr;
         mutable Clip *next = nullptr;
         int overlappedCount = 0;
+        dini::ByteArray workspaceData;
         ClipSequence *sequence = nullptr;
     };
 

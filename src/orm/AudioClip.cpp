@@ -152,12 +152,11 @@ namespace dspx {
 
         const auto audioPathInfo = path();
         target.path = QDir(audioPathInfo.absoluteDir).filePath(audioPathInfo.fileName).toStdString();
-        target.workspace["diffscope"]["audio"] = nlohmann::json::object({
-            {"relativeDir", audioPathInfo.relativeDir.toStdString()},
-            {"formatEntryClassName", audioPathInfo.formatEntryClassName.toStdString()},
-            {"userData", encodeUserData(audioPathInfo.userData).toStdString()},
-            {"sha512", audioPathInfo.sha512.toStdString()},
-        });
+        auto &audio = conv::ensureObjectMember(conv::ensureObject(target.workspace["diffscope"]), "audio");
+        audio["relativeDir"] = audioPathInfo.relativeDir.toStdString();
+        audio["formatEntryClassName"] = audioPathInfo.formatEntryClassName.toStdString();
+        audio["userData"] = encodeUserData(audioPathInfo.userData).toStdString();
+        audio["sha512"] = audioPathInfo.sha512.toStdString();
         OpenDSPXConversion::convertClipToOpenDSPX(this, target);
         return target;
     }

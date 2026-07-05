@@ -213,6 +213,7 @@ namespace dspx {
                 if (ctx.origin() != dini::EventOrigin::Normal) {
                     return;
                 }
+                std::vector<dini::ItemSnapshot> updatedItems;
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
@@ -220,15 +221,31 @@ namespace dspx {
                     } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
                         const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
                         if (updated.column == sourcesColumn || updated.column == mixedSingerColumn) {
-                            auto item = querySingle(ctx, mixableTable, updated.itemId, "mixable item does not exist");
-                            setItemValue(item, updated.column, updated.newValue);
-                            validate(ctx, item);
+                            setItemValue(itemForUpdate(ctx, updatedItems, updated.itemId),
+                                         updated.column,
+                                         updated.newValue);
                         }
                     }
+                }
+                for (const auto &item : updatedItems) {
+                    validate(ctx, item);
                 }
             }
 
         private:
+            dini::ItemSnapshot &itemForUpdate(dini::TransactionContext &ctx,
+                                              std::vector<dini::ItemSnapshot> &items,
+                                              quint64 id) const {
+                auto it = std::find_if(items.begin(), items.end(), [id](const auto &item) {
+                    return item.id == id;
+                });
+                if (it != items.end()) {
+                    return *it;
+                }
+                items.push_back(querySingle(ctx, mixableTable, id, "mixable item does not exist"));
+                return items.back();
+            }
+
             void validate(dini::TransactionContext &ctx, const dini::ItemSnapshot &item) const {
                 const auto sources = itemValue(item, sourcesColumn);
                 const auto mixedSinger = itemValue(item, mixedSingerColumn);
@@ -287,6 +304,7 @@ namespace dspx {
                 if (ctx.origin() != dini::EventOrigin::Normal) {
                     return;
                 }
+                std::vector<dini::ItemSnapshot> updatedItems;
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
@@ -296,14 +314,13 @@ namespace dspx {
                         validate(inserted.item);
                     } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
                         const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
-                        if (updated.column == association.column()) {
-                            const auto item = query(ctx, updated.itemId);
-                            validate(updated.newValue, itemValue(item, roleColumn));
-                        } else if (updated.column == roleColumn) {
-                            const auto item = query(ctx, updated.itemId);
-                            validate(associationValue(item), updated.newValue);
+                        if (updated.column == association.column() || updated.column == roleColumn) {
+                            applyUpdate(itemForUpdate(ctx, updatedItems, updated.itemId), updated);
                         }
                     }
+                }
+                for (const auto &item : updatedItems) {
+                    validate(item);
                 }
             }
 
@@ -313,6 +330,39 @@ namespace dspx {
                     return querySingle(ctx, *table, id, "role-associated item does not exist");
                 }
                 return querySingle(ctx, *list, id, "role-associated item does not exist");
+            }
+
+            dini::ItemSnapshot &itemForUpdate(dini::TransactionContext &ctx,
+                                              std::vector<dini::ItemSnapshot> &items,
+                                              quint64 id) const {
+                auto it = std::find_if(items.begin(), items.end(), [id](const auto &item) {
+                    return item.id == id;
+                });
+                if (it != items.end()) {
+                    return *it;
+                }
+                items.push_back(query(ctx, id));
+                return items.back();
+            }
+
+            void applyUpdate(dini::ItemSnapshot &item, const dini::ColumnUpdatedChange &updated) const {
+                setItemValue(item, updated.column, updated.newValue);
+                if (updated.column != association.column()) {
+                    return;
+                }
+                if (list.has_value()) {
+                    if (updated.newValue.isNull()) {
+                        item.listAssociationValue.reset();
+                        item.listIndex.reset();
+                    } else {
+                        item.listAssociationValue = updated.newValue;
+                        item.listIndex = updated.associationOptions.targetIndex;
+                    }
+                } else if (updated.newValue.isNull()) {
+                    item.parentId.reset();
+                } else {
+                    item.parentId = updated.newValue.asUInt64();
+                }
             }
 
             dini::Value associationValue(const dini::ItemSnapshot &item) const {
@@ -483,6 +533,11 @@ namespace dspx {
         }
 
         struct OrderedLinkHook {
+            struct PlacementChange {
+                dini::ItemSnapshot oldItem;
+                dini::ItemSnapshot newItem;
+            };
+
             explicit OrderedLinkHook(dini::TableHandle table,
                                      dini::RelationHandle parent,
                                      std::vector<dini::ColumnHandle> orderColumns,
@@ -511,6 +566,7 @@ namespace dspx {
                     }
                 }
 
+                std::vector<PlacementChange> placementChanges;
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
@@ -533,21 +589,46 @@ namespace dspx {
                         if (!affectsPlacement(updated.column)) {
                             continue;
                         }
-                        auto oldItem = querySingle(ctx, table, updated.itemId, "ordered item does not exist");
-                        auto newItem = oldItem;
-                        setItemValue(oldItem, updated.column, updated.oldValue);
-                        setItemValue(newItem, updated.column, updated.newValue);
-                        if (samePlacement(oldItem, newItem)) {
-                            continue;
-                        }
-                        std::set<dini::ItemId> excluded {updated.itemId};
-                        detach(ctx, oldItem, excluded);
-                        attach(ctx, newItem, excluded);
+                        applyPlacementUpdate(ctx, placementChanges, updated);
                     }
+                }
+
+                for (const auto &placementChange : placementChanges) {
+                    if (samePlacement(placementChange.oldItem, placementChange.newItem)) {
+                        continue;
+                    }
+                    std::set<dini::ItemId> excluded {placementChange.oldItem.id};
+                    detach(ctx, placementChange.oldItem, excluded);
+                    attach(ctx, placementChange.newItem, excluded);
                 }
             }
 
         private:
+            PlacementChange &placementChangeForUpdate(dini::TransactionContext &ctx,
+                                                      std::vector<PlacementChange> &changes,
+                                                      quint64 id) const {
+                auto it = std::find_if(changes.begin(), changes.end(), [id](const auto &change) {
+                    return change.oldItem.id == id;
+                });
+                if (it != changes.end()) {
+                    return *it;
+                }
+                auto item = querySingle(ctx, table, id, "ordered item does not exist");
+                changes.push_back({
+                    .oldItem = item,
+                    .newItem = std::move(item),
+                });
+                return changes.back();
+            }
+
+            void applyPlacementUpdate(dini::TransactionContext &ctx,
+                                      std::vector<PlacementChange> &changes,
+                                      const dini::ColumnUpdatedChange &updated) const {
+                auto &change = placementChangeForUpdate(ctx, changes, updated.itemId);
+                setItemValue(change.oldItem, updated.column, updated.oldValue);
+                setItemValue(change.newItem, updated.column, updated.newValue);
+            }
+
             bool isLinkColumn(const dini::ColumnHandle &column) const {
                 return column == previousColumn || column == nextColumn;
             }
@@ -810,6 +891,11 @@ namespace dspx {
         }
 
         struct OverlapCountHook {
+            struct OverlapChange {
+                dini::ItemSnapshot oldItem;
+                dini::ItemSnapshot newItem;
+            };
+
             explicit OverlapCountHook(dini::TableHandle table,
                                       dini::RelationHandle parent,
                                       dini::ColumnHandle positionColumn,
@@ -836,6 +922,7 @@ namespace dspx {
                     }
                 }
 
+                std::vector<OverlapChange> overlapChanges;
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
@@ -867,23 +954,49 @@ namespace dspx {
                             continue;
                         }
 
-                        auto oldItem = querySingle(ctx, table, updated.itemId, "overlap item does not exist");
-                        auto newItem = oldItem;
-                        setItemValue(oldItem, updated.column, updated.oldValue);
-                        setItemValue(newItem, updated.column, updated.newValue);
-                        if (sameOverlapPlacement(oldItem, newItem)) {
-                            continue;
-                        }
-
-                        refreshAffectedGroups(ctx,
-                                              {itemValue(oldItem, parent.column()), itemValue(newItem, parent.column())},
-                                              {newItem},
-                                              removedIds);
+                        applyOverlapUpdate(ctx, overlapChanges, updated);
                     }
+                }
+
+                for (const auto &overlapChange : overlapChanges) {
+                    if (sameOverlapPlacement(overlapChange.oldItem, overlapChange.newItem)) {
+                        continue;
+                    }
+
+                    refreshAffectedGroups(ctx,
+                                          {itemValue(overlapChange.oldItem, parent.column()),
+                                           itemValue(overlapChange.newItem, parent.column())},
+                                          {overlapChange.newItem},
+                                          removedIds);
                 }
             }
 
         private:
+            OverlapChange &overlapChangeForUpdate(dini::TransactionContext &ctx,
+                                                  std::vector<OverlapChange> &changes,
+                                                  quint64 id) const {
+                auto it = std::find_if(changes.begin(), changes.end(), [id](const auto &change) {
+                    return change.oldItem.id == id;
+                });
+                if (it != changes.end()) {
+                    return *it;
+                }
+                auto item = querySingle(ctx, table, id, "overlap item does not exist");
+                changes.push_back({
+                    .oldItem = item,
+                    .newItem = std::move(item),
+                });
+                return changes.back();
+            }
+
+            void applyOverlapUpdate(dini::TransactionContext &ctx,
+                                    std::vector<OverlapChange> &changes,
+                                    const dini::ColumnUpdatedChange &updated) const {
+                auto &change = overlapChangeForUpdate(ctx, changes, updated.itemId);
+                setItemValue(change.oldItem, updated.column, updated.oldValue);
+                setItemValue(change.newItem, updated.column, updated.newValue);
+            }
+
             bool affectsOverlap(const dini::ColumnHandle &column) const {
                 return column == parent.column() || column == positionColumn || column == lengthColumn;
             }
@@ -1097,6 +1210,12 @@ namespace dspx {
                     .defaultValue = INT64_C(1),
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v > 0; }
+                });
+                modelWorkspaceColumn = modelTableBuilder.addColumn({
+                    .debugName = "workspace",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
                 });
             }
 
@@ -1336,6 +1455,12 @@ namespace dspx {
                     .defaultValue = false,
                     .nullable = false,
                 });
+                trackWorkspaceColumn = trackListBuilder.addColumn({
+                    .debugName = "workspace",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
+                });
             }
 
             void buildClipTable() {
@@ -1412,6 +1537,12 @@ namespace dspx {
                     .defaultValue = INT64_C(0),
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
+                });
+                clipWorkspaceColumn = clipTableBuilder.addColumn({
+                    .debugName = "workspace",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
                 });
                 audioClipPathColumn = clipTableBuilder.addVariantColumn({
                     .debugName = "path",
@@ -1681,6 +1812,12 @@ namespace dspx {
                     .defaultValue = INT64_C(0),
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
+                });
+                noteWorkspaceColumn = noteTableBuilder.addColumn({
+                    .debugName = "workspace",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
                 });
                 noteTableBuilder.addRangeIndex({
                     .debugName = "range",
@@ -1965,6 +2102,7 @@ namespace dspx {
             dini::ColumnHandle clipPreviousItemColumn;
             dini::ColumnHandle clipNextItemColumn;
             dini::ColumnHandle clipOverlappedCountColumn;
+            dini::ColumnHandle clipWorkspaceColumn;
             dini::ColumnHandle audioClipPathColumn;
 
             dini::ColumnHandle labelPositionColumn;
@@ -1989,6 +2127,7 @@ namespace dspx {
             dini::ColumnHandle modelLoopEnabledColumn;
             dini::ColumnHandle modelLoopStartColumn;
             dini::ColumnHandle modelLoopLengthColumn;
+            dini::ColumnHandle modelWorkspaceColumn;
 
             dini::ColumnHandle mixableSourcesColumn;
             dini::ColumnHandle mixableMixedSingerColumn;
@@ -2010,6 +2149,7 @@ namespace dspx {
             dini::ColumnHandle notePreviousItemColumn;
             dini::ColumnHandle noteNextItemColumn;
             dini::ColumnHandle noteOverlappedCountColumn;
+            dini::ColumnHandle noteWorkspaceColumn;
 
             dini::ColumnHandle phonemeRoleColumn;
             dini::ColumnHandle phonemeLanguageColumn;
@@ -2054,6 +2194,7 @@ namespace dspx {
             dini::ColumnHandle trackMuteColumn;
             dini::ColumnHandle trackSoloColumn;
             dini::ColumnHandle trackRecordColumn;
+            dini::ColumnHandle trackWorkspaceColumn;
 
             dini::ColumnHandle anchorNodeRoleColumn;
             dini::ColumnHandle anchorNodeInterpolationModeColumn;
@@ -2271,6 +2412,10 @@ namespace dspx {
         return g.clipOverlappedCountColumn;
     }
 
+    dini::ColumnHandle Schema::clipWorkspaceColumn() {
+        return g.clipWorkspaceColumn;
+    }
+
     dini::ColumnHandle Schema::audioClipPathColumn() {
         return g.audioClipPathColumn;
     }
@@ -2379,6 +2524,10 @@ namespace dspx {
         return g.modelLoopLengthColumn;
     }
 
+    dini::ColumnHandle Schema::modelWorkspaceColumn() {
+        return g.modelWorkspaceColumn;
+    }
+
     dini::ColumnHandle Schema::mixableSourcesColumn() {
         return g.mixableSourcesColumn;
     }
@@ -2453,6 +2602,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::noteOverlappedCountColumn() {
         return g.noteOverlappedCountColumn;
+    }
+
+    dini::ColumnHandle Schema::noteWorkspaceColumn() {
+        return g.noteWorkspaceColumn;
     }
 
     dini::ColumnHandle Schema::phonemeRoleColumn() {
@@ -2569,6 +2722,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::trackRecordColumn() {
         return g.trackRecordColumn;
+    }
+
+    dini::ColumnHandle Schema::trackWorkspaceColumn() {
+        return g.trackWorkspaceColumn;
     }
 
     dini::ColumnHandle Schema::anchorNodeRoleColumn() {

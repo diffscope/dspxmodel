@@ -3,6 +3,8 @@
 
 #include <dspxmodelORM/Note.h>
 
+#include <dini/types.h>
+
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
 namespace dspx {
@@ -16,6 +18,8 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(Note)
 
         void setSequence(NoteSequence *sequence, bool notify);
+        dini::ByteArray workspace() const;
+        void setWorkspace(dini::ByteArray workspace);
 
         Note *q_ptr = nullptr;
         int centShift = 0;
@@ -37,6 +41,7 @@ namespace dspx {
         int vibratoOffset = 0;
         double vibratoPhase = 0.0;
         double vibratoStart = 0.0;
+        dini::ByteArray workspaceData;
         PhonemeSequence *editedPhonemes = nullptr;
         PhonemeSequence *originalPhonemes = nullptr;
         VibratoPointDataArray *vibratoAmplitudeControlPoints = nullptr;

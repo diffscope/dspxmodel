@@ -58,6 +58,13 @@ namespace dspx::orm {
         return QString::fromStdString(value.asString());
     }
 
+    inline dini::ByteArray binaryFromValue(const dini::Value &value) {
+        if (value.isNull()) {
+            return {};
+        }
+        return value.asBinary();
+    }
+
     inline const dini::Value &snapshotValue(const dini::ItemSnapshot &snapshot, const dini::ColumnHandle &column) {
         static const dini::Value nullValue = dini::Value::null();
         for (const auto &columnValue : snapshot.values) {
@@ -107,4 +114,3 @@ namespace dspx::orm {
 }
 
 #endif // DSPXMODEL_ORMUTILS_P_H
-

@@ -1,9 +1,14 @@
 #ifndef DSPXMODEL_PHONEME_H
 #define DSPXMODEL_PHONEME_H
 
+#include <QScopedPointer>
 #include <QString>
 
 #include <dspxmodelORM/EntityObject.h>
+
+namespace opendspx {
+    struct Phoneme;
+}
 
 namespace dspx {
 
@@ -16,6 +21,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Phoneme : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Phoneme)
         Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
         Q_PROPERTY(int start READ start WRITE setStart NOTIFY startChanged)
         Q_PROPERTY(QString token READ token WRITE setToken NOTIFY tokenChanged)
@@ -24,8 +30,6 @@ namespace dspx {
         Q_PROPERTY(Phoneme *nextItem READ nextItem NOTIFY nextItemChanged)
         Q_PROPERTY(PhonemeSequence *phonemeSequence READ phonemeSequence NOTIFY phonemeSequenceChanged)
     public:
-        ~Phoneme() override;
-
         /**
          * @brief Gets language.
          */
@@ -85,6 +89,16 @@ namespace dspx {
          */
         PhonemeSequence *phonemeSequence() const;
 
+        /**
+         * @brief Converts to OpenDSPX phoneme.
+         */
+        opendspx::Phoneme toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX phoneme.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::Phoneme &phoneme);
+
     signals:
         void languageChanged(const QString &language);
         void startChanged(int start);
@@ -95,6 +109,8 @@ namespace dspx {
         void phonemeSequenceChanged(PhonemeSequence *phonemeSequence);
 
     private:
+        ~Phoneme() override;
+
         explicit Phoneme(Handle handle, Model *model);
 
         QScopedPointer<PhonemePrivate> d_ptr;

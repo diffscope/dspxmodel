@@ -73,6 +73,7 @@ namespace dspx {
         static dini::ColumnHandle clipPreviousItemColumn();
         static dini::ColumnHandle clipNextItemColumn();
         static dini::ColumnHandle clipOverlappedCountColumn();
+        static dini::ColumnHandle clipWorkspaceColumn();
         static dini::ColumnHandle audioClipPathColumn();
 
         static dini::ColumnHandle dynamicMixingAnchorPositionColumn();
@@ -105,6 +106,7 @@ namespace dspx {
         static dini::ColumnHandle modelLoopEnabledColumn();
         static dini::ColumnHandle modelLoopStartColumn();
         static dini::ColumnHandle modelLoopLengthColumn();
+        static dini::ColumnHandle modelWorkspaceColumn();
 
         static dini::ColumnHandle mixableSourcesColumn();
         static dini::ColumnHandle mixableMixedSingerColumn();
@@ -126,6 +128,7 @@ namespace dspx {
         static dini::ColumnHandle notePreviousItemColumn();
         static dini::ColumnHandle noteNextItemColumn();
         static dini::ColumnHandle noteOverlappedCountColumn();
+        static dini::ColumnHandle noteWorkspaceColumn();
 
         static dini::ColumnHandle phonemeRoleColumn();
         static dini::ColumnHandle phonemeLanguageColumn();
@@ -162,6 +165,7 @@ namespace dspx {
         static dini::ColumnHandle trackMuteColumn();
         static dini::ColumnHandle trackSoloColumn();
         static dini::ColumnHandle trackRecordColumn();
+        static dini::ColumnHandle trackWorkspaceColumn();
 
         static dini::ColumnHandle anchorNodeRoleColumn();
         static dini::ColumnHandle anchorNodeInterpolationModeColumn();

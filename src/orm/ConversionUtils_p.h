@@ -2,8 +2,11 @@
 #define DSPXMODEL_CONVERSIONUTILS_P_H
 
 #include <cmath>
+#include <utility>
 
+#include <dini/types.h>
 #include <nlohmann/json.hpp>
+#include <opendspx/workspace.h>
 
 namespace dspx::conv {
 
@@ -111,6 +114,63 @@ namespace dspx::conv {
             return nullptr;
         }
         return *cur;
+    }
+
+    inline dini::ByteArray serializeWorkspace(const nlohmann::json &workspace) {
+        if (!workspace.is_object()) {
+            return {};
+        }
+        return nlohmann::json::to_msgpack(workspace);
+    }
+
+    inline nlohmann::json &ensureObject(nlohmann::json &value) {
+        if (!value.is_object()) {
+            value = nlohmann::json::object();
+        }
+        return value;
+    }
+
+    inline nlohmann::json &ensureObjectMember(nlohmann::json &value, const char *key) {
+        auto &object = ensureObject(value);
+        auto &member = object[key];
+        return ensureObject(member);
+    }
+
+    inline nlohmann::json workspaceToJson(const opendspx::Workspace &workspace) {
+        auto result = nlohmann::json::object();
+        for (const auto &[key, value] : workspace) {
+            result[key] = value;
+        }
+        return result;
+    }
+
+    inline opendspx::Workspace workspaceFromJson(const nlohmann::json &workspace) {
+        opendspx::Workspace result;
+        if (!workspace.is_object()) {
+            return result;
+        }
+        for (auto it = workspace.begin(); it != workspace.end(); ++it) {
+            result[it.key()] = *it;
+        }
+        return result;
+    }
+
+    inline dini::ByteArray serializeWorkspace(const opendspx::Workspace &workspace) {
+        return serializeWorkspace(workspaceToJson(workspace));
+    }
+
+    inline opendspx::Workspace deserializeWorkspace(const dini::ByteArray &workspace) {
+        if (workspace.empty()) {
+            return {};
+        }
+        try {
+            auto result = nlohmann::json::from_msgpack(workspace);
+            if (result.is_object()) {
+                return workspaceFromJson(result);
+            }
+        } catch (const nlohmann::json::exception &) {
+        }
+        return {};
     }
 
 }

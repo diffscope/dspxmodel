@@ -23,6 +23,7 @@ namespace dspx {
     class KeySignature;
     class Label;
     class Note;
+    class Phoneme;
     class Tempo;
     class TimeSignature;
     class Track;
@@ -249,6 +250,27 @@ namespace dspx {
             });
         }
 
+        template <typename Object, typename Private, typename Notify>
+            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
+        ColumnBinding<Object> binaryField(dini::ColumnHandle column, dini::ByteArray Private::*member, Notify notify) {
+            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return binaryFromValue(value); }, std::move(notify));
+        }
+
+        template <typename Object, typename Notify>
+            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
+        ColumnBinding<Object> binaryField(dini::ColumnHandle column, dini::ByteArray Object::*member, Notify notify) {
+            return ColumnBinding<Object> {
+                .column = std::move(column),
+                .apply = [member](Object *object, const dini::Value &value) {
+                    auto newValue = binaryFromValue(value);
+                    const bool changed = object->*member != newValue;
+                    object->*member = std::move(newValue);
+                    return changed;
+                },
+                .notify = std::move(notify),
+            };
+        }
+
         template <typename Enum, typename Object, typename Private, typename Notify>
             requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
         ColumnBinding<Object> enumField(dini::ColumnHandle column, Enum Private::*member, Notify notify) {
@@ -292,6 +314,7 @@ namespace dspx {
             std::function<void(ModelPrivate &, const dini::ItemInsertedChange &)> itemInserted;
             std::function<void(ModelPrivate &, const dini::ItemSnapshot &, bool)> itemRemoved;
             std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdated;
+            std::function<void(ModelPrivate &, const std::vector<dini::ColumnUpdatedChange> &)> columnUpdates;
             std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdated;
         };
 
@@ -355,6 +378,110 @@ namespace dspx {
             auto containsColumn = [](const std::vector<dini::ColumnHandle> &columns, const dini::ColumnHandle &column) {
                 return std::find(columns.begin(), columns.end(), column) != columns.end();
             };
+            struct UpdateGroup {
+                dini::ItemId itemId = 0;
+                dini::ItemSnapshot oldSnapshot;
+                dini::ItemSnapshot newSnapshot;
+                std::vector<dini::ColumnUpdatedChange> changes;
+                bool membership = false;
+                bool order = false;
+            };
+            auto groupForChange = [](std::vector<UpdateGroup> &groups, dini::ItemId itemId) -> UpdateGroup * {
+                auto it = std::find_if(groups.begin(), groups.end(), [itemId](const auto &group) {
+                    return group.itemId == itemId;
+                });
+                return it == groups.end() ? nullptr : &*it;
+            };
+            auto applyValue = [](dini::ItemSnapshot &snapshot, const dini::ColumnHandle &column, const dini::Value &value) {
+                for (auto &columnValue : snapshot.values) {
+                    if (columnValue.column == column) {
+                        columnValue.value = value;
+                        return;
+                    }
+                }
+                snapshot.values.push_back({
+                    .column = column,
+                    .value = value,
+                });
+            };
+            auto hasChangeForColumn = [](const UpdateGroup &group, const dini::ColumnHandle &column) {
+                return std::find_if(group.changes.begin(), group.changes.end(), [&column](const auto &change) {
+                    return change.column == column;
+                }) != group.changes.end();
+            };
+            auto processColumnUpdates = [spec, containsColumn, groupForChange, applyValue, hasChangeForColumn](ModelPrivate &model, const std::vector<dini::ColumnUpdatedChange> &changes) {
+                std::vector<UpdateGroup> groups;
+                for (const auto &change : changes) {
+                    const bool membership = containsColumn(spec.membershipColumns, change.column);
+                    const bool order = containsColumn(spec.orderColumns, change.column);
+                    auto *group = groupForChange(groups, change.itemId);
+                    if (!group) {
+                        auto snapshot = model.engine->read(change.itemId);
+                        groups.push_back({
+                            .itemId = change.itemId,
+                            .oldSnapshot = snapshot,
+                            .newSnapshot = std::move(snapshot),
+                        });
+                        group = &groups.back();
+                    }
+                    if (!hasChangeForColumn(*group, change.column)) {
+                        applyValue(group->oldSnapshot, change.column, change.oldValue);
+                    }
+                    applyValue(group->newSnapshot, change.column, change.newValue);
+                    group->changes.push_back(change);
+                    group->membership = group->membership || membership;
+                    group->order = group->order || order;
+                }
+
+                for (const auto &group : groups) {
+                    auto *item = spec.find(model, handleFromId(group.itemId));
+                    auto *oldOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.oldSnapshot) : nullptr;
+                    auto *newOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.newSnapshot) : nullptr;
+
+                    if (!item) {
+                        if ((group.membership || group.order) && spec.refreshOwner) {
+                            refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
+                        }
+                        continue;
+                    }
+
+                    if (group.membership) {
+                        if (oldOwner && !newOwner && spec.itemAboutToRemove) {
+                            spec.itemAboutToRemove(oldOwner, item, nullptr);
+                        } else if (!oldOwner && newOwner && spec.itemAboutToInsert) {
+                            spec.itemAboutToInsert(newOwner, item, nullptr);
+                        } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
+                            if (spec.itemAboutToRemove) {
+                                spec.itemAboutToRemove(oldOwner, item, newOwner);
+                            }
+                            if (spec.itemAboutToInsert) {
+                                spec.itemAboutToInsert(newOwner, item, oldOwner);
+                            }
+                        }
+                    }
+
+                    spec.sync(item, group.newSnapshot, true);
+
+                    if ((group.membership || group.order) && spec.refreshOwner) {
+                        refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
+                    }
+
+                    if (group.membership) {
+                        if (oldOwner && !newOwner && spec.itemRemoved) {
+                            spec.itemRemoved(oldOwner, item, nullptr);
+                        } else if (!oldOwner && newOwner && spec.itemInserted) {
+                            spec.itemInserted(newOwner, item, nullptr);
+                        } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
+                            if (spec.itemRemoved) {
+                                spec.itemRemoved(oldOwner, item, newOwner);
+                            }
+                            if (spec.itemInserted) {
+                                spec.itemInserted(newOwner, item, oldOwner);
+                            }
+                        }
+                    }
+                }
+            };
             return TableBinding {
                 .table = spec.table,
                 .itemInserted = [spec](ModelPrivate &model, const dini::ItemInsertedChange &change) {
@@ -397,55 +524,11 @@ namespace dspx {
                     }
                     item->deleteLater();
                 },
-                .columnUpdated = [spec, containsColumn](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
-                    const bool membership = containsColumn(spec.membershipColumns, change.column);
-                    const bool order = containsColumn(spec.orderColumns, change.column);
-                    auto *item = spec.find(model, handleFromId(change.itemId));
-                    auto *oldOwner = spec.ownerForChange ? spec.ownerForChange(model, change, true) : nullptr;
-                    auto *newOwner = spec.ownerForChange ? spec.ownerForChange(model, change, false) : nullptr;
-
-                    if (!item) {
-                        if ((membership || order) && spec.refreshOwner) {
-                            refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
-                        }
-                        return;
-                    }
-
-                    if (membership) {
-                        if (oldOwner && !newOwner && spec.itemAboutToRemove) {
-                            spec.itemAboutToRemove(oldOwner, item, nullptr);
-                        } else if (!oldOwner && newOwner && spec.itemAboutToInsert) {
-                            spec.itemAboutToInsert(newOwner, item, nullptr);
-                        } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
-                            if (spec.itemAboutToRemove) {
-                                spec.itemAboutToRemove(oldOwner, item, newOwner);
-                            }
-                            if (spec.itemAboutToInsert) {
-                                spec.itemAboutToInsert(newOwner, item, oldOwner);
-                            }
-                        }
-                    }
-
-                    spec.applyColumn(item, change.column, change.newValue, true);
-
-                    if ((membership || order) && spec.refreshOwner) {
-                        refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
-                    }
-
-                    if (membership) {
-                        if (oldOwner && !newOwner && spec.itemRemoved) {
-                            spec.itemRemoved(oldOwner, item, nullptr);
-                        } else if (!oldOwner && newOwner && spec.itemInserted) {
-                            spec.itemInserted(newOwner, item, nullptr);
-                        } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
-                            if (spec.itemRemoved) {
-                                spec.itemRemoved(oldOwner, item, newOwner);
-                            }
-                            if (spec.itemInserted) {
-                                spec.itemInserted(newOwner, item, oldOwner);
-                            }
-                        }
-                    }
+                .columnUpdated = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    processColumnUpdates(model, {change});
+                },
+                .columnUpdates = [processColumnUpdates](ModelPrivate &model, const std::vector<dini::ColumnUpdatedChange> &changes) {
+                    processColumnUpdates(model, changes);
                 },
                 .computedColumnUpdated = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
                     if (auto *item = spec.find(model, handleFromId(change.itemId))) {
@@ -649,6 +732,7 @@ namespace dspx {
         const TableBinding &timeSignatureTableBinding();
         const TableBinding &clipTableBinding();
         const TableBinding &noteTableBinding();
+        const TableBinding &phonemeTableBinding();
         const ListBinding &trackListBinding();
 
         void syncClipColumns(Clip *item, const dini::ItemSnapshot &snapshot, bool notify);
@@ -657,6 +741,8 @@ namespace dspx {
         bool applyLabelColumn(Label *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncNoteColumns(Note *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyNoteColumn(Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncPhonemeColumns(Phoneme *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyPhonemeColumn(Phoneme *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncKeySignatureColumns(KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyKeySignatureColumn(KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncTempoColumns(Tempo *item, const dini::ItemSnapshot &snapshot, bool notify);
@@ -672,6 +758,7 @@ namespace dspx {
         const OrderSpec &timeSignatureOrderSpec();
         const OrderSpec &clipOrderSpec();
         const OrderSpec &noteOrderSpec();
+        const OrderSpec &phonemeOrderSpec();
 
     }
 

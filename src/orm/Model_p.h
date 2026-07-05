@@ -3,6 +3,7 @@
 
 #include <dspxmodelORM/Model.h>
 
+#include <utility>
 #include <vector>
 
 #include <QHash>
@@ -19,6 +20,7 @@
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
 #include <dspxmodelORM/private/Note_p.h>
+#include <dspxmodelORM/private/Phoneme_p.h>
 #include <dspxmodelORM/private/SingingClip_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TimeSignature_p.h>
@@ -57,6 +59,8 @@ namespace dspx {
         void applyColumnUpdated(const dini::ColumnUpdatedChange &change);
         void applyComputedColumnUpdated(const dini::ComputedColumnUpdatedChange &change);
         void applyListRotated(const dini::ListRotatedChange &change);
+        dini::ByteArray workspace() const;
+        void setWorkspace(dini::ByteArray workspace);
 
         bool isModelValue(const dini::Value &value) const;
         dini::Transaction *requireTransaction() const;
@@ -70,6 +74,8 @@ namespace dspx {
                 return labelObjects;
             } else if constexpr (std::is_same_v<T, Note>) {
                 return noteObjects;
+            } else if constexpr (std::is_same_v<T, Phoneme>) {
+                return phonemeObjects;
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return keySignatureObjects;
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -101,6 +107,8 @@ namespace dspx {
                 return LabelPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Note>) {
                 return NotePrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, Phoneme>) {
+                return PhonemePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return KeySignaturePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -139,6 +147,10 @@ namespace dspx {
                 }
             } else if constexpr (std::is_same_v<T, Note>) {
                 if (!orm::isContainer(snapshot, Schema::noteTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Phoneme>) {
+                if (!orm::isContainer(snapshot, Schema::phonemeTable())) {
                     return nullptr;
                 }
             } else if constexpr (std::is_same_v<T, KeySignature>) {
@@ -212,6 +224,8 @@ namespace dspx {
                 orm::syncLabelColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, Note>) {
                 orm::syncNoteColumns(object, snapshot, false);
+            } else if constexpr (std::is_same_v<T, Phoneme>) {
+                orm::syncPhonemeColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 orm::syncKeySignatureColumns(object, snapshot, false);
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -234,6 +248,10 @@ namespace dspx {
 
         void update(Handle handle, dini::ColumnHandle column, const dini::Value &value, const dini::AssociationUpdateOptions &options = {}) {
             requireTransaction()->update(orm::idFromHandle(handle), column, value, options);
+        }
+
+        void update(Handle handle, std::vector<dini::ColumnValue> values) {
+            requireTransaction()->update(orm::idFromHandle(handle), std::move(values));
         }
 
         void rotate(dini::ListHandle list, const dini::Value &associationValue, int leftIndex, int middleIndex, int rightIndex) {
@@ -262,6 +280,7 @@ namespace dspx {
 
         QHash<Handle, Label *> labelObjects;
         QHash<Handle, Note *> noteObjects;
+        QHash<Handle, Phoneme *> phonemeObjects;
         QHash<Handle, KeySignature *> keySignatureObjects;
         QHash<Handle, Tempo *> tempoObjects;
         QHash<Handle, TimeSignature *> timeSignatureObjects;
@@ -280,6 +299,7 @@ namespace dspx {
         bool loopEnabled = false;
         int loopStart = 0;
         int loopLength = 1;
+        dini::ByteArray workspaceData;
     };
 
     namespace orm {
