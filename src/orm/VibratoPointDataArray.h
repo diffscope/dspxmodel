@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QPointF>
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 #include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
@@ -24,6 +25,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT VibratoPointDataArray : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(VibratoPointDataArray)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<QPointF> items READ items NOTIFY itemsChanged)

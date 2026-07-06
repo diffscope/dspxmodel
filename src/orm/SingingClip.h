@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_SINGINGCLIP_H
 #define DSPXMODEL_SINGINGCLIP_H
 
+#include <qqmlintegration.h>
+
 #include <dspxmodelORM/Clip.h>
 
 namespace opendspx {
@@ -20,6 +22,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT SingingClip : public Clip {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(SingingClip)
         Q_PROPERTY(Sources *sources READ sources WRITE setSources NOTIFY sourcesChanged)
         Q_PROPERTY(NoteSequence *notes READ notes CONSTANT)

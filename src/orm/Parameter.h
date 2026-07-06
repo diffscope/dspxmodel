@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_PARAMETER_H
 #define DSPXMODEL_PARAMETER_H
 
+#include <qqmlintegration.h>
+
 #include <dspxmodelORM/EntityObject.h>
 
 namespace opendspx {
@@ -20,6 +22,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Parameter : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Parameter)
         Q_PROPERTY(FreeValueDataArray *original READ original CONSTANT)
         Q_PROPERTY(FreeValueDataArray *freeTransform READ freeTransform CONSTANT)

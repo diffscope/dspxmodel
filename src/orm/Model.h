@@ -3,6 +3,7 @@
 
 #include <QScopedPointer>
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -43,6 +44,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Model : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Model)
         Q_PROPERTY(QString projectName READ projectName WRITE setProjectName NOTIFY projectNameChanged)
         Q_PROPERTY(QString projectAuthor READ projectAuthor WRITE setProjectAuthor NOTIFY projectAuthorChanged)

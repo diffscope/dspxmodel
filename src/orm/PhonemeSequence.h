@@ -6,6 +6,7 @@
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -25,6 +26,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT PhonemeSequence : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(PhonemeSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Phoneme *firstItem READ firstItem NOTIFY firstItemChanged)

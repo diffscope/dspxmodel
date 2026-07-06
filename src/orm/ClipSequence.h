@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <qqmlintegration.h>
 
 #include <memory>
 #include <vector>
@@ -25,6 +26,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT ClipSequence : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(ClipSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(Clip *firstItem READ firstItem NOTIFY firstItemChanged)

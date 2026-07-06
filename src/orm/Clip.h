@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -22,6 +23,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Clip : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Clip)
         Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
         Q_PROPERTY(double gain READ gain WRITE setGain NOTIFY gainChanged)

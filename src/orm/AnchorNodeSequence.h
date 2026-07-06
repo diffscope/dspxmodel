@@ -4,6 +4,7 @@
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -19,6 +20,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AnchorNodeSequence : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(AnchorNodeSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(AnchorNode *firstItem READ firstItem NOTIFY firstItemChanged)

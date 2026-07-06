@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QVariant>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/Clip.h>
 
@@ -42,6 +43,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AudioClip : public Clip {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(AudioClip)
         Q_PROPERTY(AudioPathInfo path READ path WRITE setPath NOTIFY pathChanged)
     public:

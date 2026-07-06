@@ -2,6 +2,7 @@
 #define DSPXMODEL_SINGLESINGER_H
 
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/Singer.h>
 
@@ -18,6 +19,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT SingleSinger : public Singer {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(SingleSinger)
         Q_PROPERTY(QString id READ id WRITE setId NOTIFY idChanged)
     public:

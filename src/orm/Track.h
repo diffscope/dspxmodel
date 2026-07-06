@@ -3,6 +3,7 @@
 
 #include <QScopedPointer>
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -22,6 +23,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Track : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Track)
         Q_PROPERTY(int colorId READ colorId WRITE setColorId NOTIFY colorIdChanged)
         Q_PROPERTY(double height READ height WRITE setHeight NOTIFY heightChanged)

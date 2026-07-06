@@ -2,6 +2,7 @@
 #define DSPXMODEL_NOTE_H
 
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -22,6 +23,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Note : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Note)
         Q_PROPERTY(int centShift READ centShift WRITE setCentShift NOTIFY centShiftChanged)
         Q_PROPERTY(int keyNumber READ keyNumber WRITE setKeyNumber NOTIFY keyNumberChanged)

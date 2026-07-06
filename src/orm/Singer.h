@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <QJsonValue>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -24,6 +25,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Singer : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Singer)
         Q_PROPERTY(SingerType type READ type CONSTANT)
         Q_PROPERTY(QJsonValue extra READ extra WRITE setExtra NOTIFY extraChanged)

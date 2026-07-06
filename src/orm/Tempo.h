@@ -2,6 +2,7 @@
 #define DSPXMODEL_TEMPO_H
 
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -20,6 +21,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Tempo : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Tempo)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)

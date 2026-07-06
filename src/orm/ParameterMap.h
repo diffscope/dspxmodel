@@ -6,6 +6,7 @@
 #include <QScopedPointer>
 #include <QString>
 #include <QStringList>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -25,6 +26,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT ParameterMap : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(ParameterMap)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QStringList keys READ keys NOTIFY keysChanged)

@@ -3,6 +3,7 @@
 
 #include <QScopedPointer>
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -21,6 +22,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Phoneme : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Phoneme)
         Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
         Q_PROPERTY(int start READ start WRITE setStart NOTIFY startChanged)

@@ -2,6 +2,7 @@
 #define DSPXMODEL_KEYSIGNATURE_H
 
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 #include <nlohmann/json_fwd.hpp>
@@ -17,6 +18,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT KeySignature : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(KeySignature)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)

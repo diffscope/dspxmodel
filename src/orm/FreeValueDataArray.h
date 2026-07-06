@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QScopedPointer>
 #include <QVariant>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -19,6 +20,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT FreeValueDataArray : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(FreeValueDataArray)
         Q_PROPERTY(int step READ step CONSTANT)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)

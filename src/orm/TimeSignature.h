@@ -2,6 +2,7 @@
 #define DSPXMODEL_TIMESIGNATURE_H
 
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -20,6 +21,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT TimeSignature : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(TimeSignature)
         Q_PROPERTY(int index READ index WRITE setIndex NOTIFY indexChanged)
         Q_PROPERTY(int numerator READ numerator WRITE setNumerator NOTIFY numeratorChanged)

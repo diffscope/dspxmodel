@@ -6,6 +6,7 @@
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -25,6 +26,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT TrackList : public QObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(TrackList)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<Track *> items READ items NOTIFY itemsChanged)

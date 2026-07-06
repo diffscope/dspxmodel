@@ -3,6 +3,7 @@
 
 #include <QScopedPointer>
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -21,6 +22,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Label : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Label)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged)

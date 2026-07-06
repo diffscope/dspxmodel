@@ -2,6 +2,7 @@
 #define DSPXMODEL_DYNAMICMIXINGANCHOR_H
 
 #include <QList>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -20,6 +21,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT DynamicMixingAnchor : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(DynamicMixingAnchor)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QList<double> ratio READ ratio WRITE setRatio NOTIFY ratioChanged)

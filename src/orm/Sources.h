@@ -2,6 +2,7 @@
 #define DSPXMODEL_SOURCES_H
 
 #include <QString>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/EntityObject.h>
 
@@ -22,6 +23,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Sources : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Sources)
         Q_PROPERTY(QString category READ category WRITE setCategory NOTIFY categoryChanged)
         Q_PROPERTY(SingerList *singers READ singers CONSTANT)

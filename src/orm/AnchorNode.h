@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_ANCHORNODE_H
 #define DSPXMODEL_ANCHORNODE_H
 
+#include <qqmlintegration.h>
+
 #include <dspxmodelORM/EntityObject.h>
 
 namespace opendspx {
@@ -18,6 +20,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AnchorNode : public EntityObject {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(AnchorNode)
         Q_PROPERTY(InterpolationMode interpolationMode READ interpolationMode WRITE setInterpolationMode NOTIFY interpolationModeChanged)
         Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged)

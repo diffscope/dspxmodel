@@ -2,6 +2,7 @@
 #define DSPXMODEL_MIXEDSINGER_H
 
 #include <QList>
+#include <qqmlintegration.h>
 
 #include <dspxmodelORM/Singer.h>
 
@@ -20,6 +21,8 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT MixedSinger : public Singer {
         Q_OBJECT
+        QML_ELEMENT
+        QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(MixedSinger)
         Q_PROPERTY(QList<double> ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
         Q_PROPERTY(SingerList *singers READ singers CONSTANT)
