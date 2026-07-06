@@ -20,12 +20,12 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<KeySignature>> &keySignatureColumnBindings() {
             static const std::vector<orm::ColumnBinding<KeySignature>> bindings {
-                orm::intField<KeySignature, KeySignaturePrivate>(Schema::keySignaturePositionColumn(), &KeySignaturePrivate::position, &KeySignature::positionChanged),
-                orm::intField<KeySignature, KeySignaturePrivate>(Schema::keySignatureModeColumn(), &KeySignaturePrivate::mode, &KeySignature::modeChanged),
-                orm::intField<KeySignature, KeySignaturePrivate>(Schema::keySignatureTonalityColumn(), &KeySignaturePrivate::tonality, &KeySignature::tonalityChanged),
-                orm::enumField<KeySignature::AccidentalType, KeySignature, KeySignaturePrivate>(Schema::keySignatureAccidentalTypeColumn(), &KeySignaturePrivate::accidentalType, &KeySignature::accidentalTypeChanged),
-                orm::previousNextField<KeySignature, KeySignaturePrivate>(Schema::keySignaturePreviousItemColumn(), &KeySignaturePrivate::previousHandle, &KeySignaturePrivate::previous, &KeySignature::previousItemChanged),
-                orm::previousNextField<KeySignature, KeySignaturePrivate>(Schema::keySignatureNextItemColumn(), &KeySignaturePrivate::nextHandle, &KeySignaturePrivate::next, &KeySignature::nextItemChanged),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePositionColumn(), &KeySignaturePrivate::position, &KeySignature::positionChanged),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureModeColumn(), &KeySignaturePrivate::mode, &KeySignature::modeChanged),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureTonalityColumn(), &KeySignaturePrivate::tonality, &KeySignature::tonalityChanged),
+                orm::enumFieldWithSignal<KeySignature::AccidentalType, KeySignature, KeySignaturePrivate>(Schema::keySignatureAccidentalTypeColumn(), &KeySignaturePrivate::accidentalType, &KeySignature::accidentalTypeChanged),
+                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePreviousItemColumn(), &KeySignaturePrivate::previousHandle, &KeySignaturePrivate::previous, &KeySignature::previousItemChanged),
+                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureNextItemColumn(), &KeySignaturePrivate::nextHandle, &KeySignaturePrivate::next, &KeySignature::nextItemChanged),
                 {Schema::keySignatureParent().column(), [](KeySignature *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = KeySignaturePrivate::get(q);
@@ -208,3 +208,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_KeySignature.cpp"

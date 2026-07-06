@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -18,13 +19,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT DynamicMixingAnchorSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(DynamicMixingAnchorSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(DynamicMixingAnchor *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(DynamicMixingAnchor *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Sources *sources READ sources CONSTANT)
     public:
-        ~DynamicMixingAnchorSequence() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -90,6 +90,8 @@ namespace dspx {
         void itemRemoved(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceToWhichMoved = nullptr);
 
     private:
+        ~DynamicMixingAnchorSequence() override;
+
         explicit DynamicMixingAnchorSequence(Sources *sources);
 
         QScopedPointer<DynamicMixingAnchorSequencePrivate> d_ptr;

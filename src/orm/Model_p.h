@@ -14,14 +14,21 @@
 #include <dini/transaction.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/AnchorNode_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/AudioClip_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
+#include <dspxmodelORM/private/DynamicMixingAnchor_p.h>
 #include <dspxmodelORM/private/Label_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
 #include <dspxmodelORM/private/Note_p.h>
+#include <dspxmodelORM/private/Parameter_p.h>
 #include <dspxmodelORM/private/Phoneme_p.h>
+#include <dspxmodelORM/private/Singer_p.h>
+#include <dspxmodelORM/private/SingleSinger_p.h>
 #include <dspxmodelORM/private/SingingClip_p.h>
+#include <dspxmodelORM/private/Sources_p.h>
+#include <dspxmodelORM/private/MixedSinger_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TimeSignature_p.h>
 #include <dspxmodelORM/private/Track_p.h>
@@ -72,10 +79,22 @@ namespace dspx {
         QHash<Handle, T *> &objectMap() {
             if constexpr (std::is_same_v<T, Label>) {
                 return labelObjects;
+            } else if constexpr (std::is_same_v<T, AnchorNode>) {
+                return anchorNodeObjects;
             } else if constexpr (std::is_same_v<T, Note>) {
                 return noteObjects;
+            } else if constexpr (std::is_same_v<T, DynamicMixingAnchor>) {
+                return dynamicMixingAnchorObjects;
+            } else if constexpr (std::is_same_v<T, Parameter>) {
+                return parameterObjects;
             } else if constexpr (std::is_same_v<T, Phoneme>) {
                 return phonemeObjects;
+            } else if constexpr (std::is_same_v<T, Singer>) {
+                return singerObjects;
+            } else if constexpr (std::is_same_v<T, SingleSinger>) {
+                return singleSingerObjects;
+            } else if constexpr (std::is_same_v<T, MixedSinger>) {
+                return mixedSingerObjects;
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return keySignatureObjects;
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -90,6 +109,8 @@ namespace dspx {
                 return audioClipObjects;
             } else if constexpr (std::is_same_v<T, SingingClip>) {
                 return singingClipObjects;
+            } else if constexpr (std::is_same_v<T, Sources>) {
+                return sourcesObjects;
             } else {
                 static_assert(std::is_same_v<T, void>);
                 return {};
@@ -105,10 +126,20 @@ namespace dspx {
         static T *createObject(Handle handle, Model *model) {
             if constexpr (std::is_same_v<T, Label>) {
                 return LabelPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, AnchorNode>) {
+                return AnchorNodePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Note>) {
                 return NotePrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, DynamicMixingAnchor>) {
+                return DynamicMixingAnchorPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, Parameter>) {
+                return ParameterPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Phoneme>) {
                 return PhonemePrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, SingleSinger>) {
+                return SingleSingerPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, MixedSinger>) {
+                return MixedSingerPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, KeySignature>) {
                 return KeySignaturePrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Tempo>) {
@@ -121,6 +152,8 @@ namespace dspx {
                 return AudioClipPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, SingingClip>) {
                 return SingingClipPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, Sources>) {
+                return SourcesPrivate::create(handle, model);
             } else {
                 static_assert(std::is_same_v<T, void>);
                 return nullptr;
@@ -145,12 +178,38 @@ namespace dspx {
                 if (!orm::isContainer(snapshot, Schema::labelTable())) {
                     return nullptr;
                 }
+            } else if constexpr (std::is_same_v<T, AnchorNode>) {
+                if (!orm::isContainer(snapshot, Schema::anchorNodeTable())) {
+                    return nullptr;
+                }
             } else if constexpr (std::is_same_v<T, Note>) {
                 if (!orm::isContainer(snapshot, Schema::noteTable())) {
                     return nullptr;
                 }
+            } else if constexpr (std::is_same_v<T, DynamicMixingAnchor>) {
+                if (!orm::isContainer(snapshot, Schema::dynamicMixingAnchorTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Parameter>) {
+                if (!orm::isContainer(snapshot, Schema::parameterTable())) {
+                    return nullptr;
+                }
             } else if constexpr (std::is_same_v<T, Phoneme>) {
                 if (!orm::isContainer(snapshot, Schema::phonemeTable())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, Singer>) {
+                if (!orm::isContainer(snapshot, Schema::singerList())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, SingleSinger>) {
+                if (!orm::isContainer(snapshot, Schema::singerList()) || !snapshot.variant.has_value() ||
+                    snapshot.variant.value() != Schema::singleSingerVariant()) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, MixedSinger>) {
+                if (!orm::isContainer(snapshot, Schema::singerList()) || !snapshot.variant.has_value() ||
+                    snapshot.variant.value() != Schema::mixedSingerVariant()) {
                     return nullptr;
                 }
             } else if constexpr (std::is_same_v<T, KeySignature>) {
@@ -183,6 +242,10 @@ namespace dspx {
                     snapshot.variant.value() != Schema::singingClipVariant()) {
                     return nullptr;
                 }
+            } else if constexpr (std::is_same_v<T, Sources>) {
+                if (!orm::isContainer(snapshot, Schema::sourcesTable())) {
+                    return nullptr;
+                }
             } else {
                 static_assert(std::is_same_v<T, void>);
             }
@@ -205,39 +268,77 @@ namespace dspx {
                 clipObjects.insert(handle, object);
                 orm::syncClipColumns(object, snapshot, false);
                 return object;
-            }
-            if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
-                if (auto it = clipObjects.find(handle); it != clipObjects.end()) {
-                    if (auto *object = qobject_cast<T *>(it.value())) {
-                        objectMap<T>().insert(handle, object);
-                        return object;
-                    }
+            } else if constexpr (std::is_same_v<T, Singer>) {
+                Singer *object = nullptr;
+                if (snapshot.variant.has_value() && snapshot.variant.value() == Schema::singleSingerVariant()) {
+                    object = SingleSingerPrivate::create(handle, q);
+                    singleSingerObjects.insert(handle, static_cast<SingleSinger *>(object));
+                } else if (snapshot.variant.has_value() && snapshot.variant.value() == Schema::mixedSingerVariant()) {
+                    object = MixedSingerPrivate::create(handle, q);
+                    mixedSingerObjects.insert(handle, static_cast<MixedSinger *>(object));
+                }
+                if (!object) {
                     return nullptr;
                 }
+                singerObjects.insert(handle, object);
+                orm::syncSingerColumns(object, snapshot, false);
+                return object;
+            } else {
+                if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                    if (auto it = clipObjects.find(handle); it != clipObjects.end()) {
+                        if (auto *object = qobject_cast<T *>(it.value())) {
+                            objectMap<T>().insert(handle, object);
+                            return object;
+                        }
+                        return nullptr;
+                    }
+                }
+                if constexpr (std::is_same_v<T, SingleSinger> || std::is_same_v<T, MixedSinger>) {
+                    if (auto it = singerObjects.find(handle); it != singerObjects.end()) {
+                        if (auto *object = qobject_cast<T *>(it.value())) {
+                            objectMap<T>().insert(handle, object);
+                            return object;
+                        }
+                        return nullptr;
+                    }
+                }
+                auto *object = createObject<T>(handle, q);
+                objectMap<T>().insert(handle, object);
+                if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                    clipObjects.insert(handle, object);
+                }
+                if constexpr (std::is_same_v<T, SingleSinger> || std::is_same_v<T, MixedSinger>) {
+                    singerObjects.insert(handle, object);
+                }
+                if constexpr (std::is_same_v<T, Label>) {
+                    orm::syncLabelColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, AnchorNode>) {
+                    orm::syncAnchorNodeColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Note>) {
+                    orm::syncNoteColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, DynamicMixingAnchor>) {
+                    orm::syncDynamicMixingAnchorColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Parameter>) {
+                    orm::syncParameterColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Phoneme>) {
+                    orm::syncPhonemeColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, SingleSinger> || std::is_same_v<T, MixedSinger>) {
+                    orm::syncSingerColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, KeySignature>) {
+                    orm::syncKeySignatureColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Tempo>) {
+                    orm::syncTempoColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, TimeSignature>) {
+                    orm::syncTimeSignatureColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Track>) {
+                    orm::syncTrackColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
+                    orm::syncClipColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, Sources>) {
+                    orm::syncSourcesColumns(object, snapshot, false);
+                }
+                return object;
             }
-            auto *object = createObject<T>(handle, q);
-            objectMap<T>().insert(handle, object);
-            if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
-                clipObjects.insert(handle, object);
-            }
-            if constexpr (std::is_same_v<T, Label>) {
-                orm::syncLabelColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, Note>) {
-                orm::syncNoteColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, Phoneme>) {
-                orm::syncPhonemeColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, KeySignature>) {
-                orm::syncKeySignatureColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, Tempo>) {
-                orm::syncTempoColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, TimeSignature>) {
-                orm::syncTimeSignatureColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, Track>) {
-                orm::syncTrackColumns(object, snapshot, false);
-            } else if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
-                orm::syncClipColumns(object, snapshot, false);
-            }
-            return object;
         }
 
         template <typename T>
@@ -279,8 +380,14 @@ namespace dspx {
         std::vector<const orm::ListBinding *> listBindings;
 
         QHash<Handle, Label *> labelObjects;
+        QHash<Handle, AnchorNode *> anchorNodeObjects;
         QHash<Handle, Note *> noteObjects;
+        QHash<Handle, DynamicMixingAnchor *> dynamicMixingAnchorObjects;
+        QHash<Handle, Parameter *> parameterObjects;
         QHash<Handle, Phoneme *> phonemeObjects;
+        QHash<Handle, Singer *> singerObjects;
+        QHash<Handle, SingleSinger *> singleSingerObjects;
+        QHash<Handle, MixedSinger *> mixedSingerObjects;
         QHash<Handle, KeySignature *> keySignatureObjects;
         QHash<Handle, Tempo *> tempoObjects;
         QHash<Handle, TimeSignature *> timeSignatureObjects;
@@ -288,6 +395,7 @@ namespace dspx {
         QHash<Handle, Clip *> clipObjects;
         QHash<Handle, AudioClip *> audioClipObjects;
         QHash<Handle, SingingClip *> singingClipObjects;
+        QHash<Handle, Sources *> sourcesObjects;
 
         QString projectName;
         QString projectAuthor;

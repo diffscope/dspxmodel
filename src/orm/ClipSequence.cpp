@@ -198,3 +198,5 @@ namespace dspx {
     }
 
 }
+
+#include "moc_ClipSequence.cpp"

@@ -17,6 +17,7 @@ namespace dspx {
 
         SingingClip *q_ptr = nullptr;
         Sources *sources = nullptr;
+        bool sourcesResolved = false;
         NoteSequence *notes = nullptr;
         ParameterMap *parameters = nullptr;
     };

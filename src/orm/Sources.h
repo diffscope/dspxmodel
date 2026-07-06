@@ -18,13 +18,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Sources : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Sources)
         Q_PROPERTY(QString category READ category WRITE setCategory NOTIFY categoryChanged)
         Q_PROPERTY(SingerList *singers READ singers CONSTANT)
         Q_PROPERTY(DynamicMixingAnchorSequence *dynamicMixingAnchors READ dynamicMixingAnchors CONSTANT)
         Q_PROPERTY(SingingClip *singingClip READ singingClip NOTIFY singingClipChanged)
     public:
-        ~Sources() override;
-
         /**
          * @brief Gets category.
          */
@@ -56,6 +55,8 @@ namespace dspx {
         void singingClipChanged(SingingClip *singingClip);
 
     private:
+        ~Sources() override;
+
         explicit Sources(Handle handle, Model *model);
 
         QScopedPointer<SourcesPrivate> d_ptr;

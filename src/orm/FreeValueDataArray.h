@@ -3,13 +3,14 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 #include <QVariant>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
 namespace dspx {
 
-    class ParameterCurveFree;
+    class Parameter;
 
     class FreeValueDataArrayPrivate;
 
@@ -18,11 +19,21 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT FreeValueDataArray : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(FreeValueDataArray)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<QVariant> items READ items NOTIFY itemsChanged)
-        Q_PROPERTY(ParameterCurveFree *parameterCurve READ parameterCurve CONSTANT)
+        Q_PROPERTY(FreeValueRole role READ role CONSTANT)
+        Q_PROPERTY(Parameter *parameter READ parameter CONSTANT)
     public:
-        ~FreeValueDataArray() override;
+        /**
+         * @brief Free value data role.
+         */
+        enum FreeValueRole {
+            Original,
+            Transform,
+            Edited,
+        };
+        Q_ENUM(FreeValueRole)
 
         /**
          * @brief Gets size.
@@ -61,10 +72,14 @@ namespace dspx {
         Q_INVOKABLE bool rotate(int leftIndex, int middleIndex, int rightIndex);
 
         /**
-         * @brief Gets parameter curve.
-         * @post parameterCurve() != nullptr.
+         * @brief Gets role.
          */
-        ParameterCurveFree *parameterCurve() const;
+        FreeValueRole role() const;
+        /**
+         * @brief Gets parameter.
+         * @post parameter() != nullptr.
+         */
+        Parameter *parameter() const;
 
     signals:
         void sizeChanged(int size);
@@ -75,7 +90,9 @@ namespace dspx {
         void rotated(int leftIndex, int middleIndex, int rightIndex);
 
     private:
-        explicit FreeValueDataArray(ParameterCurveFree *parameterCurve);
+        ~FreeValueDataArray() override;
+
+        explicit FreeValueDataArray(Parameter *parameter, FreeValueRole role);
 
         QScopedPointer<FreeValueDataArrayPrivate> d_ptr;
     };

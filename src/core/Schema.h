@@ -24,8 +24,12 @@ namespace dspx {
         static dini::TableHandle labelTable();
         static dini::TableHandle mixableTable();
         static dini::TableHandle modelTable();
+        static dini::TableHandle notePhonemeRelationTable();
+        static dini::TableHandle noteVibratoPointRelationTable();
         static dini::TableHandle noteTable();
         static dini::TableHandle phonemeTable();
+        static dini::TableHandle parameterAnchorNodeRelationTable();
+        static dini::TableHandle parameterFreeValueRelation();
         static dini::TableHandle parameterTable();
         static dini::TableHandle sourcesTable();
         static dini::TableHandle tempoTable();
@@ -41,10 +45,14 @@ namespace dspx {
         static dini::RelationHandle anchorNodeParent();
         static dini::RelationHandle clipParent();
         static dini::RelationHandle dynamicMixingAnchorParent();
+        static dini::RelationHandle freeValueRelationParent();
         static dini::RelationHandle freeValueParent();
         static dini::RelationHandle keySignatureParent();
         static dini::RelationHandle labelParent();
         static dini::RelationHandle noteParent();
+        static dini::RelationHandle notePhonemeRelationParent();
+        static dini::RelationHandle noteVibratoPointRelationParent();
+        static dini::RelationHandle parameterAnchorNodeRelationParent();
         static dini::RelationHandle phonemeParent();
         static dini::RelationHandle parameterParent();
         static dini::RelationHandle singerParent();
@@ -58,7 +66,8 @@ namespace dspx {
         static dini::VariantHandle singleSingerVariant();
         static dini::VariantHandle mixedSingerVariant();
 
-        static dini::ColumnHandle vibratoPointRoleColumn();
+        static dini::ColumnHandle notePhonemeRelationRoleColumn();
+        static dini::ColumnHandle noteVibratoPointRelationRoleColumn();
         static dini::ColumnHandle vibratoPointXColumn();
         static dini::ColumnHandle vibratoPointYColumn();
 
@@ -81,7 +90,7 @@ namespace dspx {
         static dini::ColumnHandle dynamicMixingAnchorPreviousItemColumn();
         static dini::ColumnHandle dynamicMixingAnchorNextItemColumn();
 
-        static dini::ColumnHandle freeValueRoleColumn();
+        static dini::ColumnHandle freeValueRelationRoleColumn();
         static dini::ColumnHandle freeValueValueColumn();
 
         static dini::ColumnHandle labelPositionColumn();
@@ -130,7 +139,6 @@ namespace dspx {
         static dini::ColumnHandle noteOverlappedCountColumn();
         static dini::ColumnHandle noteWorkspaceColumn();
 
-        static dini::ColumnHandle phonemeRoleColumn();
         static dini::ColumnHandle phonemeLanguageColumn();
         static dini::ColumnHandle phonemeStartColumn();
         static dini::ColumnHandle phonemeTokenColumn();
@@ -138,6 +146,7 @@ namespace dspx {
         static dini::ColumnHandle phonemePreviousItemColumn();
         static dini::ColumnHandle phonemeNextItemColumn();
 
+        static dini::ColumnHandle parameterAnchorNodeRelationRoleColumn();
         static dini::ColumnHandle parameterKeyColumn();
 
         static dini::ColumnHandle singerExtraColumn();
@@ -167,7 +176,6 @@ namespace dspx {
         static dini::ColumnHandle trackRecordColumn();
         static dini::ColumnHandle trackWorkspaceColumn();
 
-        static dini::ColumnHandle anchorNodeRoleColumn();
         static dini::ColumnHandle anchorNodeInterpolationModeColumn();
         static dini::ColumnHandle anchorNodeXColumn();
         static dini::ColumnHandle anchorNodeYColumn();

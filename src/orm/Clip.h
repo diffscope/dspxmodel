@@ -47,8 +47,6 @@ namespace dspx {
         };
         Q_ENUM(ClipType)
 
-        ~Clip() override;
-
         /**
          * @brief Gets name.
          */
@@ -207,6 +205,8 @@ namespace dspx {
         void clipSequenceChanged(ClipSequence *clipSequence);
 
     protected:
+        ~Clip() override;
+
         explicit Clip(Handle handle, Model *model);
 
         void fromOpenDSPXBase(const opendspx::Clip &clip);

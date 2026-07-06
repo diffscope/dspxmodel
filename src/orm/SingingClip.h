@@ -25,14 +25,15 @@ namespace dspx {
         Q_PROPERTY(NoteSequence *notes READ notes CONSTANT)
         Q_PROPERTY(ParameterMap *parameters READ parameters CONSTANT)
     public:
-        ~SingingClip() override;
-
         /**
          * @brief Gets sources.
          */
         Sources *sources() const;
         /**
          * @brief Sets sources.
+         *
+         * If sources->singingClip() != nullptr, the old singing clip will be detached.
+         *
          * @post sources() == sources.
          */
         void setSources(Sources *sources);
@@ -63,6 +64,8 @@ namespace dspx {
         void sourcesChanged(Sources *sources);
 
     private:
+        ~SingingClip() override;
+
         explicit SingingClip(Handle handle, Model *model);
 
         QScopedPointer<SingingClipPrivate> d_ptr;

@@ -16,14 +16,13 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT DynamicMixingAnchor : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(DynamicMixingAnchor)
         Q_PROPERTY(int position READ position WRITE setPosition NOTIFY positionChanged)
         Q_PROPERTY(QList<double> ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
         Q_PROPERTY(DynamicMixingAnchor *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(DynamicMixingAnchor *nextItem READ nextItem NOTIFY nextItemChanged)
         Q_PROPERTY(DynamicMixingAnchorSequence *dynamicMixingAnchorSequence READ dynamicMixingAnchorSequence NOTIFY dynamicMixingAnchorSequenceChanged)
     public:
-        ~DynamicMixingAnchor() override;
-
         /**
          * @brief Gets position.
          *
@@ -82,6 +81,8 @@ namespace dspx {
         void dynamicMixingAnchorSequenceChanged(DynamicMixingAnchorSequence *dynamicMixingAnchorSequence);
 
     private:
+        ~DynamicMixingAnchor() override;
+
         explicit DynamicMixingAnchor(Handle handle, Model *model);
 
         QScopedPointer<DynamicMixingAnchorPrivate> d_ptr;

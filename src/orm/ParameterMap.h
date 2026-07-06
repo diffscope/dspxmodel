@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 #include <QString>
 #include <QStringList>
 
@@ -20,13 +21,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT ParameterMap : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(ParameterMap)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QStringList keys READ keys NOTIFY keysChanged)
         Q_PROPERTY(QList<Parameter *> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(SingingClip *singingClip READ singingClip CONSTANT)
     public:
-        ~ParameterMap() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -92,6 +92,8 @@ namespace dspx {
         void itemRemoved(const QString &key, Parameter *item, ParameterMap *mapToWhichMoved = nullptr);
 
     private:
+        ~ParameterMap() override;
+
         explicit ParameterMap(SingingClip *singingClip);
 
         QScopedPointer<ParameterMapPrivate> d_ptr;

@@ -177,3 +177,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_NoteSequence.cpp"

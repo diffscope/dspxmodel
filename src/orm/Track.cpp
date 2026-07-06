@@ -8,7 +8,9 @@
 #include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/ClipSequence.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/TrackList.h>
 #include <dspxmodelORM/private/ClipSequence_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
@@ -21,14 +23,14 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Track>> &trackColumnBindings() {
             static const std::vector<orm::ColumnBinding<Track>> bindings {
-                orm::intField<Track, TrackPrivate>(Schema::trackColorIdColumn(), &TrackPrivate::colorId, &Track::colorIdChanged),
-                orm::doubleField<Track, TrackPrivate>(Schema::trackHeightColumn(), &TrackPrivate::height, &Track::heightChanged),
-                orm::stringField<Track, TrackPrivate>(Schema::trackNameColumn(), &TrackPrivate::name, &Track::nameChanged),
-                orm::doubleField<Track, TrackPrivate>(Schema::trackGainColumn(), &TrackPrivate::gain, &Track::gainChanged),
-                orm::doubleField<Track, TrackPrivate>(Schema::trackPanColumn(), &TrackPrivate::pan, &Track::panChanged),
-                orm::boolField<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged),
-                orm::boolField<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged),
-                orm::boolField<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged),
+                orm::intFieldWithSignal<Track, TrackPrivate>(Schema::trackColorIdColumn(), &TrackPrivate::colorId, &Track::colorIdChanged),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackHeightColumn(), &TrackPrivate::height, &Track::heightChanged),
+                orm::stringFieldWithSignal<Track, TrackPrivate>(Schema::trackNameColumn(), &TrackPrivate::name, &Track::nameChanged),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackGainColumn(), &TrackPrivate::gain, &Track::gainChanged),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackPanColumn(), &TrackPrivate::pan, &Track::panChanged),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged),
                 orm::binaryField<Track, TrackPrivate>(Schema::trackWorkspaceColumn(), &TrackPrivate::workspaceData, nullptr),
                 {Schema::trackParent().column(), [](Track *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
@@ -216,3 +218,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Track.cpp"

@@ -184,3 +184,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_TempoSequence.cpp"

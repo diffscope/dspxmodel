@@ -161,3 +161,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_LabelSequence.cpp"

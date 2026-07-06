@@ -189,3 +189,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_TrackList.cpp"

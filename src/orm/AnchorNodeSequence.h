@@ -3,13 +3,14 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
 namespace dspx {
 
     class AnchorNode;
-    class ParameterCurveAnchor;
+    class Parameter;
 
     class AnchorNodeSequencePrivate;
 
@@ -18,12 +19,21 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AnchorNodeSequence : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(AnchorNodeSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(AnchorNode *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(AnchorNode *lastItem READ lastItem NOTIFY lastItemChanged)
-        Q_PROPERTY(ParameterCurveAnchor *parameterCurve READ parameterCurve CONSTANT)
+        Q_PROPERTY(AnchorNodeRole role READ role CONSTANT)
+        Q_PROPERTY(Parameter *parameter READ parameter CONSTANT)
     public:
-        ~AnchorNodeSequence() override;
+        /**
+         * @brief Anchor node sequence role.
+         */
+        enum AnchorNodeRole {
+            Transform,
+            Edited,
+        };
+        Q_ENUM(AnchorNodeRole)
 
         /**
          * @brief Gets size.
@@ -75,10 +85,15 @@ namespace dspx {
         Q_INVOKABLE bool moveItem(AnchorNode *item, AnchorNodeSequence *sequence);
 
         /**
-         * @brief Gets parameter curve.
-         * @post parameterCurve() != nullptr.
+         * @brief Gets role.
          */
-        ParameterCurveAnchor *parameterCurve() const;
+        AnchorNodeRole role() const;
+
+        /**
+         * @brief Gets parameter.
+         * @post parameter() != nullptr.
+         */
+        Parameter *parameter() const;
 
     signals:
         void sizeChanged(int size);
@@ -90,7 +105,9 @@ namespace dspx {
         void itemRemoved(AnchorNode *item, AnchorNodeSequence *sequenceToWhichMoved = nullptr);
 
     private:
-        explicit AnchorNodeSequence(ParameterCurveAnchor *parameterCurve);
+        ~AnchorNodeSequence() override;
+
+        explicit AnchorNodeSequence(Parameter *parameter, AnchorNodeRole role);
 
         QScopedPointer<AnchorNodeSequencePrivate> d_ptr;
     };

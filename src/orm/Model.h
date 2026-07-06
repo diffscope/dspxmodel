@@ -24,6 +24,7 @@ namespace dspx {
     class LabelSequence;
     class MixedSinger;
     class Note;
+    class Parameter;
     class Phoneme;
     class SingleSinger;
     class SingingClip;
@@ -60,6 +61,7 @@ namespace dspx {
         Q_PROPERTY(TrackList *tracks READ tracks CONSTANT)
     public:
         explicit Model(Document *document, QObject *parent = nullptr);
+        ~Model() override;
 
         /**
          * @brief Gets the bound document.
@@ -282,6 +284,12 @@ namespace dspx {
          */
         Q_INVOKABLE Phoneme *createPhoneme();
         /**
+         * @brief Creates parameter.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
+         * @post createParameter() != nullptr.
+         */
+        Q_INVOKABLE Parameter *createParameter();
+        /**
          * @brief Creates anchor node.
          * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createAnchorNode() != nullptr.
@@ -333,8 +341,6 @@ namespace dspx {
         void loopLengthChanged(int loopLength);
 
     private:
-        ~Model() override;
-
         QScopedPointer<ModelPrivate> d_ptr;
     };
 

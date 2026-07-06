@@ -12,6 +12,7 @@
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/AudioClip.h>
+#include <dspxmodelORM/ClipSequence.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Track.h>
@@ -35,24 +36,24 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Clip>> &clipColumnBindings() {
             static const std::vector<orm::ColumnBinding<Clip>> bindings {
-                orm::stringField<Clip, ClipPrivate>(Schema::clipNameColumn(), &ClipPrivate::name, &Clip::nameChanged),
-                orm::doubleField<Clip, ClipPrivate>(Schema::clipGainColumn(), &ClipPrivate::gain, &Clip::gainChanged),
-                orm::doubleField<Clip, ClipPrivate>(Schema::clipPanColumn(), &ClipPrivate::pan, &Clip::panChanged),
-                orm::boolField<Clip, ClipPrivate>(Schema::clipMuteColumn(), &ClipPrivate::mute, &Clip::muteChanged),
+                orm::stringFieldWithSignal<Clip, ClipPrivate>(Schema::clipNameColumn(), &ClipPrivate::name, &Clip::nameChanged),
+                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipGainColumn(), &ClipPrivate::gain, &Clip::gainChanged),
+                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipPanColumn(), &ClipPrivate::pan, &Clip::panChanged),
+                orm::boolFieldWithSignal<Clip, ClipPrivate>(Schema::clipMuteColumn(), &ClipPrivate::mute, &Clip::muteChanged),
                 orm::intField<Clip, ClipPrivate>(Schema::clipPositionColumn(), &ClipPrivate::position, [](Clip *q) {
                     auto *d = ClipPrivate::get(q);
                     emit q->positionChanged(d->position);
                     emit q->startChanged(q->start());
                 }),
-                orm::intField<Clip, ClipPrivate>(Schema::clipLengthColumn(), &ClipPrivate::length, &Clip::lengthChanged),
+                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipLengthColumn(), &ClipPrivate::length, &Clip::lengthChanged),
                 orm::intField<Clip, ClipPrivate>(Schema::clipClipStartColumn(), &ClipPrivate::clipStart, [](Clip *q) {
                     auto *d = ClipPrivate::get(q);
                     emit q->clipStartChanged(d->clipStart);
                     emit q->startChanged(q->start());
                 }),
-                orm::intField<Clip, ClipPrivate>(Schema::clipClipLengthColumn(), &ClipPrivate::clipLength, &Clip::clipLengthChanged),
-                orm::previousNextField<Clip, ClipPrivate>(Schema::clipPreviousItemColumn(), &ClipPrivate::previousHandle, &ClipPrivate::previous, &Clip::previousItemChanged),
-                orm::previousNextField<Clip, ClipPrivate>(Schema::clipNextItemColumn(), &ClipPrivate::nextHandle, &ClipPrivate::next, &Clip::nextItemChanged),
+                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipClipLengthColumn(), &ClipPrivate::clipLength, &Clip::clipLengthChanged),
+                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipPreviousItemColumn(), &ClipPrivate::previousHandle, &ClipPrivate::previous, &Clip::previousItemChanged),
+                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipNextItemColumn(), &ClipPrivate::nextHandle, &ClipPrivate::next, &Clip::nextItemChanged),
                 {Schema::clipOverlappedCountColumn(), [](Clip *q, const dini::Value &value) {
                      auto *d = ClipPrivate::get(q);
                      const auto oldOverlapped = d->overlappedCount > 0;
@@ -338,3 +339,5 @@ namespace dspx {
     }
 
 }
+
+#include "moc_Clip.cpp"

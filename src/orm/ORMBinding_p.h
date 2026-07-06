@@ -8,6 +8,9 @@
 #include <utility>
 #include <vector>
 
+#include <QList>
+#include <QString>
+
 #include <dini/change.h>
 #include <dini/query.h>
 #include <dini/schema.h>
@@ -19,16 +22,26 @@
 namespace dspx {
 
     class ModelPrivate;
+    class AnchorNode;
     class Clip;
+    class DynamicMixingAnchor;
+    class FreeValueDataArray;
     class KeySignature;
     class Label;
     class Note;
+    class Parameter;
+    class ParameterMap;
     class Phoneme;
+    class Singer;
+    class Sources;
     class Tempo;
     class TimeSignature;
     class Track;
+    class VibratoPointDataArray;
 
     namespace orm {
+
+        dini::DocumentEngine *getModelEngine(ModelPrivate &model);
 
         struct OrderSpec {
             std::vector<dini::ColumnHandle> columns;
@@ -109,32 +122,11 @@ namespace dspx {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return static_cast<Member>(value.asInt64()); }, std::move(notify));
         }
 
-        template <typename Object, typename Member, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> intField(dini::ColumnHandle column, Member Object::*member, Notify notify) {
-            return ColumnBinding<Object> {
-                .column = std::move(column),
-                .apply = [member](Object *object, const dini::Value &value) {
-                    const auto newValue = static_cast<Member>(value.asInt64());
-                    const bool changed = object->*member != newValue;
-                    object->*member = newValue;
-                    return changed;
-                },
-                .notify = std::move(notify),
-            };
-        }
-
-        template <typename Object, typename Private, typename Member>
-        ColumnBinding<Object> intField(dini::ColumnHandle column, Member Private::*member, void (Object::*notify)(Member)) {
+        template <typename Object, typename Private, typename Member, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> intFieldWithSignal(dini::ColumnHandle column, Member Private::*member, Signal notify) {
             return intField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*member);
-            });
-        }
-
-        template <typename Object, typename Member, typename Emitter>
-        ColumnBinding<Object> intField(dini::ColumnHandle column, Member Object::*member, void (Emitter::*notify)(Member), Emitter *(Object::*emitter)()) {
-            return intField<Object>(std::move(column), member, [member, notify, emitter](Object *object) {
-                ((object->*emitter)()->*notify)(object->*member);
             });
         }
 
@@ -144,32 +136,11 @@ namespace dspx {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return value.asDouble(); }, std::move(notify));
         }
 
-        template <typename Object, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> doubleField(dini::ColumnHandle column, double Object::*member, Notify notify) {
-            return ColumnBinding<Object> {
-                .column = std::move(column),
-                .apply = [member](Object *object, const dini::Value &value) {
-                    const auto newValue = value.asDouble();
-                    const bool changed = object->*member != newValue;
-                    object->*member = newValue;
-                    return changed;
-                },
-                .notify = std::move(notify),
-            };
-        }
-
-        template <typename Object, typename Private>
-        ColumnBinding<Object> doubleField(dini::ColumnHandle column, double Private::*member, void (Object::*notify)(double)) {
+        template <typename Object, typename Private, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> doubleFieldWithSignal(dini::ColumnHandle column, double Private::*member, Signal notify) {
             return doubleField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*member);
-            });
-        }
-
-        template <typename Object, typename Emitter>
-        ColumnBinding<Object> doubleField(dini::ColumnHandle column, double Object::*member, void (Emitter::*notify)(double), Emitter *(Object::*emitter)()) {
-            return doubleField<Object>(std::move(column), member, [member, notify, emitter](Object *object) {
-                ((object->*emitter)()->*notify)(object->*member);
             });
         }
 
@@ -179,32 +150,11 @@ namespace dspx {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return value.asBool(); }, std::move(notify));
         }
 
-        template <typename Object, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> boolField(dini::ColumnHandle column, bool Object::*member, Notify notify) {
-            return ColumnBinding<Object> {
-                .column = std::move(column),
-                .apply = [member](Object *object, const dini::Value &value) {
-                    const auto newValue = value.asBool();
-                    const bool changed = object->*member != newValue;
-                    object->*member = newValue;
-                    return changed;
-                },
-                .notify = std::move(notify),
-            };
-        }
-
-        template <typename Object, typename Private>
-        ColumnBinding<Object> boolField(dini::ColumnHandle column, bool Private::*member, void (Object::*notify)(bool)) {
+        template <typename Object, typename Private, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> boolFieldWithSignal(dini::ColumnHandle column, bool Private::*member, Signal notify) {
             return boolField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*member);
-            });
-        }
-
-        template <typename Object, typename Emitter>
-        ColumnBinding<Object> boolField(dini::ColumnHandle column, bool Object::*member, void (Emitter::*notify)(bool), Emitter *(Object::*emitter)()) {
-            return boolField<Object>(std::move(column), member, [member, notify, emitter](Object *object) {
-                ((object->*emitter)()->*notify)(object->*member);
             });
         }
 
@@ -214,39 +164,11 @@ namespace dspx {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return stringFromValue(value); }, std::move(notify));
         }
 
-        template <typename Object, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Object::*member, Notify notify) {
-            return ColumnBinding<Object> {
-                .column = std::move(column),
-                .apply = [member](Object *object, const dini::Value &value) {
-                    const auto newValue = stringFromValue(value);
-                    const bool changed = object->*member != newValue;
-                    object->*member = newValue;
-                    return changed;
-                },
-                .notify = std::move(notify),
-            };
-        }
-
-        template <typename Object, typename Private>
-        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Private::*member, void (Object::*notify)(const QString &)) {
+        template <typename Object, typename Private, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> stringFieldWithSignal(dini::ColumnHandle column, QString Private::*member, Signal notify) {
             return stringField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*member);
-            });
-        }
-
-        template <typename Object, typename Private>
-        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Private::*member, void (Object::*notify)(QString)) {
-            return stringField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
-        }
-
-        template <typename Object, typename Emitter>
-        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Object::*member, void (Emitter::*notify)(const QString &), Emitter *(Object::*emitter)()) {
-            return stringField<Object>(std::move(column), member, [member, notify, emitter](Object *object) {
-                ((object->*emitter)()->*notify)(object->*member);
             });
         }
 
@@ -256,29 +178,15 @@ namespace dspx {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return binaryFromValue(value); }, std::move(notify));
         }
 
-        template <typename Object, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> binaryField(dini::ColumnHandle column, dini::ByteArray Object::*member, Notify notify) {
-            return ColumnBinding<Object> {
-                .column = std::move(column),
-                .apply = [member](Object *object, const dini::Value &value) {
-                    auto newValue = binaryFromValue(value);
-                    const bool changed = object->*member != newValue;
-                    object->*member = std::move(newValue);
-                    return changed;
-                },
-                .notify = std::move(notify),
-            };
-        }
-
         template <typename Enum, typename Object, typename Private, typename Notify>
             requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
         ColumnBinding<Object> enumField(dini::ColumnHandle column, Enum Private::*member, Notify notify) {
             return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return static_cast<Enum>(value.asInt64()); }, std::move(notify));
         }
 
-        template <typename Enum, typename Object, typename Private>
-        ColumnBinding<Object> enumField(dini::ColumnHandle column, Enum Private::*member, void (Object::*notify)(Enum)) {
+        template <typename Enum, typename Object, typename Private, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> enumFieldWithSignal(dini::ColumnHandle column, Enum Private::*member, Signal notify) {
             return enumField<Enum, Object, Private>(std::move(column), member, [member, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*member);
             });
@@ -302,8 +210,9 @@ namespace dspx {
             };
         }
 
-        template <typename Object, typename Private, typename Related>
-        ColumnBinding<Object> previousNextField(dini::ColumnHandle column, Handle Private::*handleMember, Related *Private::*objectMember, void (Object::*notify)(Related *)) {
+        template <typename Object, typename Private, typename Related, typename Signal>
+            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
+        ColumnBinding<Object> previousNextFieldWithSignal(dini::ColumnHandle column, Handle Private::*handleMember, Related *Private::*objectMember, Signal notify) {
             return previousNextField<Object, Private, Related>(std::move(column), handleMember, objectMember, [objectMember, notify](Object *object) {
                 (object->*notify)(Private::get(object)->*objectMember);
             });
@@ -416,7 +325,7 @@ namespace dspx {
                     const bool order = containsColumn(spec.orderColumns, change.column);
                     auto *group = groupForChange(groups, change.itemId);
                     if (!group) {
-                        auto snapshot = model.engine->read(change.itemId);
+                        auto snapshot = getModelEngine(model)->read(change.itemId);
                         groups.push_back({
                             .itemId = change.itemId,
                             .oldSnapshot = snapshot,
@@ -521,6 +430,204 @@ namespace dspx {
                     }
                     if (owner && spec.itemRemoved) {
                         spec.itemRemoved(owner, item, nullptr);
+                    }
+                    item->deleteLater();
+                },
+                .columnUpdated = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    processColumnUpdates(model, {change});
+                },
+                .columnUpdates = [processColumnUpdates](ModelPrivate &model, const std::vector<dini::ColumnUpdatedChange> &changes) {
+                    processColumnUpdates(model, changes);
+                },
+                .computedColumnUpdated = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (auto *item = spec.find(model, handleFromId(change.itemId))) {
+                        spec.applyColumn(item, change.column, change.newValue, true);
+                    }
+                },
+            };
+        }
+
+        template <typename Object, typename Owner>
+        struct KeyedAssociatedTableBindingSpec {
+            dini::TableHandle table;
+            dini::ColumnHandle associationColumn;
+            dini::ColumnHandle keyColumn;
+
+            std::function<Object *(ModelPrivate &, const dini::ItemSnapshot &)> ensure;
+            std::function<Object *(ModelPrivate &, Handle)> find;
+            std::function<void(ModelPrivate &, Handle)> removeObject;
+            std::function<void(Object *, const dini::ItemSnapshot &, bool)> sync;
+            std::function<bool(Object *, const dini::ColumnHandle &, const dini::Value &, bool)> applyColumn;
+
+            std::function<Owner *(ModelPrivate &, const dini::ItemSnapshot &)> ownerForSnapshot;
+            std::function<QString(const dini::ItemSnapshot &)> keyForSnapshot;
+            std::function<void(Object *, Owner *, QString, bool)> setPlacement;
+            std::function<void(Owner *, bool)> refreshOwner;
+
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToInsert;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemInserted;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToRemove;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemRemoved;
+        };
+
+        template <typename Object, typename Owner>
+        TableBinding makeKeyedAssociatedTableBinding(KeyedAssociatedTableBindingSpec<Object, Owner> spec) {
+            struct UpdateGroup {
+                dini::ItemId itemId = 0;
+                dini::ItemSnapshot oldSnapshot;
+                dini::ItemSnapshot newSnapshot;
+                std::vector<dini::ColumnUpdatedChange> changes;
+                bool placement = false;
+            };
+            auto groupForChange = [](std::vector<UpdateGroup> &groups, dini::ItemId itemId) -> UpdateGroup * {
+                auto it = std::find_if(groups.begin(), groups.end(), [itemId](const auto &group) {
+                    return group.itemId == itemId;
+                });
+                return it == groups.end() ? nullptr : &*it;
+            };
+            auto applyValue = [](dini::ItemSnapshot &snapshot, const dini::ColumnHandle &column, const dini::Value &value) {
+                for (auto &columnValue : snapshot.values) {
+                    if (columnValue.column == column) {
+                        columnValue.value = value;
+                        return;
+                    }
+                }
+                snapshot.values.push_back({
+                    .column = column,
+                    .value = value,
+                });
+            };
+            auto hasChangeForColumn = [](const UpdateGroup &group, const dini::ColumnHandle &column) {
+                return std::find_if(group.changes.begin(), group.changes.end(), [&column](const auto &change) {
+                    return change.column == column;
+                }) != group.changes.end();
+            };
+            auto emitAboutToMove = [spec](Owner *oldOwner,
+                                          const QString &oldKey,
+                                          Owner *newOwner,
+                                          const QString &newKey,
+                                          Object *item) {
+                const bool placementChanged = oldOwner != newOwner || oldKey != newKey;
+                if (!placementChanged) {
+                    return;
+                }
+                if (oldOwner && spec.itemAboutToRemove) {
+                    spec.itemAboutToRemove(oldOwner, oldKey, item, newOwner);
+                }
+                if (newOwner && spec.itemAboutToInsert) {
+                    spec.itemAboutToInsert(newOwner, newKey, item, oldOwner);
+                }
+            };
+            auto emitMoved = [spec](Owner *oldOwner,
+                                    const QString &oldKey,
+                                    Owner *newOwner,
+                                    const QString &newKey,
+                                    Object *item) {
+                const bool placementChanged = oldOwner != newOwner || oldKey != newKey;
+                if (!placementChanged) {
+                    return;
+                }
+                if (oldOwner && spec.itemRemoved) {
+                    spec.itemRemoved(oldOwner, oldKey, item, newOwner);
+                }
+                if (newOwner && spec.itemInserted) {
+                    spec.itemInserted(newOwner, newKey, item, oldOwner);
+                }
+            };
+            auto processColumnUpdates = [spec, groupForChange, applyValue, hasChangeForColumn, emitAboutToMove, emitMoved](
+                                            ModelPrivate &model,
+                                            const std::vector<dini::ColumnUpdatedChange> &changes) {
+                std::vector<UpdateGroup> groups;
+                for (const auto &change : changes) {
+                    auto *group = groupForChange(groups, change.itemId);
+                    if (!group) {
+                        auto snapshot = getModelEngine(model)->read(change.itemId);
+                        groups.push_back({
+                            .itemId = change.itemId,
+                            .oldSnapshot = snapshot,
+                            .newSnapshot = std::move(snapshot),
+                        });
+                        group = &groups.back();
+                    }
+                    if (!hasChangeForColumn(*group, change.column)) {
+                        applyValue(group->oldSnapshot, change.column, change.oldValue);
+                    }
+                    applyValue(group->newSnapshot, change.column, change.newValue);
+                    group->changes.push_back(change);
+                    group->placement = group->placement || change.column == spec.associationColumn || change.column == spec.keyColumn;
+                }
+
+                for (const auto &group : groups) {
+                    auto *item = spec.find(model, handleFromId(group.itemId));
+                    auto *oldOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.oldSnapshot) : nullptr;
+                    auto *newOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.newSnapshot) : nullptr;
+                    const auto oldKey = spec.keyForSnapshot ? spec.keyForSnapshot(group.oldSnapshot) : QString();
+                    const auto newKey = spec.keyForSnapshot ? spec.keyForSnapshot(group.newSnapshot) : QString();
+
+                    if (!item) {
+                        if (group.placement && spec.refreshOwner) {
+                            refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
+                        }
+                        continue;
+                    }
+
+                    if (group.placement) {
+                        emitAboutToMove(oldOwner, oldKey, newOwner, newKey, item);
+                    }
+
+                    spec.sync(item, group.newSnapshot, true);
+
+                    if (group.placement && spec.refreshOwner) {
+                        refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
+                    }
+
+                    if (group.placement) {
+                        emitMoved(oldOwner, oldKey, newOwner, newKey, item);
+                    }
+                }
+            };
+
+            return TableBinding {
+                .table = spec.table,
+                .itemInserted = [spec](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    auto *item = spec.ensure(model, change.item);
+                    auto *owner = item ? spec.ownerForSnapshot(model, change.item) : nullptr;
+                    if (!item || !owner) {
+                        return;
+                    }
+                    const auto key = spec.keyForSnapshot(change.item);
+                    if (spec.itemAboutToInsert) {
+                        spec.itemAboutToInsert(owner, key, item, nullptr);
+                    }
+                    spec.sync(item, change.item, true);
+                    if (spec.refreshOwner) {
+                        spec.refreshOwner(owner, true);
+                    }
+                    if (spec.itemInserted) {
+                        spec.itemInserted(owner, key, item, nullptr);
+                    }
+                },
+                .itemRemoved = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    auto *item = spec.ensure(model, snapshot);
+                    if (!item) {
+                        return;
+                    }
+                    auto *owner = spec.ownerForSnapshot(model, snapshot);
+                    const auto key = spec.keyForSnapshot(snapshot);
+                    if (owner && spec.itemAboutToRemove) {
+                        spec.itemAboutToRemove(owner, key, item, nullptr);
+                    }
+                    if (spec.setPlacement) {
+                        spec.setPlacement(item, nullptr, QString(), true);
+                    }
+                    if (spec.removeObject) {
+                        spec.removeObject(model, handleFromId(snapshot.id));
+                    }
+                    if (owner && spec.refreshOwner) {
+                        spec.refreshOwner(owner, true);
+                    }
+                    if (owner && spec.itemRemoved) {
+                        spec.itemRemoved(owner, key, item, nullptr);
                     }
                     item->deleteLater();
                 },
@@ -715,6 +822,122 @@ namespace dspx {
             };
         }
 
+        template <typename Owner, typename ItemValue>
+        struct DataArrayListBindingSpec {
+            dini::ListHandle list;
+            dini::ColumnHandle associationColumn;
+
+            std::function<Owner *(ModelPrivate &, const dini::Value &)> ownerForAssociationValue;
+            std::function<void(Owner *, bool, bool)> refreshOwner;
+            std::function<ItemValue(const dini::ItemSnapshot &)> decodeItem;
+            std::function<bool(Owner *)> notificationsSuppressed;
+
+            std::function<void(Owner *, int, int, const QList<ItemValue> &)> aboutToSplice;
+            std::function<void(Owner *, int, int, const QList<ItemValue> &)> spliced;
+            std::function<void(Owner *, int, int, int)> aboutToRotate;
+            std::function<void(Owner *, int, int, int)> rotated;
+        };
+
+        template <typename Owner, typename ItemValue>
+        ListBinding makeDataArrayListBinding(DataArrayListBindingSpec<Owner, ItemValue> spec) {
+            auto suppressed = [spec](Owner *owner) {
+                return owner && spec.notificationsSuppressed && spec.notificationsSuppressed(owner);
+            };
+            auto refresh = [spec, suppressed](Owner *owner, bool itemsChanged) {
+                if (owner && spec.refreshOwner && !suppressed(owner)) {
+                    spec.refreshOwner(owner, true, itemsChanged);
+                }
+            };
+            auto oneValue = [spec](const dini::ItemSnapshot &item) {
+                QList<ItemValue> values;
+                values.append(spec.decodeItem(item));
+                return values;
+            };
+            auto emitSplice = [spec, suppressed, refresh](Owner *owner, int index, int length, const QList<ItemValue> &values) {
+                if (!owner) {
+                    return;
+                }
+                const bool shouldNotify = !suppressed(owner);
+                if (shouldNotify && spec.aboutToSplice) {
+                    spec.aboutToSplice(owner, index, length, values);
+                }
+                refresh(owner, true);
+                if (shouldNotify && spec.spliced) {
+                    spec.spliced(owner, index, length, values);
+                }
+            };
+            return ListBinding {
+                .list = spec.list,
+                .itemInserted = [spec, refresh](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    if (change.item.listAssociationValue.has_value()) {
+                        refresh(spec.ownerForAssociationValue(model, change.item.listAssociationValue.value()), true);
+                    }
+                },
+                .itemRemoved = [spec, emitSplice](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    if (!snapshot.listAssociationValue.has_value()) {
+                        return;
+                    }
+                    auto *owner = spec.ownerForAssociationValue(model, snapshot.listAssociationValue.value());
+                    const auto index = static_cast<int>(snapshot.listIndex.value_or(0));
+                    emitSplice(owner, index, 1, QList<ItemValue>());
+                },
+                .listInserted = [spec, emitSplice, oneValue](ModelPrivate &model, const dini::ListInsertedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    emitSplice(owner, static_cast<int>(change.index), 0, oneValue(change.item));
+                },
+                .listRemoved = [spec, emitSplice](ModelPrivate &model, const dini::ListRemovedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    emitSplice(owner, static_cast<int>(change.index), 1, QList<ItemValue>());
+                },
+                .columnUpdated = [spec, emitSplice, oneValue, refresh](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    if (change.column == spec.associationColumn) {
+                        auto *oldOwner = spec.ownerForAssociationValue(model, change.oldValue);
+                        auto *newOwner = spec.ownerForAssociationValue(model, change.newValue);
+                        emitSplice(oldOwner, static_cast<int>(change.oldListIndex.value_or(0)), 1, QList<ItemValue>());
+                        if (newOwner && getModelEngine(model)->contains(change.itemId)) {
+                            const auto item = getModelEngine(model)->read(change.itemId);
+                            emitSplice(newOwner, static_cast<int>(change.associationOptions.targetIndex.value_or(0)), 0, oneValue(item));
+                        }
+                        return;
+                    }
+                    if (!getModelEngine(model)->contains(change.itemId)) {
+                        return;
+                    }
+                    const auto item = getModelEngine(model)->read(change.itemId);
+                    if (item.listAssociationValue.has_value()) {
+                        refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
+                    }
+                },
+                .computedColumnUpdated = [spec, refresh](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (!getModelEngine(model)->contains(change.itemId)) {
+                        return;
+                    }
+                    const auto item = getModelEngine(model)->read(change.itemId);
+                    if (item.listAssociationValue.has_value()) {
+                        refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
+                    }
+                },
+                .listRotated = [spec, suppressed, refresh](ModelPrivate &model, const dini::ListRotatedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    if (!owner) {
+                        return;
+                    }
+                    const auto normalized = change.rotation.count == 0 ? 0 : ((change.rotation.offset % static_cast<std::ptrdiff_t>(change.rotation.count)) + static_cast<std::ptrdiff_t>(change.rotation.count)) % static_cast<std::ptrdiff_t>(change.rotation.count);
+                    const auto left = static_cast<int>(change.rotation.startIndex);
+                    const auto middle = static_cast<int>(change.rotation.startIndex + static_cast<std::size_t>(normalized));
+                    const auto right = static_cast<int>(change.rotation.startIndex + change.rotation.count);
+                    const bool shouldNotify = !suppressed(owner);
+                    if (shouldNotify && spec.aboutToRotate) {
+                        spec.aboutToRotate(owner, left, middle, right);
+                    }
+                    refresh(owner, true);
+                    if (shouldNotify && spec.rotated) {
+                        spec.rotated(owner, left, middle, right);
+                    }
+                },
+            };
+        }
+
         template <typename Factory>
         TableBinding makePolymorphicTableBinding(Factory factory) {
             return factory();
@@ -726,23 +949,40 @@ namespace dspx {
         }
 
         const TableBinding &modelTableBinding();
+        const TableBinding &anchorNodeTableBinding();
         const TableBinding &labelTableBinding();
         const TableBinding &keySignatureTableBinding();
         const TableBinding &tempoTableBinding();
         const TableBinding &timeSignatureTableBinding();
         const TableBinding &clipTableBinding();
+        const TableBinding &dynamicMixingAnchorTableBinding();
         const TableBinding &noteTableBinding();
+        const TableBinding &parameterTableBinding();
         const TableBinding &phonemeTableBinding();
+        const TableBinding &sourcesTableBinding();
         const ListBinding &trackListBinding();
+        const ListBinding &freeValueDataArrayBinding();
+        const ListBinding &singerListBinding();
+        const ListBinding &vibratoPointDataArrayBinding();
 
+        void syncAnchorNodeColumns(AnchorNode *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyAnchorNodeColumn(AnchorNode *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncClipColumns(Clip *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyClipColumn(Clip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncDynamicMixingAnchorColumns(DynamicMixingAnchor *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyDynamicMixingAnchorColumn(DynamicMixingAnchor *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncLabelColumns(Label *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyLabelColumn(Label *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncNoteColumns(Note *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyNoteColumn(Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncParameterColumns(Parameter *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyParameterColumn(Parameter *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncPhonemeColumns(Phoneme *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyPhonemeColumn(Phoneme *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncSingerColumns(Singer *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applySingerColumn(Singer *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncSourcesColumns(Sources *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applySourcesColumn(Sources *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncKeySignatureColumns(KeySignature *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyKeySignatureColumn(KeySignature *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncTempoColumns(Tempo *item, const dini::ItemSnapshot &snapshot, bool notify);
@@ -753,10 +993,12 @@ namespace dspx {
         bool applyTrackColumn(Track *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
 
         const OrderSpec &labelOrderSpec();
+        const OrderSpec &anchorNodeOrderSpec();
         const OrderSpec &keySignatureOrderSpec();
         const OrderSpec &tempoOrderSpec();
         const OrderSpec &timeSignatureOrderSpec();
         const OrderSpec &clipOrderSpec();
+        const OrderSpec &dynamicMixingAnchorOrderSpec();
         const OrderSpec &noteOrderSpec();
         const OrderSpec &phonemeOrderSpec();
 

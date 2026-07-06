@@ -3,6 +3,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct AnchorNode;
+}
+
 namespace dspx {
 
     class AnchorNodeSequence;
@@ -14,6 +18,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT AnchorNode : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(AnchorNode)
         Q_PROPERTY(InterpolationMode interpolationMode READ interpolationMode WRITE setInterpolationMode NOTIFY interpolationModeChanged)
         Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged)
         Q_PROPERTY(int y READ y WRITE setY NOTIFY yChanged)
@@ -30,8 +35,6 @@ namespace dspx {
             Hermite,
         };
         Q_ENUM(InterpolationMode)
-
-        ~AnchorNode() override;
 
         /**
          * @brief Gets interpolation mode.
@@ -79,6 +82,16 @@ namespace dspx {
          */
         AnchorNodeSequence *anchorNodeSequence() const;
 
+        /**
+         * @brief Converts to OpenDSPX anchor node.
+         */
+        opendspx::AnchorNode toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX anchor node.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::AnchorNode &node);
+
     signals:
         void interpolationModeChanged(InterpolationMode interpolationMode);
         void xChanged(int x);
@@ -88,6 +101,8 @@ namespace dspx {
         void anchorNodeSequenceChanged(AnchorNodeSequence *anchorNodeSequence);
 
     private:
+        ~AnchorNode() override;
+
         explicit AnchorNode(Handle handle, Model *model);
 
         QScopedPointer<AnchorNodePrivate> d_ptr;

@@ -45,8 +45,6 @@ namespace dspx {
         Q_DECLARE_PRIVATE(AudioClip)
         Q_PROPERTY(AudioPathInfo path READ path WRITE setPath NOTIFY pathChanged)
     public:
-        ~AudioClip() override;
-
         /**
          * @brief Gets path.
          */
@@ -72,6 +70,8 @@ namespace dspx {
         void pathChanged(const AudioPathInfo &path);
 
     private:
+        ~AudioClip() override;
+
         explicit AudioClip(Handle handle, Model *model);
 
         QScopedPointer<AudioClipPrivate> d_ptr;

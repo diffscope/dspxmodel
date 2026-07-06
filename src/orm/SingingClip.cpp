@@ -1,6 +1,7 @@
 #include "SingingClip.h"
 #include "SingingClip_p.h"
 
+#include <dini/engine.h>
 #include <dini/transaction.h>
 #include <opendspx/singingclip.h>
 
@@ -11,6 +12,7 @@
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/NoteSequence_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/ParameterMap_p.h>
 
 namespace dspx {
 
@@ -20,19 +22,36 @@ namespace dspx {
     SingingClip::SingingClip(Handle handle, Model *model) : Clip(handle, model), d_ptr(new SingingClipPrivate(this)) {
         ClipPrivate::get(static_cast<Clip *>(this))->type = Clip::Singing;
         d_ptr->notes = NoteSequencePrivate::create(this);
+        d_ptr->parameters = ParameterMapPrivate::create(this);
         NoteSequencePrivate::get(d_ptr->notes)->refresh(false);
+        ParameterMapPrivate::get(d_ptr->parameters)->refresh(false);
     }
 
     SingingClip::~SingingClip() = default;
 
     Sources *SingingClip::sources() const {
         Q_D(const SingingClip);
+        if (!d->sourcesResolved) {
+            auto *mutableData = const_cast<SingingClipPrivate *>(d);
+            auto *modelData = ModelPrivate::get(model());
+            const auto view = modelData->engine->query(Schema::sourcesTable(), {
+                .filter = orm::parentFilter(Schema::sourcesParent(), handle()),
+            });
+            mutableData->sources = nullptr;
+            if (auto snapshot = orm::firstSnapshot(view)) {
+                mutableData->sources = modelData->ensure<Sources>(*snapshot);
+            }
+            mutableData->sourcesResolved = true;
+        }
         return d->sources;
     }
 
     void SingingClip::setSources(Sources *sources) {
         Q_D(SingingClip);
-        if (d->sources == sources) {
+        if (sources && sources->model() != model()) {
+            return;
+        }
+        if (this->sources() == sources) {
             return;
         }
         if (d->sources) {
@@ -41,8 +60,6 @@ namespace dspx {
         if (sources) {
             ModelPrivate::get(model())->update(sources->handle(), Schema::sourcesParent().column(), orm::valueFromHandle(handle()));
         }
-        d->sources = sources;
-        emit sourcesChanged(d->sources);
     }
 
     NoteSequence *SingingClip::notes() const {
@@ -70,3 +87,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_SingingClip.cpp"

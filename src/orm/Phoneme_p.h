@@ -1,10 +1,7 @@
 #ifndef DSPXMODEL_PHONEME_P_H
 #define DSPXMODEL_PHONEME_P_H
 
-#include <optional>
-
 #include <dspxmodelORM/Phoneme.h>
-#include <dspxmodelORM/PhonemeSequence.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
@@ -18,7 +15,7 @@ namespace dspx {
         DSPXMODEL_DECLARE_GET(Phoneme)
         DSPXMODEL_FORWARD_CONSTRUCTOR(Phoneme)
 
-        void setPlacement(Handle parent, std::optional<PhonemeSequence::PhonemeRole> role, bool notify);
+        void setPlacement(Handle relation, bool notify);
         void setSequence(PhonemeSequence *sequence, bool notify);
 
         Phoneme *q_ptr = nullptr;
@@ -30,8 +27,7 @@ namespace dspx {
         Handle nextHandle;
         mutable Phoneme *previous = nullptr;
         mutable Phoneme *next = nullptr;
-        Handle parentHandle;
-        std::optional<PhonemeSequence::PhonemeRole> role;
+        Handle relationHandle;
         PhonemeSequence *sequence = nullptr;
     };
 

@@ -14,10 +14,9 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT SingleSinger : public Singer {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(SingleSinger)
         Q_PROPERTY(QString id READ id WRITE setId NOTIFY idChanged)
     public:
-        ~SingleSinger() override;
-
         /**
          * @brief Gets id.
          */
@@ -32,6 +31,8 @@ namespace dspx {
         void idChanged(const QString &id);
 
     private:
+        ~SingleSinger() override;
+
         explicit SingleSinger(Handle handle, Model *model);
 
         QScopedPointer<SingleSingerPrivate> d_ptr;

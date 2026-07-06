@@ -19,11 +19,11 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<TimeSignature>> &timeSignatureColumnBindings() {
             static const std::vector<orm::ColumnBinding<TimeSignature>> bindings {
-                orm::intField<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureIndexColumn(), &TimeSignaturePrivate::index, &TimeSignature::indexChanged),
-                orm::intField<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNumeratorColumn(), &TimeSignaturePrivate::numerator, &TimeSignature::numeratorChanged),
-                orm::intField<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureDenominatorColumn(), &TimeSignaturePrivate::denominator, &TimeSignature::denominatorChanged),
-                orm::previousNextField<TimeSignature, TimeSignaturePrivate>(Schema::timeSignaturePreviousItemColumn(), &TimeSignaturePrivate::previousHandle, &TimeSignaturePrivate::previous, &TimeSignature::previousItemChanged),
-                orm::previousNextField<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNextItemColumn(), &TimeSignaturePrivate::nextHandle, &TimeSignaturePrivate::next, &TimeSignature::nextItemChanged),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureIndexColumn(), &TimeSignaturePrivate::index, &TimeSignature::indexChanged),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNumeratorColumn(), &TimeSignaturePrivate::numerator, &TimeSignature::numeratorChanged),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureDenominatorColumn(), &TimeSignaturePrivate::denominator, &TimeSignature::denominatorChanged),
+                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignaturePreviousItemColumn(), &TimeSignaturePrivate::previousHandle, &TimeSignaturePrivate::previous, &TimeSignature::previousItemChanged),
+                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNextItemColumn(), &TimeSignaturePrivate::nextHandle, &TimeSignaturePrivate::next, &TimeSignature::nextItemChanged),
                 {Schema::timeSignatureParent().column(), [](TimeSignature *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TimeSignaturePrivate::get(q);
@@ -184,3 +184,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_TimeSignature.cpp"

@@ -8,6 +8,7 @@
 #include <limits>
 #include <optional>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -289,108 +290,210 @@ namespace dspx {
             dini::VariantHandle mixedSingerVariant;
         };
 
-        struct RoleAssociationCheckHook {
-            explicit RoleAssociationCheckHook(dini::TableHandle table, dini::RelationHandle association,
-                                              dini::ColumnHandle roleColumn)
-                : table(std::move(table)), association(std::move(association)), roleColumn(std::move(roleColumn)) {
-            }
-
-            explicit RoleAssociationCheckHook(dini::ListHandle list, dini::RelationHandle association,
-                                              dini::ColumnHandle roleColumn)
-                : list(std::move(list)), association(std::move(association)), roleColumn(std::move(roleColumn)) {
+        struct PairedAssociationColumnCheckHook {
+            PairedAssociationColumnCheckHook(dini::TableHandle table,
+                                             dini::RelationHandle association,
+                                             dini::ColumnHandle valueColumn,
+                                             const char *pairName)
+                : table(std::move(table)),
+                  association(std::move(association)),
+                  valueColumn(std::move(valueColumn)),
+                  pairName(pairName) {
             }
 
             void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
                 if (ctx.origin() != dini::EventOrigin::Normal) {
                     return;
                 }
-                std::vector<dini::ItemSnapshot> updatedItems;
+                std::vector<UpdatedItem> updatedItems;
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
-                        validate(inserted.item);
-                    } else if (change.kind() == dini::ChangeOperationKind::ListInserted) {
-                        const auto &inserted = std::get<dini::ListInsertedChange>(change.payload());
-                        validate(inserted.item);
+                        if (isTargetItem(inserted.item)) {
+                            validate(inserted.item);
+                        }
                     } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
                         const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
-                        if (updated.column == association.column() || updated.column == roleColumn) {
-                            applyUpdate(itemForUpdate(ctx, updatedItems, updated.itemId), updated);
+                        if (updated.column == association.column() || updated.column == valueColumn) {
+                            auto &item = itemForUpdate(ctx, updatedItems, updated.itemId);
+                            setItemValue(item.snapshot, updated.column, updated.newValue);
+                            if (updated.column == association.column()) {
+                                item.associationUpdated = true;
+                            } else {
+                                item.valueUpdated = true;
+                            }
                         }
                     }
                 }
                 for (const auto &item : updatedItems) {
-                    validate(item);
+                    if (item.associationUpdated != item.valueUpdated) {
+                        throw dini::ConstraintError("paired association column must be updated together");
+                    }
+                    validate(item.snapshot);
                 }
             }
 
         private:
-            dini::ItemSnapshot query(dini::TransactionContext &ctx, quint64 id) const {
-                if (table.has_value()) {
-                    return querySingle(ctx, *table, id, "role-associated item does not exist");
-                }
-                return querySingle(ctx, *list, id, "role-associated item does not exist");
+            struct UpdatedItem {
+                dini::ItemSnapshot snapshot;
+                bool associationUpdated = false;
+                bool valueUpdated = false;
+            };
+
+            bool isTargetItem(const dini::ItemSnapshot &item) const {
+                return item.containerKind == dini::ContainerKind::Table &&
+                       item.containerId == table.containerId();
             }
 
-            dini::ItemSnapshot &itemForUpdate(dini::TransactionContext &ctx,
-                                              std::vector<dini::ItemSnapshot> &items,
-                                              quint64 id) const {
-                auto it = std::find_if(items.begin(), items.end(), [id](const auto &item) {
-                    return item.id == id;
+            UpdatedItem &itemForUpdate(dini::TransactionContext &ctx,
+                                       std::vector<UpdatedItem> &items,
+                                       dini::ItemId itemId) const {
+                auto it = std::find_if(items.begin(), items.end(), [itemId](const auto &item) {
+                    return item.snapshot.id == itemId;
                 });
                 if (it != items.end()) {
                     return *it;
                 }
-                items.push_back(query(ctx, id));
+                auto snapshot = querySingle(ctx, table, itemId, "paired association item does not exist");
+                items.push_back({
+                    .snapshot = std::move(snapshot),
+                });
                 return items.back();
             }
 
-            void applyUpdate(dini::ItemSnapshot &item, const dini::ColumnUpdatedChange &updated) const {
-                setItemValue(item, updated.column, updated.newValue);
-                if (updated.column != association.column()) {
+            void validate(const dini::ItemSnapshot &item) const {
+                validate(itemValue(item, association.column()), itemValue(item, valueColumn));
+            }
+
+            void validate(const dini::Value &associationValue, const dini::Value &value) const {
+                const bool hasAssociation = !associationValue.isNull();
+                const bool hasValue = !value.isNull();
+                if (hasAssociation != hasValue) {
+                    throw dini::ConstraintError(std::string(pairName) + " and association must both be null or both be non-null");
+                }
+            }
+
+            dini::TableHandle table;
+            dini::RelationHandle association;
+            dini::ColumnHandle valueColumn;
+            const char *pairName = "value";
+        };
+
+        struct RequiredRoleRowsHook {
+            RequiredRoleRowsHook(dini::TableHandle parentTable,
+                                 dini::TableHandle relationTable,
+                                 dini::RelationHandle parentRelation,
+                                 dini::ColumnHandle roleColumn,
+                                 int roleCount)
+                : parentTable(std::move(parentTable)),
+                  relationTable(std::move(relationTable)),
+                  parentRelation(std::move(parentRelation)),
+                  roleColumn(std::move(roleColumn)),
+                  roleCount(roleCount) {
+            }
+
+            void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
+                std::set<dini::ItemId> parentIds;
+                for (const auto &change : changeSet.operations()) {
+                    if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
+                        const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
+                        collectFromSnapshot(parentIds, inserted.item);
+                    } else if (change.kind() == dini::ChangeOperationKind::ItemRemoved) {
+                        const auto &removed = std::get<dini::ItemRemovedChange>(change.payload());
+                        collectFromSnapshot(parentIds, removed.item);
+                    } else if (change.kind() == dini::ChangeOperationKind::CascadeRemoved) {
+                        const auto &removed = std::get<dini::CascadeRemovedChange>(change.payload());
+                        collectFromSnapshot(parentIds, removed.item);
+                    } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
+                        const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
+                        collectFromColumnUpdate(ctx, parentIds, updated);
+                    }
+                }
+
+                for (const auto parentId : parentIds) {
+                    validateParent(ctx, parentId);
+                }
+            }
+
+        private:
+            bool isParentItem(const dini::ItemSnapshot &item) const {
+                return item.containerKind == dini::ContainerKind::Table &&
+                       item.containerId == parentTable.containerId();
+            }
+
+            bool isRelationItem(const dini::ItemSnapshot &item) const {
+                return item.containerKind == dini::ContainerKind::Table &&
+                       item.containerId == relationTable.containerId();
+            }
+
+            void collectParentValue(std::set<dini::ItemId> &parentIds, const dini::Value &value) const {
+                if (value.isNull()) {
                     return;
                 }
-                if (list.has_value()) {
-                    if (updated.newValue.isNull()) {
-                        item.listAssociationValue.reset();
-                        item.listIndex.reset();
-                    } else {
-                        item.listAssociationValue = updated.newValue;
-                        item.listIndex = updated.associationOptions.targetIndex;
+                if (value.type() == dini::ValueType::UInt64) {
+                    parentIds.insert(static_cast<dini::ItemId>(value.asUInt64()));
+                } else if (value.type() == dini::ValueType::Int64 && value.asInt64() >= 0) {
+                    parentIds.insert(static_cast<dini::ItemId>(value.asInt64()));
+                }
+            }
+
+            void collectFromSnapshot(std::set<dini::ItemId> &parentIds, const dini::ItemSnapshot &item) const {
+                if (isParentItem(item)) {
+                    parentIds.insert(item.id);
+                } else if (isRelationItem(item)) {
+                    collectParentValue(parentIds, itemValue(item, parentRelation.column()));
+                }
+            }
+
+            void collectFromColumnUpdate(dini::TransactionContext &ctx,
+                                         std::set<dini::ItemId> &parentIds,
+                                         const dini::ColumnUpdatedChange &updated) const {
+                if (updated.column.containerId() == parentTable.containerId()) {
+                    parentIds.insert(updated.itemId);
+                    return;
+                }
+                if (updated.column.containerId() != relationTable.containerId()) {
+                    return;
+                }
+                if (updated.column == parentRelation.column()) {
+                    collectParentValue(parentIds, updated.oldValue);
+                    collectParentValue(parentIds, updated.newValue);
+                    return;
+                }
+                if (updated.column == roleColumn && ctx.engine().contains(updated.itemId)) {
+                    collectParentValue(parentIds, itemValue(ctx.engine().read(updated.itemId), parentRelation.column()));
+                }
+            }
+
+            void validateParent(dini::TransactionContext &ctx, dini::ItemId parentId) const {
+                if (!ctx.engine().contains(parentId)) {
+                    return;
+                }
+                querySingle(ctx, parentTable, parentId, "role parent item does not exist");
+                const auto rows = ctx.engine().query(relationTable, {
+                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::parent(parentRelation),
+                                                                  dini::ComparisonOperator::Equal,
+                                                                  dini::Value(static_cast<std::uint64_t>(parentId))))
+                }).toVector();
+                if (static_cast<int>(rows.size()) != roleCount) {
+                    throw dini::ConstraintError("role relation rows are incomplete");
+                }
+
+                std::vector<bool> seen(static_cast<std::size_t>(roleCount), false);
+                for (const auto &row : rows) {
+                    const auto role = static_cast<int>(itemValue(row, roleColumn).asInt64());
+                    if (role < 0 || role >= roleCount || seen[static_cast<std::size_t>(role)]) {
+                        throw dini::ConstraintError("role relation rows are invalid");
                     }
-                } else if (updated.newValue.isNull()) {
-                    item.parentId.reset();
-                } else {
-                    item.parentId = updated.newValue.asUInt64();
+                    seen[static_cast<std::size_t>(role)] = true;
                 }
             }
 
-            dini::Value associationValue(const dini::ItemSnapshot &item) const {
-                if (item.listAssociationValue.has_value()) {
-                    return item.listAssociationValue.value();
-                }
-                if (item.parentId.has_value()) {
-                    return item.parentId.value();
-                }
-                return itemValue(item, association.column());
-            }
-
-            void validate(const dini::ItemSnapshot &item) const {
-                validate(associationValue(item), itemValue(item, roleColumn));
-            }
-
-            void validate(const dini::Value &associationValue, const dini::Value &roleValue) const {
-                const bool hasAssociation = !associationValue.isNull();
-                const bool hasRole = !roleValue.isNull();
-                if (hasAssociation != hasRole) {
-                    throw dini::ConstraintError("role and association must both be null or both be non-null");
-                }
-            }
-
-            std::optional<dini::TableHandle> table;
-            std::optional<dini::ListHandle> list;
-            dini::RelationHandle association;
+            dini::TableHandle parentTable;
+            dini::TableHandle relationTable;
+            dini::RelationHandle parentRelation;
             dini::ColumnHandle roleColumn;
+            int roleCount = 0;
         };
 
         struct VirtualCascadeDeleteHook {
@@ -1124,6 +1227,24 @@ namespace dspx {
             dini::ColumnHandle overlapCountColumn;
         };
 
+        template <typename Builder, typename Callback>
+        void addHook(Builder &builder, dini::HookStage stage, Callback &&callback) {
+            dini::HookDefinition definition;
+            definition.stage = stage;
+            definition.callback = std::forward<Callback>(callback);
+            builder.addHook(definition);
+        }
+
+        template <typename Builder, typename Callback>
+        void addBeforeApplyHook(Builder &builder, Callback &&callback) {
+            addHook(builder, dini::HookStage::BeforeApply, std::forward<Callback>(callback));
+        }
+
+        template <typename Builder, typename Callback>
+        void addBeforeCommitHook(Builder &builder, Callback &&callback) {
+            addHook(builder, dini::HookStage::BeforeCommit, std::forward<Callback>(callback));
+        }
+
         struct g {
 
             g() {
@@ -1262,14 +1383,11 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {keySignatureParent.column(), keySignaturePositionColumn},
                 });
-                keySignatureTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(keySignatureTable,
-                                                keySignatureParent,
-                                                {keySignaturePositionColumn},
-                                                keySignaturePreviousItemColumn,
-                                                keySignatureNextItemColumn)
-                });
+                addBeforeApplyHook(keySignatureTableBuilder, OrderedLinkHook(keySignatureTable,
+                                                                             keySignatureParent,
+                                                                             {keySignaturePositionColumn},
+                                                                             keySignaturePreviousItemColumn,
+                                                                             keySignatureNextItemColumn));
             }
 
             void buildLabelTable() {
@@ -1300,14 +1418,11 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {labelParent.column(), labelPositionColumn},
                 });
-                labelTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(labelTable,
-                                                labelParent,
-                                                {labelPositionColumn},
-                                                labelPreviousItemColumn,
-                                                labelNextItemColumn)
-                });
+                addBeforeApplyHook(labelTableBuilder, OrderedLinkHook(labelTable,
+                                                                      labelParent,
+                                                                      {labelPositionColumn},
+                                                                      labelPreviousItemColumn,
+                                                                      labelNextItemColumn));
             }
 
             void buildTempoTable() {
@@ -1339,14 +1454,11 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {tempoParent.column(), tempoPositionColumn},
                 });
-                tempoTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(tempoTable,
-                                                tempoParent,
-                                                {tempoPositionColumn},
-                                                tempoPreviousItemColumn,
-                                                tempoNextItemColumn)
-                });
+                addBeforeApplyHook(tempoTableBuilder, OrderedLinkHook(tempoTable,
+                                                                      tempoParent,
+                                                                      {tempoPositionColumn},
+                                                                      tempoPreviousItemColumn,
+                                                                      tempoNextItemColumn));
             }
 
             void buildTimeSignatureTable() {
@@ -1388,14 +1500,11 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {timeSignatureParent.column(), timeSignatureIndexColumn},
                 });
-                timeSignatureTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(timeSignatureTable,
-                                                timeSignatureParent,
-                                                {timeSignatureIndexColumn},
-                                                timeSignaturePreviousItemColumn,
-                                                timeSignatureNextItemColumn)
-                });
+                addBeforeApplyHook(timeSignatureTableBuilder, OrderedLinkHook(timeSignatureTable,
+                                                                              timeSignatureParent,
+                                                                              {timeSignatureIndexColumn},
+                                                                              timeSignaturePreviousItemColumn,
+                                                                              timeSignatureNextItemColumn));
             }
 
             void buildTrackList() {
@@ -1559,22 +1668,16 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {clipParent.column(), clipPositionColumn},
                 });
-                clipTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(clipTable,
-                                                clipParent,
-                                                {clipPositionColumn, clipClipLengthColumn},
-                                                clipPreviousItemColumn,
-                                                clipNextItemColumn)
-                });
-                clipTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OverlapCountHook(clipTable,
-                                                 clipParent,
-                                                 clipPositionColumn,
-                                                 clipClipLengthColumn,
-                                                 clipOverlappedCountColumn)
-                });
+                addBeforeApplyHook(clipTableBuilder, OrderedLinkHook(clipTable,
+                                                                     clipParent,
+                                                                     {clipPositionColumn, clipClipLengthColumn},
+                                                                     clipPreviousItemColumn,
+                                                                     clipNextItemColumn));
+                addBeforeApplyHook(clipTableBuilder, OverlapCountHook(clipTable,
+                                                                      clipParent,
+                                                                      clipPositionColumn,
+                                                                      clipClipLengthColumn,
+                                                                      clipOverlappedCountColumn));
             }
 
             void buildSourcesMixableAndDynamicMixingAnchorTablesAndSingerList() {
@@ -1664,40 +1767,26 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {dynamicMixingAnchorParent.column(), dynamicMixingAnchorPositionColumn},
                 });
-                dynamicMixingAnchorTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(dynamicMixingAnchorTable,
-                                                dynamicMixingAnchorParent,
-                                                {dynamicMixingAnchorPositionColumn},
-                                                dynamicMixingAnchorPreviousItemColumn,
-                                                dynamicMixingAnchorNextItemColumn)
-                });
-                sourcesTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = SourcesAssociationCheckHook(clipTable, sourcesTable, sourcesParent, singingClipVariant)
-                });
-                sourcesTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = VirtualCascadeDeleteHook(VirtualCascadeDeleteHook::Mode::Sources,
-                                                         mixableTable,
-                                                         mixableSourcesColumn)
-                });
-                mixableTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = MixableAssociationCheckHook(sourcesTable,
-                                                            mixableTable,
-                                                            singerList,
-                                                            mixableSourcesColumn,
-                                                            mixableMixedSingerColumn,
-                                                            mixedSingerVariant)
-                });
-                singerListBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = VirtualCascadeDeleteHook(VirtualCascadeDeleteHook::Mode::MixedSinger,
-                                                         mixableTable,
-                                                         mixableMixedSingerColumn,
-                                                         mixedSingerVariant)
-                });
+                addBeforeApplyHook(dynamicMixingAnchorTableBuilder, OrderedLinkHook(dynamicMixingAnchorTable,
+                                                                                   dynamicMixingAnchorParent,
+                                                                                   {dynamicMixingAnchorPositionColumn},
+                                                                                   dynamicMixingAnchorPreviousItemColumn,
+                                                                                   dynamicMixingAnchorNextItemColumn));
+                addBeforeApplyHook(sourcesTableBuilder,
+                                   SourcesAssociationCheckHook(clipTable, sourcesTable, sourcesParent, singingClipVariant));
+                addBeforeApplyHook(sourcesTableBuilder, VirtualCascadeDeleteHook(VirtualCascadeDeleteHook::Mode::Sources,
+                                                                                 mixableTable,
+                                                                                 mixableSourcesColumn));
+                addBeforeApplyHook(mixableTableBuilder, MixableAssociationCheckHook(sourcesTable,
+                                                                                    mixableTable,
+                                                                                    singerList,
+                                                                                    mixableSourcesColumn,
+                                                                                    mixableMixedSingerColumn,
+                                                                                    mixedSingerVariant));
+                addBeforeApplyHook(singerListBuilder, VirtualCascadeDeleteHook(VirtualCascadeDeleteHook::Mode::MixedSinger,
+                                                                               mixableTable,
+                                                                               mixableMixedSingerColumn,
+                                                                               mixedSingerVariant));
             }
 
             void buildNoteTable() {
@@ -1827,42 +1916,82 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {noteParent.column(), notePositionColumn}
                 });
-                noteTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = ParentVariantCheckHook(clipTable, noteParent, singingClipVariant)
+                addBeforeApplyHook(noteTableBuilder, ParentVariantCheckHook(clipTable, noteParent, singingClipVariant));
+                addBeforeApplyHook(noteTableBuilder, OrderedLinkHook(noteTable,
+                                                                     noteParent,
+                                                                     {notePositionColumn, noteLengthColumn, noteKeyNumberColumn},
+                                                                     notePreviousItemColumn,
+                                                                     noteNextItemColumn));
+                addBeforeApplyHook(noteTableBuilder, OverlapCountHook(noteTable,
+                                                                      noteParent,
+                                                                      notePositionColumn,
+                                                                      noteLengthColumn,
+                                                                      noteOverlappedCountColumn));
+                buildNoteVibratoPointRelationTable(noteTableBuilder);
+                buildNotePhonemeRelationTable(noteTableBuilder);
+            }
+
+            void buildNoteVibratoPointRelationTable(dini::TableBuilder &noteTableBuilder) {
+                auto relationTableBuilder = schemaBuilder.createTable("NoteVibratoPointRelation");
+                noteVibratoPointRelationTable = relationTableBuilder.handle();
+                noteVibratoPointRelationParent = relationTableBuilder.addAssociation({
+                    .debugName = "note",
+                    .target = noteTable,
+                    .nullable = false,
                 });
-                noteTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(noteTable,
-                                                noteParent,
-                                                {notePositionColumn, noteLengthColumn, noteKeyNumberColumn},
-                                                notePreviousItemColumn,
-                                                noteNextItemColumn)
+                noteVibratoPointRelationRoleColumn = relationTableBuilder.addColumn({
+                    .debugName = "role",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
                 });
-                noteTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OverlapCountHook(noteTable,
-                                                 noteParent,
-                                                 notePositionColumn,
-                                                 noteLengthColumn,
-                                                 noteOverlappedCountColumn)
+                addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(noteTable,
+                                                                               noteVibratoPointRelationTable,
+                                                                               noteVibratoPointRelationParent,
+                                                                               noteVibratoPointRelationRoleColumn,
+                                                                               2));
+                addBeforeCommitHook(noteTableBuilder, RequiredRoleRowsHook(noteTable,
+                                                                           noteVibratoPointRelationTable,
+                                                                           noteVibratoPointRelationParent,
+                                                                           noteVibratoPointRelationRoleColumn,
+                                                                           2));
+            }
+
+            void buildNotePhonemeRelationTable(dini::TableBuilder &noteTableBuilder) {
+                auto relationTableBuilder = schemaBuilder.createTable("NotePhonemeRelation");
+                notePhonemeRelationTable = relationTableBuilder.handle();
+                notePhonemeRelationParent = relationTableBuilder.addAssociation({
+                    .debugName = "note",
+                    .target = noteTable,
+                    .nullable = false,
                 });
+                notePhonemeRelationRoleColumn = relationTableBuilder.addColumn({
+                    .debugName = "role",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
+                });
+                addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(noteTable,
+                                                                               notePhonemeRelationTable,
+                                                                               notePhonemeRelationParent,
+                                                                               notePhonemeRelationRoleColumn,
+                                                                               2));
+                addBeforeCommitHook(noteTableBuilder, RequiredRoleRowsHook(noteTable,
+                                                                           notePhonemeRelationTable,
+                                                                           notePhonemeRelationParent,
+                                                                           notePhonemeRelationRoleColumn,
+                                                                           2));
             }
 
             void buildVibratoPointList() {
                 auto vibratoPointListBuilder = schemaBuilder.createList("VibratoPointList");
                 vibratoPointList = vibratoPointListBuilder.handle();
                 vibratoPointParent = vibratoPointListBuilder.setAssociation({
-                    .debugName = "note",
-                    .target = noteTable,
+                    .debugName = "noteVibratoPointRelation",
+                    .target = noteVibratoPointRelationTable,
                     .nullable = false,
-                });
-                vibratoPointRoleColumn = vibratoPointListBuilder.addColumn({
-                    .debugName = "role",
-                    .type = dini::ValueType::Int64,
-                    .index = dini::IndexKind::Normal,
-                    .nullable = true,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
                 });
                 vibratoPointXColumn = vibratoPointListBuilder.addColumn({
                     .debugName = "x",
@@ -1876,25 +2005,14 @@ namespace dspx {
                     .defaultValue = 0.0,
                     .nullable = false,
                 });
-                vibratoPointListBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = RoleAssociationCheckHook(vibratoPointList, vibratoPointParent, vibratoPointRoleColumn)
-                });
             }
 
             void buildPhonemeTable() {
                 auto phonemeTableBuilder = schemaBuilder.createTable("Phoneme");
                 phonemeTable = phonemeTableBuilder.handle();
                 phonemeParent = phonemeTableBuilder.addAssociation({
-                    .debugName = "note",
-                    .target = noteTable,
-                });
-                phonemeRoleColumn = phonemeTableBuilder.addColumn({
-                    .debugName = "role",
-                    .type = dini::ValueType::Int64,
-                    .index = dini::IndexKind::Normal,
-                    .nullable = true,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
+                    .debugName = "notePhonemeRelation",
+                    .target = notePhonemeRelationTable,
                 });
                 phonemeLanguageColumn = phonemeTableBuilder.addColumn({
                     .debugName = "language",
@@ -1926,21 +2044,13 @@ namespace dspx {
                 phonemeNextItemColumn = links.next;
                 phonemeTableBuilder.addRangeIndex({
                     .debugName = "order",
-                    .columns = {phonemeParent.column(), phonemeRoleColumn, phonemeStartColumn},
+                    .columns = {phonemeParent.column(), phonemeStartColumn},
                 });
-                phonemeTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = RoleAssociationCheckHook(phonemeTable, phonemeParent, phonemeRoleColumn)
-                });
-                phonemeTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(phonemeTable,
-                                                phonemeParent,
-                                                {phonemeStartColumn},
-                                                phonemePreviousItemColumn,
-                                                phonemeNextItemColumn,
-                                                phonemeRoleColumn)
-                });
+                addBeforeApplyHook(phonemeTableBuilder, OrderedLinkHook(phonemeTable,
+                                                                        phonemeParent,
+                                                                        {phonemeStartColumn},
+                                                                        phonemePreviousItemColumn,
+                                                                        phonemeNextItemColumn));
             }
 
             void buildParameterTable() {
@@ -1956,35 +2066,81 @@ namespace dspx {
                     .index = dini::IndexKind::Unique,
                     .nullable = true,
                 });
-                parameterTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = ParentVariantCheckHook(clipTable, parameterParent, singingClipVariant)
+                addBeforeApplyHook(parameterTableBuilder, ParentVariantCheckHook(clipTable, parameterParent, singingClipVariant));
+                addBeforeApplyHook(parameterTableBuilder, PairedAssociationColumnCheckHook(parameterTable,
+                                                                                          parameterParent,
+                                                                                          parameterKeyColumn,
+                                                                                          "key"));
+                buildParameterFreeValueRelation(parameterTableBuilder);
+                buildParameterAnchorNodeRelation(parameterTableBuilder);
+            }
+
+            void buildParameterFreeValueRelation(dini::TableBuilder &parameterTableBuilder) {
+                auto relationTableBuilder = schemaBuilder.createTable("FreeValueRelation");
+                parameterFreeValueRelation = relationTableBuilder.handle();
+                freeValueRelationParent = relationTableBuilder.addAssociation({
+                    .debugName = "parameter",
+                    .target = parameterTable,
+                    .nullable = false,
                 });
+                freeValueRelationRoleColumn = relationTableBuilder.addColumn({
+                    .debugName = "role",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 3; }
+                });
+                addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(parameterTable,
+                                                                               parameterFreeValueRelation,
+                                                                               freeValueRelationParent,
+                                                                               freeValueRelationRoleColumn,
+                                                                               3));
+                addBeforeCommitHook(parameterTableBuilder, RequiredRoleRowsHook(parameterTable,
+                                                                               parameterFreeValueRelation,
+                                                                               freeValueRelationParent,
+                                                                               freeValueRelationRoleColumn,
+                                                                               3));
+            }
+
+            void buildParameterAnchorNodeRelation(dini::TableBuilder &parameterTableBuilder) {
+                auto relationTableBuilder = schemaBuilder.createTable("ParameterAnchorNodeRelation");
+                parameterAnchorNodeRelationTable = relationTableBuilder.handle();
+                parameterAnchorNodeRelationParent = relationTableBuilder.addAssociation({
+                    .debugName = "parameter",
+                    .target = parameterTable,
+                    .nullable = false,
+                });
+                parameterAnchorNodeRelationRoleColumn = relationTableBuilder.addColumn({
+                    .debugName = "role",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
+                });
+                addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(parameterTable,
+                                                                               parameterAnchorNodeRelationTable,
+                                                                               parameterAnchorNodeRelationParent,
+                                                                               parameterAnchorNodeRelationRoleColumn,
+                                                                               2));
+                addBeforeCommitHook(parameterTableBuilder, RequiredRoleRowsHook(parameterTable,
+                                                                               parameterAnchorNodeRelationTable,
+                                                                               parameterAnchorNodeRelationParent,
+                                                                               parameterAnchorNodeRelationRoleColumn,
+                                                                               2));
             }
 
             void buildFreeValueList() {
                 auto freeValueListBuilder = schemaBuilder.createList("FreeValueList");
                 freeValueList = freeValueListBuilder.handle();
                 freeValueParent = freeValueListBuilder.setAssociation({
-                    .debugName = "parameter",
-                    .target = parameterTable,
+                    .debugName = "freeValueRelation",
+                    .target = parameterFreeValueRelation,
                     .nullable = false,
-                });
-                freeValueRoleColumn = freeValueListBuilder.addColumn({
-                    .debugName = "role",
-                    .type = dini::ValueType::Int64,
-                    .index = dini::IndexKind::Normal,
-                    .nullable = true,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 3; }
                 });
                 freeValueValueColumn = freeValueListBuilder.addColumn({
                     .debugName = "value",
                     .type = dini::ValueType::Int64,
                     .nullable = true,
-                });
-                freeValueListBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = RoleAssociationCheckHook(freeValueList, freeValueParent, freeValueRoleColumn)
                 });
             }
 
@@ -1992,15 +2148,8 @@ namespace dspx {
                 auto anchorNodeTableBuilder = schemaBuilder.createTable("AnchorNode");
                 anchorNodeTable = anchorNodeTableBuilder.handle();
                 anchorNodeParent = anchorNodeTableBuilder.addAssociation({
-                    .debugName = "parameter",
-                    .target = parameterTable,
-                });
-                anchorNodeRoleColumn = anchorNodeTableBuilder.addColumn({
-                    .debugName = "role",
-                    .type = dini::ValueType::Int64,
-                    .index = dini::IndexKind::Normal,
-                    .nullable = true,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
+                    .debugName = "parameterAnchorNodeRelation",
+                    .target = parameterAnchorNodeRelationTable,
                 });
                 anchorNodeInterpolationModeColumn = anchorNodeTableBuilder.addColumn({
                     .debugName = "interpolationMode",
@@ -2028,21 +2177,13 @@ namespace dspx {
                 anchorNodeNextItemColumn = links.next;
                 anchorNodeTableBuilder.addRangeIndex({
                     .debugName = "order",
-                    .columns = {anchorNodeParent.column(), anchorNodeRoleColumn, anchorNodeXColumn},
+                    .columns = {anchorNodeParent.column(), anchorNodeXColumn},
                 });
-                anchorNodeTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = RoleAssociationCheckHook(anchorNodeTable, anchorNodeParent, anchorNodeRoleColumn)
-                });
-                anchorNodeTableBuilder.addHook({
-                    .stage = dini::HookStage::BeforeApply,
-                    .callback = OrderedLinkHook(anchorNodeTable,
-                                                anchorNodeParent,
-                                                {anchorNodeXColumn},
-                                                anchorNodePreviousItemColumn,
-                                                anchorNodeNextItemColumn,
-                                                anchorNodeRoleColumn)
-                });
+                addBeforeApplyHook(anchorNodeTableBuilder, OrderedLinkHook(anchorNodeTable,
+                                                                           anchorNodeParent,
+                                                                           {anchorNodeXColumn},
+                                                                           anchorNodePreviousItemColumn,
+                                                                           anchorNodeNextItemColumn));
             }
 
             dini::SchemaBuilder schemaBuilder;
@@ -2053,8 +2194,12 @@ namespace dspx {
             dini::TableHandle labelTable;
             dini::TableHandle mixableTable;
             dini::TableHandle modelTable;
+            dini::TableHandle notePhonemeRelationTable;
+            dini::TableHandle noteVibratoPointRelationTable;
             dini::TableHandle noteTable;
             dini::TableHandle phonemeTable;
+            dini::TableHandle parameterAnchorNodeRelationTable;
+            dini::TableHandle parameterFreeValueRelation;
             dini::TableHandle parameterTable;
             dini::TableHandle sourcesTable;
             dini::TableHandle tempoTable;
@@ -2070,10 +2215,14 @@ namespace dspx {
             dini::RelationHandle clipParent;
             dini::RelationHandle dynamicMixingAnchorParent;
             dini::RelationHandle anchorNodeParent;
+            dini::RelationHandle freeValueRelationParent;
             dini::RelationHandle freeValueParent;
             dini::RelationHandle keySignatureParent;
             dini::RelationHandle labelParent;
             dini::RelationHandle noteParent;
+            dini::RelationHandle notePhonemeRelationParent;
+            dini::RelationHandle noteVibratoPointRelationParent;
+            dini::RelationHandle parameterAnchorNodeRelationParent;
             dini::RelationHandle phonemeParent;
             dini::RelationHandle parameterParent;
             dini::RelationHandle singerParent;
@@ -2087,7 +2236,8 @@ namespace dspx {
             dini::VariantHandle singleSingerVariant;
             dini::VariantHandle mixedSingerVariant;
 
-            dini::ColumnHandle vibratoPointRoleColumn;
+            dini::ColumnHandle notePhonemeRelationRoleColumn;
+            dini::ColumnHandle noteVibratoPointRelationRoleColumn;
             dini::ColumnHandle vibratoPointXColumn;
             dini::ColumnHandle vibratoPointYColumn;
 
@@ -2151,7 +2301,6 @@ namespace dspx {
             dini::ColumnHandle noteOverlappedCountColumn;
             dini::ColumnHandle noteWorkspaceColumn;
 
-            dini::ColumnHandle phonemeRoleColumn;
             dini::ColumnHandle phonemeLanguageColumn;
             dini::ColumnHandle phonemeStartColumn;
             dini::ColumnHandle phonemeTokenColumn;
@@ -2164,9 +2313,10 @@ namespace dspx {
             dini::ColumnHandle dynamicMixingAnchorPreviousItemColumn;
             dini::ColumnHandle dynamicMixingAnchorNextItemColumn;
 
-            dini::ColumnHandle freeValueRoleColumn;
+            dini::ColumnHandle freeValueRelationRoleColumn;
             dini::ColumnHandle freeValueValueColumn;
 
+            dini::ColumnHandle parameterAnchorNodeRelationRoleColumn;
             dini::ColumnHandle parameterKeyColumn;
 
             dini::ColumnHandle singerExtraColumn;
@@ -2196,7 +2346,6 @@ namespace dspx {
             dini::ColumnHandle trackRecordColumn;
             dini::ColumnHandle trackWorkspaceColumn;
 
-            dini::ColumnHandle anchorNodeRoleColumn;
             dini::ColumnHandle anchorNodeInterpolationModeColumn;
             dini::ColumnHandle anchorNodeXColumn;
             dini::ColumnHandle anchorNodeYColumn;
@@ -2236,12 +2385,28 @@ namespace dspx {
         return g.modelTable;
     }
 
+    dini::TableHandle Schema::notePhonemeRelationTable() {
+        return g.notePhonemeRelationTable;
+    }
+
+    dini::TableHandle Schema::noteVibratoPointRelationTable() {
+        return g.noteVibratoPointRelationTable;
+    }
+
     dini::TableHandle Schema::noteTable() {
         return g.noteTable;
     }
 
     dini::TableHandle Schema::phonemeTable() {
         return g.phonemeTable;
+    }
+
+    dini::TableHandle Schema::parameterAnchorNodeRelationTable() {
+        return g.parameterAnchorNodeRelationTable;
+    }
+
+    dini::TableHandle Schema::parameterFreeValueRelation() {
+        return g.parameterFreeValueRelation;
     }
 
     dini::TableHandle Schema::parameterTable() {
@@ -2296,6 +2461,10 @@ namespace dspx {
         return g.dynamicMixingAnchorParent;
     }
 
+    dini::RelationHandle Schema::freeValueRelationParent() {
+        return g.freeValueRelationParent;
+    }
+
     dini::RelationHandle Schema::freeValueParent() {
         return g.freeValueParent;
     }
@@ -2310,6 +2479,18 @@ namespace dspx {
 
     dini::RelationHandle Schema::noteParent() {
         return g.noteParent;
+    }
+
+    dini::RelationHandle Schema::notePhonemeRelationParent() {
+        return g.notePhonemeRelationParent;
+    }
+
+    dini::RelationHandle Schema::noteVibratoPointRelationParent() {
+        return g.noteVibratoPointRelationParent;
+    }
+
+    dini::RelationHandle Schema::parameterAnchorNodeRelationParent() {
+        return g.parameterAnchorNodeRelationParent;
     }
 
     dini::RelationHandle Schema::phonemeParent() {
@@ -2356,8 +2537,12 @@ namespace dspx {
         return g.mixedSingerVariant;
     }
 
-    dini::ColumnHandle Schema::vibratoPointRoleColumn() {
-        return g.vibratoPointRoleColumn;
+    dini::ColumnHandle Schema::notePhonemeRelationRoleColumn() {
+        return g.notePhonemeRelationRoleColumn;
+    }
+
+    dini::ColumnHandle Schema::noteVibratoPointRelationRoleColumn() {
+        return g.noteVibratoPointRelationRoleColumn;
     }
 
     dini::ColumnHandle Schema::vibratoPointXColumn() {
@@ -2436,8 +2621,8 @@ namespace dspx {
         return g.dynamicMixingAnchorNextItemColumn;
     }
 
-    dini::ColumnHandle Schema::freeValueRoleColumn() {
-        return g.freeValueRoleColumn;
+    dini::ColumnHandle Schema::freeValueRelationRoleColumn() {
+        return g.freeValueRelationRoleColumn;
     }
 
     dini::ColumnHandle Schema::freeValueValueColumn() {
@@ -2608,10 +2793,6 @@ namespace dspx {
         return g.noteWorkspaceColumn;
     }
 
-    dini::ColumnHandle Schema::phonemeRoleColumn() {
-        return g.phonemeRoleColumn;
-    }
-
     dini::ColumnHandle Schema::phonemeLanguageColumn() {
         return g.phonemeLanguageColumn;
     }
@@ -2634,6 +2815,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::phonemeNextItemColumn() {
         return g.phonemeNextItemColumn;
+    }
+
+    dini::ColumnHandle Schema::parameterAnchorNodeRelationRoleColumn() {
+        return g.parameterAnchorNodeRelationRoleColumn;
     }
 
     dini::ColumnHandle Schema::parameterKeyColumn() {
@@ -2726,10 +2911,6 @@ namespace dspx {
 
     dini::ColumnHandle Schema::trackWorkspaceColumn() {
         return g.trackWorkspaceColumn;
-    }
-
-    dini::ColumnHandle Schema::anchorNodeRoleColumn() {
-        return g.anchorNodeRoleColumn;
     }
 
     dini::ColumnHandle Schema::anchorNodeInterpolationModeColumn() {

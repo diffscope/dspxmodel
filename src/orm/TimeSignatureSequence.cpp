@@ -185,3 +185,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_TimeSignatureSequence.cpp"

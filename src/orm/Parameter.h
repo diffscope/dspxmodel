@@ -3,10 +3,14 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Param;
+}
+
 namespace dspx {
 
-    class ParameterCurveAnchor;
-    class ParameterCurveFree;
+    class AnchorNodeSequence;
+    class FreeValueDataArray;
     class ParameterMap;
 
     class ParameterPrivate;
@@ -16,50 +20,61 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Parameter : public EntityObject {
         Q_OBJECT
-        Q_PROPERTY(ParameterCurveFree *original READ original CONSTANT)
-        Q_PROPERTY(ParameterCurveFree *freeTransform READ freeTransform CONSTANT)
-        Q_PROPERTY(ParameterCurveFree *freeEdited READ freeEdited CONSTANT)
-        Q_PROPERTY(ParameterCurveAnchor *anchorTransform READ anchorTransform CONSTANT)
-        Q_PROPERTY(ParameterCurveAnchor *anchorEdited READ anchorEdited CONSTANT)
+        Q_DECLARE_PRIVATE(Parameter)
+        Q_PROPERTY(FreeValueDataArray *original READ original CONSTANT)
+        Q_PROPERTY(FreeValueDataArray *freeTransform READ freeTransform CONSTANT)
+        Q_PROPERTY(FreeValueDataArray *freeEdited READ freeEdited CONSTANT)
+        Q_PROPERTY(AnchorNodeSequence *anchorTransform READ anchorTransform CONSTANT)
+        Q_PROPERTY(AnchorNodeSequence *anchorEdited READ anchorEdited CONSTANT)
         Q_PROPERTY(ParameterMap *parameterMap READ parameterMap NOTIFY parameterMapChanged)
     public:
-        ~Parameter() override;
-
         /**
-         * @brief Gets original parameter curve.
+         * @brief Gets original free value data array.
          * @post original() != nullptr.
          */
-        ParameterCurveFree *original() const;
+        FreeValueDataArray *original() const;
         /**
-         * @brief Gets free transform parameter curve.
+         * @brief Gets free transform value data array.
          * @post freeTransform() != nullptr.
          */
-        ParameterCurveFree *freeTransform() const;
+        FreeValueDataArray *freeTransform() const;
         /**
-         * @brief Gets free edited parameter curve.
+         * @brief Gets free edited value data array.
          * @post freeEdited() != nullptr.
          */
-        ParameterCurveFree *freeEdited() const;
+        FreeValueDataArray *freeEdited() const;
         /**
-         * @brief Gets anchor transform parameter curve.
+         * @brief Gets anchor transform node sequence.
          * @post anchorTransform() != nullptr.
          */
-        ParameterCurveAnchor *anchorTransform() const;
+        AnchorNodeSequence *anchorTransform() const;
         /**
-         * @brief Gets anchor edited parameter curve.
+         * @brief Gets anchor edited node sequence.
          * @post anchorEdited() != nullptr.
          */
-        ParameterCurveAnchor *anchorEdited() const;
+        AnchorNodeSequence *anchorEdited() const;
 
         /**
          * @brief Gets parameter map.
          */
         ParameterMap *parameterMap() const;
 
+        /**
+         * @brief Converts to OpenDSPX parameter.
+         */
+        opendspx::Param toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX parameter.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::Param &parameter);
+
     signals:
         void parameterMapChanged(ParameterMap *parameterMap);
 
     private:
+        ~Parameter() override;
+
         explicit Parameter(Handle handle, Model *model);
 
         QScopedPointer<ParameterPrivate> d_ptr;

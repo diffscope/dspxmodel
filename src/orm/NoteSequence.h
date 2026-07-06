@@ -31,8 +31,6 @@ namespace dspx {
         Q_PROPERTY(Note *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(SingingClip *singingClip READ singingClip CONSTANT)
     public:
-        ~NoteSequence() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -109,6 +107,8 @@ namespace dspx {
         void itemRemoved(Note *item, NoteSequence *sequenceToWhichMoved = nullptr);
 
     private:
+        ~NoteSequence() override;
+
         explicit NoteSequence(SingingClip *singingClip);
 
         QScopedPointer<NoteSequencePrivate> d_ptr;

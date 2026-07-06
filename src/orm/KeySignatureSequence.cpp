@@ -190,3 +190,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_KeySignatureSequence.cpp"

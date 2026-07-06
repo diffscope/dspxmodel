@@ -31,8 +31,6 @@ namespace dspx {
         Q_PROPERTY(Clip *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Track *track READ track CONSTANT)
     public:
-        ~ClipSequence() override;
-
         /**
          * @brief Gets size.
          */
@@ -108,6 +106,8 @@ namespace dspx {
         void itemRemoved(Clip *item, ClipSequence *sequenceToWhichMoved = nullptr);
 
     private:
+        ~ClipSequence() override;
+
         explicit ClipSequence(Track *track);
 
         QScopedPointer<ClipSequencePrivate> d_ptr;

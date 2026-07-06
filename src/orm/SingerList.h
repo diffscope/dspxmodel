@@ -3,6 +3,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -19,13 +20,12 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT SingerList : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(SingerList)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<Singer *> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(Sources *sources READ sources CONSTANT)
         Q_PROPERTY(MixedSinger *mixedSinger READ mixedSinger CONSTANT)
     public:
-        ~SingerList() override;
-
         /**
          * @brief Gets size.
          * @post size() >= 0.
@@ -77,12 +77,12 @@ namespace dspx {
 
         /**
          * @brief Gets sources.
-         * @post sources() == nullptr || mixedSinger() == nullptr.
+         * @post (sources() == nullptr) != (mixedSinger() == nullptr).
          */
         Sources *sources() const;
         /**
          * @brief Gets mixed singer.
-         * @post sources() == nullptr || mixedSinger() != nullptr.
+         * @post (sources() == nullptr != (mixedSinger() != nullptr).
          */
         MixedSinger *mixedSinger() const;
 
@@ -97,6 +97,8 @@ namespace dspx {
         void rotated(int leftIndex, int middleIndex, int rightIndex);
 
     private:
+        ~SingerList() override;
+
         explicit SingerList(Sources *sources);
         explicit SingerList(MixedSinger *mixedSinger);
 

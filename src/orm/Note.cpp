@@ -12,12 +12,14 @@
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/PhonemeSequence.h>
 #include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/VibratoPointDataArray.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/NoteSequence_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
 #include <dspxmodelORM/private/PhonemeSequence_p.h>
+#include <dspxmodelORM/private/VibratoPointDataArray_p.h>
 
 namespace dspx {
 
@@ -31,16 +33,16 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Note>> &noteColumnBindings() {
             static const std::vector<orm::ColumnBinding<Note>> bindings {
-                orm::intField<Note, NotePrivate>(Schema::noteCentShiftColumn(), &NotePrivate::centShift, &Note::centShiftChanged),
-                orm::intField<Note, NotePrivate>(Schema::noteKeyNumberColumn(), &NotePrivate::keyNumber, &Note::keyNumberChanged),
-                orm::stringField<Note, NotePrivate>(Schema::noteLanguageColumn(), &NotePrivate::language, &Note::languageChanged),
-                orm::intField<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged),
-                orm::stringField<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged),
-                orm::intField<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged),
-                orm::stringField<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged),
-                orm::stringField<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged),
-                orm::previousNextField<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged),
-                orm::previousNextField<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteCentShiftColumn(), &NotePrivate::centShift, &Note::centShiftChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteKeyNumberColumn(), &NotePrivate::keyNumber, &Note::keyNumberChanged),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLanguageColumn(), &NotePrivate::language, &Note::languageChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged),
+                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged),
+                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged),
                 {Schema::noteOverlappedCountColumn(), [](Note *q, const dini::Value &value) {
                      auto *d = NotePrivate::get(q);
                      const auto oldOverlapped = d->overlappedCount > 0;
@@ -49,12 +51,12 @@ namespace dspx {
                  }, [](Note *q) {
                      emit q->overlappedChanged(q->overlapped());
                  }},
-                orm::intField<Note, NotePrivate>(Schema::noteVibratoAmplitudeColumn(), &NotePrivate::vibratoAmplitude, &Note::vibratoAmplitudeChanged),
-                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoEndColumn(), &NotePrivate::vibratoEnd, &Note::vibratoEndChanged),
-                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoFrequencyColumn(), &NotePrivate::vibratoFrequency, &Note::vibratoFrequencyChanged),
-                orm::intField<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged),
-                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged),
-                orm::doubleField<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoAmplitudeColumn(), &NotePrivate::vibratoAmplitude, &Note::vibratoAmplitudeChanged),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoEndColumn(), &NotePrivate::vibratoEnd, &Note::vibratoEndChanged),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoFrequencyColumn(), &NotePrivate::vibratoFrequency, &Note::vibratoFrequencyChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged),
                 orm::binaryField<Note, NotePrivate>(Schema::noteWorkspaceColumn(), &NotePrivate::workspaceData, nullptr),
                 {Schema::noteParent().column(), [](Note *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
@@ -147,6 +149,10 @@ namespace dspx {
         Q_D(Note);
         d->originalPhonemes = PhonemeSequencePrivate::create(this, PhonemeSequence::Original);
         d->editedPhonemes = PhonemeSequencePrivate::create(this, PhonemeSequence::Edited);
+        d->vibratoAmplitudeControlPoints = VibratoPointDataArrayPrivate::create(this, VibratoPointDataArray::Amplitude);
+        d->vibratoFrequencyControlPoints = VibratoPointDataArrayPrivate::create(this, VibratoPointDataArray::Frequency);
+        VibratoPointDataArrayPrivate::get(d->vibratoAmplitudeControlPoints)->refresh(false, false);
+        VibratoPointDataArrayPrivate::get(d->vibratoFrequencyControlPoints)->refresh(false, false);
     }
 
     Note::~Note() = default;
@@ -377,3 +383,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Note.cpp"

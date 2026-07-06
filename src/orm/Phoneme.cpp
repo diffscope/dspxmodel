@@ -2,8 +2,9 @@
 #include "Phoneme_p.h"
 
 #include <cstdint>
-#include <optional>
+#include <vector>
 
+#include <dini/engine.h>
 #include <opendspx/phoneme.h>
 
 #include <dspxmodelCore/Schema.h>
@@ -20,38 +21,46 @@ namespace dspx {
 
     namespace {
 
-        std::optional<PhonemeSequence::PhonemeRole> roleFromValue(const dini::Value &value) {
-            if (value.isNull()) {
-                return {};
+        PhonemeSequence *phonemeOwnerFromAssociationValue(ModelPrivate &model, const dini::Value &value) {
+            const auto relationHandle = orm::handleFromValue(value);
+            if (!relationHandle || !model.engine->contains(orm::idFromHandle(relationHandle))) {
+                return nullptr;
             }
-            return static_cast<PhonemeSequence::PhonemeRole>(value.asInt64());
-        }
-
-        PhonemeSequence *phonemeOwnerFromPlacement(ModelPrivate &model, Handle noteHandle, std::optional<PhonemeSequence::PhonemeRole> role) {
-            if (!noteHandle || !role.has_value()) {
+            const auto relation = model.engine->read(orm::idFromHandle(relationHandle));
+            if (!orm::isContainer(relation, Schema::notePhonemeRelationTable())) {
+                return nullptr;
+            }
+            const auto noteHandle = orm::handleFromValue(orm::snapshotValue(relation, Schema::notePhonemeRelationParent().column()));
+            const auto roleValue = orm::snapshotValue(relation, Schema::notePhonemeRelationRoleColumn());
+            if (!noteHandle || roleValue.isNull()) {
                 return nullptr;
             }
             auto *note = model.ensure<Note>(noteHandle);
             if (!note) {
                 return nullptr;
             }
-            return *role == PhonemeSequence::Edited ? note->editedPhonemes() : note->originalPhonemes();
+            const auto role = static_cast<PhonemeSequence::PhonemeRole>(roleValue.asInt64());
+            if (role == PhonemeSequence::Original) {
+                return note->originalPhonemes();
+            }
+            if (role == PhonemeSequence::Edited) {
+                return note->editedPhonemes();
+            }
+            return nullptr;
         }
 
         PhonemeSequence *phonemeOwnerFromSnapshot(ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
-            return phonemeOwnerFromPlacement(model,
-                                             orm::handleFromValue(orm::snapshotValue(snapshot, Schema::phonemeParent().column())),
-                                             roleFromValue(orm::snapshotValue(snapshot, Schema::phonemeRoleColumn())));
+            return phonemeOwnerFromAssociationValue(model, orm::snapshotValue(snapshot, Schema::phonemeParent().column()));
         }
 
         const std::vector<orm::ColumnBinding<Phoneme>> &phonemeColumnBindings() {
             static const std::vector<orm::ColumnBinding<Phoneme>> bindings {
-                orm::stringField<Phoneme, PhonemePrivate>(Schema::phonemeLanguageColumn(), &PhonemePrivate::language, &Phoneme::languageChanged),
-                orm::intField<Phoneme, PhonemePrivate>(Schema::phonemeStartColumn(), &PhonemePrivate::start, &Phoneme::startChanged),
-                orm::stringField<Phoneme, PhonemePrivate>(Schema::phonemeTokenColumn(), &PhonemePrivate::token, &Phoneme::tokenChanged),
-                orm::boolField<Phoneme, PhonemePrivate>(Schema::phonemeOnsetColumn(), &PhonemePrivate::onset, &Phoneme::onsetChanged),
-                orm::previousNextField<Phoneme, PhonemePrivate>(Schema::phonemePreviousItemColumn(), &PhonemePrivate::previousHandle, &PhonemePrivate::previous, &Phoneme::previousItemChanged),
-                orm::previousNextField<Phoneme, PhonemePrivate>(Schema::phonemeNextItemColumn(), &PhonemePrivate::nextHandle, &PhonemePrivate::next, &Phoneme::nextItemChanged),
+                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeLanguageColumn(), &PhonemePrivate::language, &Phoneme::languageChanged),
+                orm::intFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeStartColumn(), &PhonemePrivate::start, &Phoneme::startChanged),
+                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeTokenColumn(), &PhonemePrivate::token, &Phoneme::tokenChanged),
+                orm::boolFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeOnsetColumn(), &PhonemePrivate::onset, &Phoneme::onsetChanged),
+                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemePreviousItemColumn(), &PhonemePrivate::previousHandle, &PhonemePrivate::previous, &Phoneme::previousItemChanged),
+                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeNextItemColumn(), &PhonemePrivate::nextHandle, &PhonemePrivate::next, &Phoneme::nextItemChanged),
             };
             return bindings;
         }
@@ -68,7 +77,7 @@ namespace dspx {
         const TableBinding &phonemeTableBinding() {
             static const TableBinding binding = makeAssociatedTableBinding<Phoneme, PhonemeSequence>({
                 .table = Schema::phonemeTable(),
-                .membershipColumns = {Schema::phonemeParent().column(), Schema::phonemeRoleColumn()},
+                .membershipColumns = {Schema::phonemeParent().column()},
                 .orderColumns = {Schema::phonemeStartColumn()},
                 .moveSemantics = MoveSemantics::BetweenOwners,
                 .ensure = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) { return model.ensure<Phoneme>(snapshot); },
@@ -93,18 +102,13 @@ namespace dspx {
             syncColumnBindings(phonemeColumnBindings(), item, snapshot, notify);
             PhonemePrivate::get(item)->setPlacement(
                 orm::handleFromValue(orm::snapshotValue(snapshot, Schema::phonemeParent().column())),
-                roleFromValue(orm::snapshotValue(snapshot, Schema::phonemeRoleColumn())),
                 notify);
         }
 
         bool applyPhonemeColumn(Phoneme *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
             auto *d = PhonemePrivate::get(item);
             if (column == Schema::phonemeParent().column()) {
-                d->setPlacement(orm::handleFromValue(value), d->role, notify);
-                return true;
-            }
-            if (column == Schema::phonemeRoleColumn()) {
-                d->setPlacement(d->parentHandle, roleFromValue(value), notify);
+                d->setPlacement(orm::handleFromValue(value), notify);
                 return true;
             }
             return applyColumnBinding(phonemeColumnBindings(), item, column, value, notify);
@@ -115,13 +119,12 @@ namespace dspx {
     PhonemePrivate::PhonemePrivate(Phoneme *q) : q_ptr(q) {
     }
 
-    void PhonemePrivate::setPlacement(Handle newParent, std::optional<PhonemeSequence::PhonemeRole> newRole, bool notify) {
+    void PhonemePrivate::setPlacement(Handle newRelation, bool notify) {
         Q_Q(Phoneme);
         auto *modelData = ModelPrivate::get(q->model());
-        auto *newSequence = phonemeOwnerFromPlacement(*modelData, newParent, newRole);
-        const bool changed = parentHandle != newParent || role != newRole || sequence != newSequence;
-        parentHandle = newParent;
-        role = newRole;
+        auto *newSequence = phonemeOwnerFromAssociationValue(*modelData, orm::valueFromHandle(newRelation));
+        const bool changed = relationHandle != newRelation || sequence != newSequence;
+        relationHandle = newRelation;
         sequence = newSequence;
         if (notify && changed) {
             emit q->phonemeSequenceChanged(sequence);
@@ -218,3 +221,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Phoneme.cpp"

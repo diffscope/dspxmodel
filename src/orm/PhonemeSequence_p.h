@@ -3,6 +3,8 @@
 
 #include <dspxmodelORM/PhonemeSequence.h>
 
+#include <dini/value.h>
+
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
 namespace dspx {
@@ -16,6 +18,8 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(PhonemeSequence)
 
         void refresh(bool notify);
+        Handle relationHandle() const;
+        dini::Value associationValue() const;
 
         PhonemeSequence *q_ptr = nullptr;
         Note *note = nullptr;

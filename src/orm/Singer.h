@@ -16,6 +16,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT Singer : public EntityObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(Singer)
         Q_PROPERTY(SingerType type READ type CONSTANT)
         Q_PROPERTY(QJsonValue extra READ extra WRITE setExtra NOTIFY extraChanged)
         Q_PROPERTY(SingerList *singerList READ singerList NOTIFY singerListChanged)
@@ -28,8 +29,6 @@ namespace dspx {
             Mixed,
         };
         Q_ENUM(SingerType)
-
-        ~Singer() override;
 
         /**
          * @brief Gets type.
@@ -56,6 +55,8 @@ namespace dspx {
         void singerListChanged(SingerList *singerList);
 
     protected:
+        ~Singer() override;
+
         explicit Singer(Handle handle, Model *model);
 
         QScopedPointer<SingerPrivate> d_ptr;

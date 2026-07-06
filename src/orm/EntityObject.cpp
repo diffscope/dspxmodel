@@ -1,6 +1,8 @@
 #include "EntityObject.h"
 #include "EntityObject_p.h"
 
+#include <dspxmodelORM/Model.h>
+
 namespace dspx {
 
     EntityObjectPrivate::EntityObjectPrivate(EntityObject *q, Handle handle, Model *model) : q_ptr(q), handle(handle), model(model) {
@@ -23,3 +25,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_EntityObject.cpp"

@@ -4,6 +4,7 @@
 #include <QList>
 #include <QObject>
 #include <QPointF>
+#include <QScopedPointer>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
@@ -18,6 +19,7 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT VibratoPointDataArray : public QObject {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(VibratoPointDataArray)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<QPointF> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(VibratoPointRole role READ role CONSTANT)
@@ -31,8 +33,6 @@ namespace dspx {
             Frequency,
         };
         Q_ENUM(VibratoPointRole)
-
-        ~VibratoPointDataArray() override;
 
         /**
          * @brief Gets size.
@@ -86,6 +86,8 @@ namespace dspx {
         void rotated(int leftIndex, int middleIndex, int rightIndex);
 
     private:
+        ~VibratoPointDataArray() override;
+
         explicit VibratoPointDataArray(Note *note, VibratoPointRole role);
 
         QScopedPointer<VibratoPointDataArrayPrivate> d_ptr;

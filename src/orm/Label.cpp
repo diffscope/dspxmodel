@@ -18,10 +18,10 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Label>> &labelColumnBindings() {
             static const std::vector<orm::ColumnBinding<Label>> bindings {
-                orm::intField<Label, LabelPrivate>(Schema::labelPositionColumn(), &LabelPrivate::position, &Label::positionChanged),
-                orm::stringField<Label, LabelPrivate>(Schema::labelTextColumn(), &LabelPrivate::text, &Label::textChanged),
-                orm::previousNextField<Label, LabelPrivate>(Schema::labelPreviousItemColumn(), &LabelPrivate::previousHandle, &LabelPrivate::previous, &Label::previousItemChanged),
-                orm::previousNextField<Label, LabelPrivate>(Schema::labelNextItemColumn(), &LabelPrivate::nextHandle, &LabelPrivate::next, &Label::nextItemChanged),
+                orm::intFieldWithSignal<Label, LabelPrivate>(Schema::labelPositionColumn(), &LabelPrivate::position, &Label::positionChanged),
+                orm::stringFieldWithSignal<Label, LabelPrivate>(Schema::labelTextColumn(), &LabelPrivate::text, &Label::textChanged),
+                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelPreviousItemColumn(), &LabelPrivate::previousHandle, &LabelPrivate::previous, &Label::previousItemChanged),
+                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelNextItemColumn(), &LabelPrivate::nextHandle, &LabelPrivate::next, &Label::nextItemChanged),
                 {Schema::labelParent().column(), [](Label *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = LabelPrivate::get(q);
@@ -156,3 +156,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Label.cpp"

@@ -16,11 +16,10 @@ namespace dspx {
      */
     class DSPXMODEL_ORM_EXPORT MixedSinger : public Singer {
         Q_OBJECT
+        Q_DECLARE_PRIVATE(MixedSinger)
         Q_PROPERTY(QList<double> ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
         Q_PROPERTY(SingerList *singers READ singers CONSTANT)
     public:
-        ~MixedSinger() override;
-
         /**
          * @brief Gets ratio.
          *
@@ -52,6 +51,8 @@ namespace dspx {
         void ratioChanged(const QList<double> &ratio);
 
     private:
+        ~MixedSinger() override;
+
         explicit MixedSinger(Handle handle, Model *model);
 
         QScopedPointer<MixedSingerPrivate> d_ptr;

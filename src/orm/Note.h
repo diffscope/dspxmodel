@@ -46,8 +46,6 @@ namespace dspx {
         Q_PROPERTY(VibratoPointDataArray *vibratoFrequencyControlPoints READ vibratoFrequencyControlPoints CONSTANT)
         Q_PROPERTY(NoteSequence *noteSequence READ noteSequence NOTIFY noteSequenceChanged)
     public:
-        ~Note() override;
-
         /**
          * @brief Gets cent shift.
          * @post centShift() >= -50 && centShift() <= 50.
@@ -284,6 +282,8 @@ namespace dspx {
         void noteSequenceChanged(NoteSequence *noteSequence);
 
     private:
+        ~Note() override;
+
         explicit Note(Handle handle, Model *model);
 
         QScopedPointer<NotePrivate> d_ptr;

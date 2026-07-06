@@ -19,10 +19,10 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Tempo>> &tempoColumnBindings() {
             static const std::vector<orm::ColumnBinding<Tempo>> bindings {
-                orm::intField<Tempo, TempoPrivate>(Schema::tempoPositionColumn(), &TempoPrivate::position, &Tempo::positionChanged),
-                orm::doubleField<Tempo, TempoPrivate>(Schema::tempoValueColumn(), &TempoPrivate::value, &Tempo::valueChanged),
-                orm::previousNextField<Tempo, TempoPrivate>(Schema::tempoPreviousItemColumn(), &TempoPrivate::previousHandle, &TempoPrivate::previous, &Tempo::previousItemChanged),
-                orm::previousNextField<Tempo, TempoPrivate>(Schema::tempoNextItemColumn(), &TempoPrivate::nextHandle, &TempoPrivate::next, &Tempo::nextItemChanged),
+                orm::intFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPositionColumn(), &TempoPrivate::position, &Tempo::positionChanged),
+                orm::doubleFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoValueColumn(), &TempoPrivate::value, &Tempo::valueChanged),
+                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPreviousItemColumn(), &TempoPrivate::previousHandle, &TempoPrivate::previous, &Tempo::previousItemChanged),
+                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoNextItemColumn(), &TempoPrivate::nextHandle, &TempoPrivate::next, &Tempo::nextItemChanged),
                 {Schema::tempoParent().column(), [](Tempo *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TempoPrivate::get(q);
@@ -171,3 +171,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Tempo.cpp"

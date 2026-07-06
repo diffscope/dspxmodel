@@ -15,7 +15,12 @@
 
 #include <dspxmodelCore/Document.h>
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/PhonemeSequence.h>
+#include <dspxmodelORM/VibratoPointDataArray.h>
+#include <dspxmodelORM/private/AnchorNode_p.h>
+#include <dspxmodelORM/private/AnchorNodeSequence_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
@@ -25,6 +30,7 @@
 #include <dspxmodelORM/private/Note_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/Parameter_p.h>
 #include <dspxmodelORM/private/Phoneme_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TempoSequence_p.h>
@@ -48,89 +54,19 @@ namespace dspx {
             return orm::handleFromId(models.front().id);
         }
 
-        const std::vector<orm::ColumnBinding<ModelPrivate>> &modelColumnBindings() {
-            static const std::vector<orm::ColumnBinding<ModelPrivate>> bindings {
-                {Schema::modelProjectNameColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = orm::stringFromValue(value);
-                     const bool changed = self->projectName != newValue;
-                     self->projectName = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->projectNameChanged(self->projectName);
-                 }},
-                {Schema::modelProjectAuthorColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = orm::stringFromValue(value);
-                     const bool changed = self->projectAuthor != newValue;
-                     self->projectAuthor = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->projectAuthorChanged(self->projectAuthor);
-                 }},
-                {Schema::modelGlobalCentShiftColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = static_cast<int>(value.asInt64());
-                     const bool changed = self->globalCentShift != newValue;
-                     self->globalCentShift = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->globalCentShiftChanged(self->globalCentShift);
-                 }},
-                {Schema::modelMultiChannelOutputColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const bool newValue = value.asBool();
-                     const bool changed = self->multiChannelOutput != newValue;
-                     self->multiChannelOutput = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->multiChannelOutputChanged(self->multiChannelOutput);
-                 }},
-                {Schema::modelGainColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = value.asDouble();
-                     const bool changed = self->gain != newValue;
-                     self->gain = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->gainChanged(self->gain);
-                 }},
-                {Schema::modelPanColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = value.asDouble();
-                     const bool changed = self->pan != newValue;
-                     self->pan = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->panChanged(self->pan);
-                 }},
-                {Schema::modelMuteColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const bool newValue = value.asBool();
-                     const bool changed = self->mute != newValue;
-                     self->mute = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->muteChanged(self->mute);
-                 }},
-                {Schema::modelLoopEnabledColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const bool newValue = value.asBool();
-                     const bool changed = self->loopEnabled != newValue;
-                     self->loopEnabled = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->loopEnabledChanged(self->loopEnabled);
-                 }},
-                {Schema::modelLoopStartColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = static_cast<int>(value.asInt64());
-                     const bool changed = self->loopStart != newValue;
-                     self->loopStart = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->loopStartChanged(self->loopStart);
-                 }},
-                {Schema::modelLoopLengthColumn(), [](ModelPrivate *self, const dini::Value &value) {
-                     const auto newValue = static_cast<int>(value.asInt64());
-                     const bool changed = self->loopLength != newValue;
-                     self->loopLength = newValue;
-                     return changed;
-                 }, [](ModelPrivate *self) {
-                     emit self->q_ptr->loopLengthChanged(self->loopLength);
-                 }},
-                orm::binaryField<ModelPrivate>(Schema::modelWorkspaceColumn(), &ModelPrivate::workspaceData, nullptr),
+        const std::vector<orm::ColumnBinding<Model>> &modelColumnBindings() {
+            static const std::vector<orm::ColumnBinding<Model>> bindings {
+                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectNameColumn(), &ModelPrivate::projectName, &Model::projectNameChanged),
+                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectAuthorColumn(), &ModelPrivate::projectAuthor, &Model::projectAuthorChanged),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelGlobalCentShiftColumn(), &ModelPrivate::globalCentShift, &Model::globalCentShiftChanged),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMultiChannelOutputColumn(), &ModelPrivate::multiChannelOutput, &Model::multiChannelOutputChanged),
+                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelGainColumn(), &ModelPrivate::gain, &Model::gainChanged),
+                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelPanColumn(), &ModelPrivate::pan, &Model::panChanged),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMuteColumn(), &ModelPrivate::mute, &Model::muteChanged),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopEnabledColumn(), &ModelPrivate::loopEnabled, &Model::loopEnabledChanged),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopStartColumn(), &ModelPrivate::loopStart, &Model::loopStartChanged),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopLengthColumn(), &ModelPrivate::loopLength, &Model::loopLengthChanged),
+                orm::binaryField<Model, ModelPrivate>(Schema::modelWorkspaceColumn(), &ModelPrivate::workspaceData, nullptr),
             };
             return bindings;
         }
@@ -138,6 +74,10 @@ namespace dspx {
     }
 
     namespace orm {
+
+        dini::DocumentEngine *getModelEngine(ModelPrivate &model) {
+            return model.engine;
+        }
 
         const TableBinding &modelTableBinding() {
             static const TableBinding binding {
@@ -168,8 +108,8 @@ namespace dspx {
         tempos = TempoSequencePrivate::create(q);
         timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
-        tableBindings = {&orm::modelTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::noteTableBinding(), &orm::phonemeTableBinding()};
-        listBindings = {&orm::trackListBinding()};
+        tableBindings = {&orm::modelTableBinding(), &orm::anchorNodeTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::dynamicMixingAnchorTableBinding(), &orm::noteTableBinding(), &orm::parameterTableBinding(), &orm::phonemeTableBinding(), &orm::sourcesTableBinding()};
+        listBindings = {&orm::trackListBinding(), &orm::singerListBinding(), &orm::freeValueDataArrayBinding(), &orm::vibratoPointDataArrayBinding()};
 
         syncModel(false);
         refreshContainers(false);
@@ -182,78 +122,11 @@ namespace dspx {
     void ModelPrivate::syncModel(bool notify) {
         Q_Q(Model);
         const auto snapshot = engine->read(orm::idFromHandle(modelHandle));
-        const auto newProjectName = orm::stringFromValue(orm::snapshotValue(snapshot, Schema::modelProjectNameColumn()));
-        const auto newProjectAuthor = orm::stringFromValue(orm::snapshotValue(snapshot, Schema::modelProjectAuthorColumn()));
-        const auto newGlobalCentShift = static_cast<int>(orm::snapshotValue(snapshot, Schema::modelGlobalCentShiftColumn()).asInt64());
-        const auto newMultiChannelOutput = orm::snapshotValue(snapshot, Schema::modelMultiChannelOutputColumn()).asBool();
-        const auto newGain = orm::snapshotValue(snapshot, Schema::modelGainColumn()).asDouble();
-        const auto newPan = orm::snapshotValue(snapshot, Schema::modelPanColumn()).asDouble();
-        const auto newMute = orm::snapshotValue(snapshot, Schema::modelMuteColumn()).asBool();
-        const auto newLoopEnabled = orm::snapshotValue(snapshot, Schema::modelLoopEnabledColumn()).asBool();
-        const auto newLoopStart = static_cast<int>(orm::snapshotValue(snapshot, Schema::modelLoopStartColumn()).asInt64());
-        const auto newLoopLength = static_cast<int>(orm::snapshotValue(snapshot, Schema::modelLoopLengthColumn()).asInt64());
-        auto newWorkspace = orm::binaryFromValue(orm::snapshotValue(snapshot, Schema::modelWorkspaceColumn()));
-
-        const bool projectNameChanged = projectName != newProjectName;
-        const bool projectAuthorChanged = projectAuthor != newProjectAuthor;
-        const bool globalCentShiftChanged = globalCentShift != newGlobalCentShift;
-        const bool multiChannelOutputChanged = multiChannelOutput != newMultiChannelOutput;
-        const bool gainChanged = gain != newGain;
-        const bool panChanged = pan != newPan;
-        const bool muteChanged = mute != newMute;
-        const bool loopEnabledChanged = loopEnabled != newLoopEnabled;
-        const bool loopStartChanged = loopStart != newLoopStart;
-        const bool loopLengthChanged = loopLength != newLoopLength;
-
-        projectName = newProjectName;
-        projectAuthor = newProjectAuthor;
-        globalCentShift = newGlobalCentShift;
-        multiChannelOutput = newMultiChannelOutput;
-        gain = newGain;
-        pan = newPan;
-        mute = newMute;
-        loopEnabled = newLoopEnabled;
-        loopStart = newLoopStart;
-        loopLength = newLoopLength;
-        workspaceData = std::move(newWorkspace);
-
-        if (!notify) {
-            return;
-        }
-        if (projectNameChanged) {
-            emit q->projectNameChanged(projectName);
-        }
-        if (projectAuthorChanged) {
-            emit q->projectAuthorChanged(projectAuthor);
-        }
-        if (globalCentShiftChanged) {
-            emit q->globalCentShiftChanged(globalCentShift);
-        }
-        if (multiChannelOutputChanged) {
-            emit q->multiChannelOutputChanged(multiChannelOutput);
-        }
-        if (gainChanged) {
-            emit q->gainChanged(gain);
-        }
-        if (panChanged) {
-            emit q->panChanged(pan);
-        }
-        if (muteChanged) {
-            emit q->muteChanged(mute);
-        }
-        if (loopEnabledChanged) {
-            emit q->loopEnabledChanged(loopEnabled);
-        }
-        if (loopStartChanged) {
-            emit q->loopStartChanged(loopStart);
-        }
-        if (loopLengthChanged) {
-            emit q->loopLengthChanged(loopLength);
-        }
+        orm::syncColumnBindings(modelColumnBindings(), q, snapshot, notify);
     }
 
     bool ModelPrivate::applyModelColumn(const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
-        return orm::applyColumnBinding(modelColumnBindings(), this, column, value, notify);
+        return orm::applyColumnBinding(modelColumnBindings(), q_ptr, column, value, notify);
     }
 
     dini::ByteArray ModelPrivate::workspace() const {
@@ -693,8 +566,26 @@ namespace dspx {
 
     Note *Model::createNote() {
         Q_D(Model);
-        const auto id = d->requireTransaction()->insert(Schema::noteTable(), {
+        auto *transaction = d->requireTransaction();
+        const auto id = transaction->insert(Schema::noteTable(), {
             dini::ColumnValue {.column = Schema::noteParent().column(), .value = dini::Value::null()},
+        });
+        const auto noteValue = dini::Value(static_cast<std::uint64_t>(id));
+        transaction->insert(Schema::noteVibratoPointRelationTable(), {
+            dini::ColumnValue {.column = Schema::noteVibratoPointRelationParent().column(), .value = noteValue},
+            dini::ColumnValue {.column = Schema::noteVibratoPointRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(VibratoPointDataArray::Amplitude))},
+        });
+        transaction->insert(Schema::noteVibratoPointRelationTable(), {
+            dini::ColumnValue {.column = Schema::noteVibratoPointRelationParent().column(), .value = noteValue},
+            dini::ColumnValue {.column = Schema::noteVibratoPointRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(VibratoPointDataArray::Frequency))},
+        });
+        transaction->insert(Schema::notePhonemeRelationTable(), {
+            dini::ColumnValue {.column = Schema::notePhonemeRelationParent().column(), .value = noteValue},
+            dini::ColumnValue {.column = Schema::notePhonemeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(PhonemeSequence::Original))},
+        });
+        transaction->insert(Schema::notePhonemeRelationTable(), {
+            dini::ColumnValue {.column = Schema::notePhonemeRelationParent().column(), .value = noteValue},
+            dini::ColumnValue {.column = Schema::notePhonemeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(PhonemeSequence::Edited))},
         });
         return d->ensure<Note>(orm::handleFromId(id));
     }
@@ -703,29 +594,77 @@ namespace dspx {
         Q_D(Model);
         const auto id = d->requireTransaction()->insert(Schema::phonemeTable(), {
             dini::ColumnValue {.column = Schema::phonemeParent().column(), .value = dini::Value::null()},
-            dini::ColumnValue {.column = Schema::phonemeRoleColumn(), .value = dini::Value::null()},
         });
         return d->ensure<Phoneme>(orm::handleFromId(id));
     }
 
+    Parameter *Model::createParameter() {
+        Q_D(Model);
+        auto *transaction = d->requireTransaction();
+        const auto id = transaction->insert(Schema::parameterTable(), {
+            dini::ColumnValue {.column = Schema::parameterParent().column(), .value = dini::Value::null()},
+            dini::ColumnValue {.column = Schema::parameterKeyColumn(), .value = dini::Value::null()},
+        });
+        const auto parameterValue = dini::Value(static_cast<std::uint64_t>(id));
+        for (int role = 0; role < 3; ++role) {
+            transaction->insert(Schema::parameterFreeValueRelation(), {
+                dini::ColumnValue {.column = Schema::freeValueRelationParent().column(), .value = parameterValue},
+                dini::ColumnValue {.column = Schema::freeValueRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(role))},
+            });
+        }
+        transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
+            dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationParent().column(), .value = parameterValue},
+            dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(AnchorNodeSequence::Transform))},
+        });
+        transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
+            dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationParent().column(), .value = parameterValue},
+            dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(AnchorNodeSequence::Edited))},
+        });
+        return d->ensure<Parameter>(orm::handleFromId(id));
+    }
+
     AnchorNode *Model::createAnchorNode() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::anchorNodeTable(), {
+            dini::ColumnValue {.column = Schema::anchorNodeParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<AnchorNode>(orm::handleFromId(id));
     }
 
     Sources *Model::createSources() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::sourcesTable(), {
+            dini::ColumnValue {.column = Schema::sourcesParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<Sources>(orm::handleFromId(id));
     }
 
     SingleSinger *Model::createSingleSinger() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::singerList(),
+                                                        dini::Value::null(),
+                                                        0,
+                                                        {},
+                                                        Schema::singleSingerVariant());
+        return d->ensure<SingleSinger>(orm::handleFromId(id));
     }
 
     MixedSinger *Model::createMixedSinger() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::singerList(),
+                                                        dini::Value::null(),
+                                                        0,
+                                                        {},
+                                                        Schema::mixedSingerVariant());
+        return d->ensure<MixedSinger>(orm::handleFromId(id));
     }
 
     DynamicMixingAnchor *Model::createDynamicMixingAnchor() {
-        return nullptr;
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::dynamicMixingAnchorTable(), {
+            dini::ColumnValue {.column = Schema::dynamicMixingAnchorParent().column(), .value = dini::Value::null()},
+        });
+        return d->ensure<DynamicMixingAnchor>(orm::handleFromId(id));
     }
 
     bool Model::destroyItem(EntityObject *item) {
@@ -738,3 +677,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_Model.cpp"

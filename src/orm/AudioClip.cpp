@@ -188,3 +188,6 @@ namespace dspx {
     }
 
 }
+
+
+#include "moc_AudioClip.cpp"
