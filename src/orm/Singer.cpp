@@ -12,12 +12,16 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/mixedsinger.h>
+#include <opendspx/singlesinger.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/MixedSinger.h>
+#include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/SingleSinger.h>
 #include <dspxmodelORM/SingerList.h>
 #include <dspxmodelORM/Sources.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/DynamicMixingAnchor_p.h>
 #include <dspxmodelORM/private/MixedSinger_p.h>
 #include <dspxmodelORM/private/Model_p.h>
@@ -100,6 +104,7 @@ namespace dspx {
                  }, [](Singer *q) {
                      emit q->extraChanged(SingerPrivate::get(q)->extra);
                  }},
+                orm::binaryField<Singer, SingerPrivate>(Schema::singerWorkspaceColumn(), &SingerPrivate::workspaceData, nullptr),
                 {Schema::singerParent().column(), [](Singer *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = SingerPrivate::get(q);
@@ -229,6 +234,15 @@ namespace dspx {
         }
     }
 
+    dini::ByteArray SingerPrivate::workspace() const {
+        return workspaceData;
+    }
+
+    void SingerPrivate::setWorkspace(dini::ByteArray workspace) {
+        Q_Q(Singer);
+        ModelPrivate::get(q->model())->update(q->handle(), Schema::singerWorkspaceColumn(), dini::Value(std::move(workspace)));
+    }
+
     Singer::Singer(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new SingerPrivate(this)) {
     }
 
@@ -253,6 +267,54 @@ namespace dspx {
         return d->singerList;
     }
 
+    std::shared_ptr<opendspx::Singer> Singer::toOpenDSPX() const {
+        switch (type()) {
+            case Single:
+                if (auto *single = qobject_cast<const SingleSinger *>(this)) {
+                    return std::make_shared<opendspx::SingleSinger>(single->toOpenDSPX());
+                }
+                break;
+            case Mixed:
+                if (auto *mixed = qobject_cast<const MixedSinger *>(this)) {
+                    return std::make_shared<opendspx::MixedSinger>(mixed->toOpenDSPX());
+                }
+                break;
+        }
+        Q_UNREACHABLE();
+    }
+
+    void Singer::fromOpenDSPX(const std::shared_ptr<opendspx::Singer> &singer) {
+        if (!singer) {
+            return;
+        }
+        switch (singer->type) {
+            case opendspx::Singer::Type::Single: {
+                if (auto *single = qobject_cast<SingleSinger *>(this)) {
+                    single->fromOpenDSPX(static_cast<const opendspx::SingleSinger &>(*singer));
+                }
+                break;
+            }
+            case opendspx::Singer::Type::Mixed: {
+                if (auto *mixed = qobject_cast<MixedSinger *>(this)) {
+                    mixed->fromOpenDSPX(static_cast<const opendspx::MixedSinger &>(*singer));
+                }
+                break;
+            }
+        }
+    }
+
+    void Singer::fromOpenDSPXBase(const opendspx::Singer &singer) {
+        Q_D(Singer);
+        d->setWorkspace(conv::serializeWorkspace(singer.workspace));
+        setExtra(conv::qJsonValueFromJson(singer.extra));
+    }
+
+    void Singer::toOpenDSPXBase(opendspx::Singer &singer) const {
+        Q_D(const Singer);
+        singer.workspace = conv::deserializeWorkspace(d->workspace());
+        singer.extra = conv::jsonFromQJsonValue(extra());
+    }
+
     SingleSingerPrivate::SingleSingerPrivate(SingleSinger *q) : q_ptr(q) {
     }
 
@@ -269,6 +331,20 @@ namespace dspx {
 
     void SingleSinger::setId(const QString &id) {
         ModelPrivate::get(model())->update(handle(), Schema::singleSingerIdColumn(), orm::valueFromString(id));
+    }
+
+    opendspx::SingleSinger SingleSinger::toOpenDSPX() const {
+        opendspx::SingleSinger target;
+        toOpenDSPXBase(target);
+        target.id = id().toStdString();
+        OpenDSPXConversion::convertSingerToOpenDSPX(this, target);
+        return target;
+    }
+
+    void SingleSinger::fromOpenDSPX(const opendspx::SingleSinger &singer) {
+        fromOpenDSPXBase(singer);
+        setId(QString::fromStdString(singer.id));
+        OpenDSPXConversion::convertSingerFromOpenDSPX(this, singer);
     }
 
     MixedSingerPrivate::MixedSingerPrivate(MixedSinger *q) : q_ptr(q) {
@@ -296,6 +372,29 @@ namespace dspx {
     SingerList *MixedSinger::singers() const {
         Q_D(const MixedSinger);
         return d->singers;
+    }
+
+    opendspx::MixedSinger MixedSinger::toOpenDSPX() const {
+        opendspx::MixedSinger target;
+        toOpenDSPXBase(target);
+        target.singers = singers()->toOpenDSPX();
+        for (const auto item : ratio()) {
+            target.ratio.push_back(item);
+        }
+        OpenDSPXConversion::convertSingerToOpenDSPX(this, target);
+        return target;
+    }
+
+    void MixedSinger::fromOpenDSPX(const opendspx::MixedSinger &singer) {
+        fromOpenDSPXBase(singer);
+        QList<double> targetRatio;
+        targetRatio.reserve(static_cast<qsizetype>(singer.ratio.size()));
+        for (const auto item : singer.ratio) {
+            targetRatio.append(item);
+        }
+        setRatio(targetRatio);
+        singers()->fromOpenDSPX(singer.singers);
+        OpenDSPXConversion::convertSingerFromOpenDSPX(this, singer);
     }
 
 }

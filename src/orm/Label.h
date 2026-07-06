@@ -75,6 +75,7 @@ namespace dspx {
         opendspx::Label toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX label.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre label must be valid.
          */

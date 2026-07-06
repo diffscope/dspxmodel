@@ -1723,6 +1723,12 @@ namespace dspx {
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
+                singerWorkspaceColumn = singerListBuilder.addColumn({
+                    .debugName = "workspace",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
+                });
                 singleSingerIdColumn = singerListBuilder.addVariantColumn({
                     .debugName = "id",
                     .variant = singleSingerVariant,
@@ -2320,6 +2326,7 @@ namespace dspx {
             dini::ColumnHandle parameterKeyColumn;
 
             dini::ColumnHandle singerExtraColumn;
+            dini::ColumnHandle singerWorkspaceColumn;
             dini::ColumnHandle singleSingerIdColumn;
             dini::ColumnHandle mixedSingerRatioColumn;
 
@@ -2827,6 +2834,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::singerExtraColumn() {
         return g.singerExtraColumn;
+    }
+
+    dini::ColumnHandle Schema::singerWorkspaceColumn() {
+        return g.singerWorkspaceColumn;
     }
 
     dini::ColumnHandle Schema::singleSingerIdColumn() {

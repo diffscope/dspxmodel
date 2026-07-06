@@ -1,11 +1,17 @@
 #ifndef DSPXMODEL_SINGERLIST_H
 #define DSPXMODEL_SINGERLIST_H
 
+#include <memory>
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
+#include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct Singer;
+}
 
 namespace dspx {
 
@@ -74,6 +80,17 @@ namespace dspx {
          * @post If successful, items are rotated.
          */
         Q_INVOKABLE bool rotate(int leftIndex, int middleIndex, int rightIndex);
+
+        /**
+         * @brief Converts to OpenDSPX singers.
+         */
+        std::vector<std::shared_ptr<opendspx::Singer>> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX singers.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre owner model has an active transaction.
+         */
+        void fromOpenDSPX(const std::vector<std::shared_ptr<opendspx::Singer>> &singers);
 
         /**
          * @brief Gets sources.

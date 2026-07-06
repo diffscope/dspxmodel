@@ -7,6 +7,7 @@ namespace dspx {
     class Clip;
     class Model;
     class Note;
+    class Singer;
     class Track;
 }
 
@@ -14,6 +15,7 @@ namespace opendspx {
     struct Clip;
     struct Model;
     struct Note;
+    struct Singer;
     struct Track;
 }
 
@@ -120,6 +122,31 @@ namespace dspx {
     };
 
     /**
+     * @brief Converts custom singer data between dspx::Singer and opendspx::Singer.
+     */
+    class DSPXMODEL_ORM_EXPORT OpenDSPXSingerConversionDelegate {
+    public:
+        virtual ~OpenDSPXSingerConversionDelegate() = default;
+
+        /**
+         * @brief Imports data from an OpenDSPX singer into an ORM singer.
+         *
+         * @pre singer != nullptr.
+         * @pre singer->model()->document()->transaction() != nullptr && singer->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre source must be valid.
+         */
+        virtual void fromOpenDSPX(Singer *singer, const opendspx::Singer &source) = 0;
+
+        /**
+         * @brief Exports data from an ORM singer into an OpenDSPX singer.
+         *
+         * @pre singer != nullptr.
+         * @pre target must be valid.
+         */
+        virtual void toOpenDSPX(const Singer *singer, opendspx::Singer &target) = 0;
+    };
+
+    /**
      * @brief Global registry and dispatch point for custom OpenDSPX conversion delegates.
      */
     class DSPXMODEL_ORM_EXPORT OpenDSPXConversion {
@@ -153,6 +180,13 @@ namespace dspx {
          * Ownership of delegate transfers to the global registry.
          */
         static void addNoteConversionDelegate(OpenDSPXNoteConversionDelegate *delegate);
+
+        /**
+         * @brief Registers a singer conversion delegate.
+         *
+         * Ownership of delegate transfers to the global registry.
+         */
+        static void addSingerConversionDelegate(OpenDSPXSingerConversionDelegate *delegate);
 
         /**
          * @brief Applies all registered model delegates to import OpenDSPX data.
@@ -221,6 +255,23 @@ namespace dspx {
          * @pre target must be valid.
          */
         static void convertNoteToOpenDSPX(const Note *note, opendspx::Note &target);
+
+        /**
+         * @brief Applies all registered singer delegates to import OpenDSPX data.
+         *
+         * @pre singer != nullptr.
+         * @pre singer->model()->document()->transaction() != nullptr && singer->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre source must be valid.
+         */
+        static void convertSingerFromOpenDSPX(Singer *singer, const opendspx::Singer &source);
+
+        /**
+         * @brief Applies all registered singer delegates to export OpenDSPX data.
+         *
+         * @pre singer != nullptr.
+         * @pre target must be valid.
+         */
+        static void convertSingerToOpenDSPX(const Singer *singer, opendspx::Singer &target);
 
     };
 

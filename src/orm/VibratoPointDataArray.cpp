@@ -6,6 +6,7 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/controlpoint.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/Model.h>
@@ -248,6 +249,28 @@ namespace dspx {
     Note *VibratoPointDataArray::note() const {
         Q_D(const VibratoPointDataArray);
         return d->note;
+    }
+
+    std::vector<opendspx::ControlPoint> VibratoPointDataArray::toOpenDSPX() const {
+        std::vector<opendspx::ControlPoint> result;
+        const auto source = items();
+        result.reserve(static_cast<std::size_t>(source.size()));
+        for (const auto &point : source) {
+            result.push_back(opendspx::ControlPoint {
+                .x = point.x(),
+                .y = point.y(),
+            });
+        }
+        return result;
+    }
+
+    void VibratoPointDataArray::fromOpenDSPX(const std::vector<opendspx::ControlPoint> &points) {
+        QList<QPointF> target;
+        target.reserve(static_cast<qsizetype>(points.size()));
+        for (const auto &point : points) {
+            target.append(QPointF(point.x, point.y));
+        }
+        splice(0, size(), target);
     }
 
 }

@@ -92,6 +92,7 @@ namespace dspx {
         std::vector<opendspx::Note> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX note sequence.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre notes must be valid.
          */

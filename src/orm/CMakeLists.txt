@@ -10,7 +10,7 @@ find_package(opendspx CONFIG REQUIRED)
 
 dspxmodel_add_library(${PROJECT_NAME} AUTOGEN
     SOURCES ${_src}
-    LINKS dspxmodelCore opendspx::opendspxmodel
+    LINKS dspxmodelCore opendspx::opendspxmodel opendspx::opendspxinterpolator
     QT_LINKS Core
     QT_INCLUDE_PRIVATE Core
     INCLUDE_PRIVATE *

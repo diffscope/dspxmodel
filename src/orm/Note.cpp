@@ -353,6 +353,10 @@ namespace dspx {
                 .freq = vibratoFrequency(),
                 .phase = vibratoPhase(),
                 .offset = vibratoOffset(),
+                .points = {
+                    .amp = vibratoAmplitudeControlPoints()->toOpenDSPX(),
+                    .freq = vibratoFrequencyControlPoints()->toOpenDSPX(),
+                },
             },
         };
         target.workspace = conv::deserializeWorkspace(d->workspace());
@@ -379,6 +383,8 @@ namespace dspx {
         setVibratoFrequency(note.vibrato.freq);
         setVibratoPhase(note.vibrato.phase);
         setVibratoOffset(note.vibrato.offset);
+        vibratoAmplitudeControlPoints()->fromOpenDSPX(note.vibrato.points.amp);
+        vibratoFrequencyControlPoints()->fromOpenDSPX(note.vibrato.points.freq);
         OpenDSPXConversion::convertNoteFromOpenDSPX(this, note);
     }
 

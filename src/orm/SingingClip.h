@@ -55,6 +55,7 @@ namespace dspx {
         opendspx::SingingClip toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX singing clip.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre clip must be valid.
          */

@@ -85,6 +85,7 @@ namespace dspx {
         std::vector<opendspx::Track> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX track list.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre tracks must be valid.
          */

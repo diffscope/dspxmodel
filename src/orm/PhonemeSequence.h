@@ -105,6 +105,7 @@ namespace dspx {
         std::vector<opendspx::Phoneme> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX phonemes.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          */
         void fromOpenDSPX(const std::vector<opendspx::Phoneme> &phonemes);

@@ -13,6 +13,7 @@ namespace dspx {
         std::vector<std::unique_ptr<OpenDSPXTrackConversionDelegate>> s_trackDelegates;
         std::vector<std::unique_ptr<OpenDSPXClipConversionDelegate>> s_clipDelegates;
         std::vector<std::unique_ptr<OpenDSPXNoteConversionDelegate>> s_noteDelegates;
+        std::vector<std::unique_ptr<OpenDSPXSingerConversionDelegate>> s_singerDelegates;
     }
 
     void OpenDSPXConversion::addModelConversionDelegate(OpenDSPXModelConversionDelegate *delegate) {
@@ -29,6 +30,10 @@ namespace dspx {
 
     void OpenDSPXConversion::addNoteConversionDelegate(OpenDSPXNoteConversionDelegate *delegate) {
         s_noteDelegates.emplace_back(delegate);
+    }
+
+    void OpenDSPXConversion::addSingerConversionDelegate(OpenDSPXSingerConversionDelegate *delegate) {
+        s_singerDelegates.emplace_back(delegate);
     }
 
     void OpenDSPXConversion::convertModelFromOpenDSPX(Model *model, const opendspx::Model &source) {
@@ -84,6 +89,20 @@ namespace dspx {
         Q_ASSERT(note);
         for (const auto &delegate : s_noteDelegates) {
             delegate->toOpenDSPX(note, target);
+        }
+    }
+
+    void OpenDSPXConversion::convertSingerFromOpenDSPX(Singer *singer, const opendspx::Singer &source) {
+        Q_ASSERT(singer);
+        for (const auto &delegate : s_singerDelegates) {
+            delegate->fromOpenDSPX(singer, source);
+        }
+    }
+
+    void OpenDSPXConversion::convertSingerToOpenDSPX(const Singer *singer, opendspx::Singer &target) {
+        Q_ASSERT(singer);
+        for (const auto &delegate : s_singerDelegates) {
+            delegate->toOpenDSPX(singer, target);
         }
     }
 

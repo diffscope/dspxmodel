@@ -1,9 +1,17 @@
 #ifndef DSPXMODEL_SINGER_H
 #define DSPXMODEL_SINGER_H
 
+#include <memory>
+
 #include <QJsonValue>
 
 #include <dspxmodelORM/EntityObject.h>
+
+namespace opendspx {
+    struct Singer;
+    struct SingleSinger;
+    struct MixedSinger;
+}
 
 namespace dspx {
 
@@ -50,6 +58,18 @@ namespace dspx {
          */
         SingerList *singerList() const;
 
+        /**
+         * @brief Converts to OpenDSPX singer.
+         */
+        std::shared_ptr<opendspx::Singer> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX singer.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre singer must be valid and have the same type as this object.
+         */
+        void fromOpenDSPX(const std::shared_ptr<opendspx::Singer> &singer);
+
     signals:
         void extraChanged(const QJsonValue &extra);
         void singerListChanged(SingerList *singerList);
@@ -58,6 +78,9 @@ namespace dspx {
         ~Singer() override;
 
         explicit Singer(Handle handle, Model *model);
+
+        void fromOpenDSPXBase(const opendspx::Singer &singer);
+        void toOpenDSPXBase(opendspx::Singer &singer) const;
 
         QScopedPointer<SingerPrivate> d_ptr;
     };

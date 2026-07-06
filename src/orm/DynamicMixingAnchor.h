@@ -5,6 +5,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct DynamicMixingAnchor;
+}
+
 namespace dspx {
 
     class DynamicMixingAnchorSequence;
@@ -72,6 +76,17 @@ namespace dspx {
          * @brief Gets dynamic mixing anchor sequence.
          */
         DynamicMixingAnchorSequence *dynamicMixingAnchorSequence() const;
+
+        /**
+         * @brief Converts to OpenDSPX dynamic mixing anchor.
+         */
+        opendspx::DynamicMixingAnchor toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX dynamic mixing anchor.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::DynamicMixingAnchor &anchor);
 
     signals:
         void positionChanged(int position);

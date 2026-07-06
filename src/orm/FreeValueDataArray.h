@@ -20,11 +20,18 @@ namespace dspx {
     class DSPXMODEL_ORM_EXPORT FreeValueDataArray : public QObject {
         Q_OBJECT
         Q_DECLARE_PRIVATE(FreeValueDataArray)
+        Q_PROPERTY(int step READ step CONSTANT)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<QVariant> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(FreeValueRole role READ role CONSTANT)
         Q_PROPERTY(Parameter *parameter READ parameter CONSTANT)
     public:
+        /**
+         * @brief Gets step.
+         * @returns 5.
+         */
+        static constexpr int step() { return 5; }
+
         /**
          * @brief Free value data role.
          */

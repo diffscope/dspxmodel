@@ -9,6 +9,10 @@
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 
+namespace opendspx {
+    class Params;
+}
+
 namespace dspx {
 
     class Parameter;
@@ -75,6 +79,17 @@ namespace dspx {
          * target map, or item is already contained in another map.
          */
         Q_INVOKABLE bool moveItem(const QString &key, ParameterMap *map, const QString &newKey);
+
+        /**
+         * @brief Converts to OpenDSPX params.
+         */
+        opendspx::Params toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX params.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::Params &params);
 
         /**
          * @brief Gets singing clip.

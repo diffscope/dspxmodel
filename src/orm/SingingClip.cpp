@@ -6,7 +6,9 @@
 #include <opendspx/singingclip.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/Model_p.h>
@@ -76,6 +78,13 @@ namespace dspx {
         opendspx::SingingClip target;
         toOpenDSPXBase(target);
         target.notes = notes()->toOpenDSPX();
+        target.params = parameters()->toOpenDSPX();
+        if (auto *sourceData = sources()) {
+            target.sources = sourceData->toOpenDSPX();
+        } else {
+            target.sources.reset();
+        }
+
         OpenDSPXConversion::convertClipToOpenDSPX(this, target);
         return target;
     }
@@ -83,6 +92,17 @@ namespace dspx {
     void SingingClip::fromOpenDSPX(const opendspx::SingingClip &clip) {
         fromOpenDSPXBase(clip);
         notes()->fromOpenDSPX(clip.notes);
+        parameters()->fromOpenDSPX(clip.params);
+        if (clip.sources.has_value()) {
+            auto *targetSources = sources();
+            if (!targetSources) {
+                targetSources = model()->createSources();
+                setSources(targetSources);
+            }
+            targetSources->fromOpenDSPX(*clip.sources);
+        } else {
+            setSources(nullptr);
+        }
         OpenDSPXConversion::convertClipFromOpenDSPX(this, clip);
     }
 

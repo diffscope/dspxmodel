@@ -88,6 +88,7 @@ namespace dspx {
         opendspx::AnchorNode toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX anchor node.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          */
         void fromOpenDSPX(const opendspx::AnchorNode &node);

@@ -4,8 +4,13 @@
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
+#include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct DynamicMixingAnchor;
+}
 
 namespace dspx {
 
@@ -73,6 +78,17 @@ namespace dspx {
          * the target sequence or another sequence.
          */
         Q_INVOKABLE bool moveItem(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequence);
+
+        /**
+         * @brief Converts to OpenDSPX dynamic mixing anchors.
+         */
+        std::vector<opendspx::DynamicMixingAnchor> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX dynamic mixing anchors.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre sources()->model()->document()->transaction() != nullptr && sources()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::DynamicMixingAnchor> &anchors);
 
         /**
          * @brief Gets sources.

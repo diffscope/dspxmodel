@@ -5,8 +5,13 @@
 #include <QObject>
 #include <QPointF>
 #include <QScopedPointer>
+#include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+
+namespace opendspx {
+    struct ControlPoint;
+}
 
 namespace dspx {
 
@@ -66,6 +71,17 @@ namespace dspx {
          * @post If successful, items are rotated.
          */
         Q_INVOKABLE bool rotate(int leftIndex, int middleIndex, int rightIndex);
+
+        /**
+         * @brief Converts to OpenDSPX control points.
+         */
+        std::vector<opendspx::ControlPoint> toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX control points.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const std::vector<opendspx::ControlPoint> &points);
 
         /**
          * @brief Gets role.

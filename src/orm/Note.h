@@ -256,6 +256,7 @@ namespace dspx {
         opendspx::Note toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX note.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre note must be valid.
          */

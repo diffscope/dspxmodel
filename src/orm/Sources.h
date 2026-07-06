@@ -5,6 +5,10 @@
 
 #include <dspxmodelORM/EntityObject.h>
 
+namespace opendspx {
+    struct Sources;
+}
+
 namespace dspx {
 
     class DynamicMixingAnchorSequence;
@@ -49,6 +53,17 @@ namespace dspx {
          * @brief Gets singing clip.
          */
         SingingClip *singingClip() const;
+
+        /**
+         * @brief Converts to OpenDSPX sources.
+         */
+        opendspx::Sources toOpenDSPX() const;
+        /**
+         * @brief Converts from OpenDSPX sources.
+         * @note Typically, this method SHOULD only be called on a newly created object.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
+         */
+        void fromOpenDSPX(const opendspx::Sources &sources);
 
     signals:
         void categoryChanged(const QString &category);

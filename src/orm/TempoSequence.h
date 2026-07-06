@@ -89,6 +89,7 @@ namespace dspx {
         std::vector<opendspx::Tempo> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX tempo sequence.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre tempos must be valid.
          */

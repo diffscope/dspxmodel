@@ -7,6 +7,9 @@
 #include <dini/types.h>
 #include <nlohmann/json.hpp>
 #include <opendspx/workspace.h>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
 
 namespace dspx::conv {
 
@@ -169,6 +172,67 @@ namespace dspx::conv {
                 return workspaceFromJson(result);
             }
         } catch (const nlohmann::json::exception &) {
+        }
+        return {};
+    }
+
+    inline nlohmann::json jsonFromQJsonValue(const QJsonValue &value) {
+        switch (value.type()) {
+            case QJsonValue::Null:
+            case QJsonValue::Undefined:
+                return nullptr;
+            case QJsonValue::Bool:
+                return value.toBool();
+            case QJsonValue::Double:
+                return value.toDouble();
+            case QJsonValue::String:
+                return value.toString().toStdString();
+            case QJsonValue::Array: {
+                auto result = nlohmann::json::array();
+                const auto array = value.toArray();
+                for (const auto &item : array) {
+                    result.push_back(jsonFromQJsonValue(item));
+                }
+                return result;
+            }
+            case QJsonValue::Object: {
+                auto result = nlohmann::json::object();
+                const auto object = value.toObject();
+                for (auto it = object.begin(); it != object.end(); ++it) {
+                    result[it.key().toStdString()] = jsonFromQJsonValue(it.value());
+                }
+                return result;
+            }
+        }
+        return nullptr;
+    }
+
+    inline QJsonValue qJsonValueFromJson(const nlohmann::json &json) {
+        if (json.is_null()) {
+            return {};
+        }
+        if (json.is_boolean()) {
+            return json.get<bool>();
+        }
+        if (json.is_number()) {
+            return json.get<double>();
+        }
+        if (json.is_string()) {
+            return QString::fromStdString(json.get<std::string>());
+        }
+        if (json.is_array()) {
+            QJsonArray result;
+            for (const auto &item : json) {
+                result.append(qJsonValueFromJson(item));
+            }
+            return result;
+        }
+        if (json.is_object()) {
+            QJsonObject result;
+            for (auto it = json.begin(); it != json.end(); ++it) {
+                result.insert(QString::fromStdString(it.key()), qJsonValueFromJson(*it));
+            }
+            return result;
         }
         return {};
     }

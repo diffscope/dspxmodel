@@ -5,6 +5,7 @@
 
 #include <dini/engine.h>
 #include <dini/query.h>
+#include <opendspx/params.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/Model.h>
@@ -158,6 +159,30 @@ namespace dspx {
             dini::ColumnValue {.column = Schema::parameterKeyColumn(), .value = orm::valueFromString(newKey)},
         });
         return true;
+    }
+
+    opendspx::Params ParameterMap::toOpenDSPX() const {
+        opendspx::Params result;
+        const auto sourceKeys = keys();
+        for (const auto &key : sourceKeys) {
+            auto *parameter = item(key);
+            if (parameter) {
+                result[key.toStdString()] = parameter->toOpenDSPX();
+            }
+        }
+        return result;
+    }
+
+    void ParameterMap::fromOpenDSPX(const opendspx::Params &params) {
+        const auto sourceKeys = keys();
+        for (const auto &key : sourceKeys) {
+            removeItem(key);
+        }
+        for (const auto &[key, source] : params) {
+            auto *parameter = singingClip()->model()->createParameter();
+            parameter->fromOpenDSPX(source);
+            insertItem(QString::fromStdString(key), parameter);
+        }
     }
 
     SingingClip *ParameterMap::singingClip() const {

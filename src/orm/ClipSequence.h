@@ -85,6 +85,7 @@ namespace dspx {
         std::vector<std::shared_ptr<opendspx::Clip>> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX clip refs.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre clips must be valid.
          */

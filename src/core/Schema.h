@@ -150,6 +150,7 @@ namespace dspx {
         static dini::ColumnHandle parameterKeyColumn();
 
         static dini::ColumnHandle singerExtraColumn();
+        static dini::ColumnHandle singerWorkspaceColumn();
         static dini::ColumnHandle singleSingerIdColumn();
         static dini::ColumnHandle mixedSingerRatioColumn();
 

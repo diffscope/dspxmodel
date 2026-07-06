@@ -8,6 +8,7 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/dynamicmixinganchor.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/DynamicMixingAnchorSequence.h>
@@ -230,6 +231,25 @@ namespace dspx {
     DynamicMixingAnchorSequence *DynamicMixingAnchor::dynamicMixingAnchorSequence() const {
         Q_D(const DynamicMixingAnchor);
         return d->sequence;
+    }
+
+    opendspx::DynamicMixingAnchor DynamicMixingAnchor::toOpenDSPX() const {
+        opendspx::DynamicMixingAnchor target;
+        target.pos = position();
+        for (const auto item : ratio()) {
+            target.ratio.push_back(item);
+        }
+        return target;
+    }
+
+    void DynamicMixingAnchor::fromOpenDSPX(const opendspx::DynamicMixingAnchor &anchor) {
+        setPosition(anchor.pos);
+        QList<double> targetRatio;
+        targetRatio.reserve(static_cast<qsizetype>(anchor.ratio.size()));
+        for (const auto item : anchor.ratio) {
+            targetRatio.append(item);
+        }
+        setRatio(targetRatio);
     }
 
 }

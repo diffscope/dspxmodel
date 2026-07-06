@@ -5,10 +5,13 @@
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
+#include <opendspx/singer.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/MixedSinger.h>
 #include <dspxmodelORM/Singer.h>
+#include <dspxmodelORM/SingleSinger.h>
 #include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
@@ -221,6 +224,47 @@ namespace dspx {
     MixedSinger *SingerList::mixedSinger() const {
         Q_D(const SingerList);
         return d->mixedSinger;
+    }
+
+    std::vector<std::shared_ptr<opendspx::Singer>> SingerList::toOpenDSPX() const {
+        std::vector<std::shared_ptr<opendspx::Singer>> result;
+        const auto source = items();
+        result.reserve(static_cast<std::size_t>(source.size()));
+        for (auto *singer : source) {
+            if (auto converted = singer->toOpenDSPX()) {
+                result.push_back(std::move(converted));
+            }
+        }
+        return result;
+    }
+
+    void SingerList::fromOpenDSPX(const std::vector<std::shared_ptr<opendspx::Singer>> &singers) {
+        while (size() > 0) {
+            removeItem(0);
+        }
+        auto *owner = sources() ? static_cast<EntityObject *>(sources()) : static_cast<EntityObject *>(mixedSinger());
+        if (!owner) {
+            return;
+        }
+        for (const auto &source : singers) {
+            if (!source) {
+                continue;
+            }
+            Singer *target = nullptr;
+            switch (source->type) {
+                case opendspx::Singer::Type::Single:
+                    target = owner->model()->createSingleSinger();
+                    break;
+                case opendspx::Singer::Type::Mixed:
+                    target = owner->model()->createMixedSinger();
+                    break;
+            }
+            if (!target) {
+                continue;
+            }
+            target->fromOpenDSPX(source);
+            insertItem(size(), target);
+        }
     }
 
 }

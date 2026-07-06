@@ -6,8 +6,10 @@
 #include <utility>
 
 #include <dini/engine.h>
+#include <opendspx/dynamicmixinganchor.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/DynamicMixingAnchor.h>
 #include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/private/Model_p.h>
@@ -187,6 +189,25 @@ namespace dspx {
     Sources *DynamicMixingAnchorSequence::sources() const {
         Q_D(const DynamicMixingAnchorSequence);
         return d->sources;
+    }
+
+    std::vector<opendspx::DynamicMixingAnchor> DynamicMixingAnchorSequence::toOpenDSPX() const {
+        std::vector<opendspx::DynamicMixingAnchor> result;
+        for (auto anchor = firstItem(); anchor; anchor = anchor->nextItem()) {
+            result.push_back(anchor->toOpenDSPX());
+        }
+        return result;
+    }
+
+    void DynamicMixingAnchorSequence::fromOpenDSPX(const std::vector<opendspx::DynamicMixingAnchor> &anchors) {
+        while (size() > 0) {
+            removeItem(firstItem());
+        }
+        for (const auto &source : anchors) {
+            auto *anchor = sources()->model()->createDynamicMixingAnchor();
+            anchor->fromOpenDSPX(source);
+            insertItem(anchor);
+        }
     }
 
 }

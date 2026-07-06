@@ -89,6 +89,7 @@ namespace dspx {
         std::vector<opendspx::TimeSignature> toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX time signature sequence.
+         * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre timeSignatures must be valid.
          */

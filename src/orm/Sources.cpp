@@ -2,6 +2,7 @@
 #include "Sources_p.h"
 
 #include <dini/transaction.h>
+#include <opendspx/sources.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/DynamicMixingAnchorSequence.h>
@@ -172,6 +173,20 @@ namespace dspx {
     SingingClip *Sources::singingClip() const {
         Q_D(const Sources);
         return d->singingClip;
+    }
+
+    opendspx::Sources Sources::toOpenDSPX() const {
+        return opendspx::Sources {
+            .category = category().toStdString(),
+            .mix = dynamicMixingAnchors()->toOpenDSPX(),
+            .singers = singers()->toOpenDSPX(),
+        };
+    }
+
+    void Sources::fromOpenDSPX(const opendspx::Sources &sources) {
+        setCategory(QString::fromStdString(sources.category));
+        dynamicMixingAnchors()->fromOpenDSPX(sources.mix);
+        singers()->fromOpenDSPX(sources.singers);
     }
 
 }
