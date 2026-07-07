@@ -13,6 +13,7 @@ function(dspxmodel_add_qt_test target)
     target_link_libraries(${target} PRIVATE
         dspxmodelCore
         dspxmodelORM
+        dspxmodelSelectionModel
         Qt6::Core
         Qt6::Test
     )
@@ -25,3 +26,5 @@ function(dspxmodel_add_qt_test target)
 endfunction()
 
 add_subdirectory(orm)
+add_subdirectory(selectionmodel)
+add_subdirectory(propertymapper)
