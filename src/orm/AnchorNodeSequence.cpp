@@ -66,6 +66,29 @@ namespace dspx {
         return orm::valueFromHandle(relationHandle());
     }
 
+    Handle AnchorNodeSequencePrivate::itemAtPosition(int position, Handle except) const {
+        auto *modelData = ModelPrivate::get(parameter->model());
+        const auto relation = relationHandle();
+        if (!relation) {
+            return {};
+        }
+        const auto result = modelData->engine->query(
+            Schema::anchorNodeTable(),
+            dini::QuerySpec {
+                .filter = dini::FilterExpression::all({
+                    orm::parentFilter(Schema::anchorNodeParent(), relation),
+                    orm::equalFilter(dini::FieldRef::column(Schema::anchorNodeXColumn()), dini::Value(static_cast<std::int64_t>(position))),
+                }),
+            }).toVector();
+        for (const auto &snapshot : result) {
+            const auto handle = orm::handleFromId(snapshot.id);
+            if (handle != except) {
+                return handle;
+            }
+        }
+        return {};
+    }
+
     void AnchorNodeSequencePrivate::refresh(bool notify) {
         Q_Q(AnchorNodeSequence);
         auto *modelData = ModelPrivate::get(parameter->model());
@@ -187,7 +210,12 @@ namespace dspx {
         if (associationValue.isNull()) {
             return false;
         }
-        ModelPrivate::get(parameter()->model())->update(item->handle(), {
+        auto *modelData = ModelPrivate::get(parameter()->model());
+        const auto conflict = AnchorNodeSequencePrivate::get(this)->itemAtPosition(item->x(), item->handle());
+        if (conflict) {
+            modelData->update(conflict, Schema::anchorNodeParent().column(), dini::Value::null());
+        }
+        modelData->update(item->handle(), {
             dini::ColumnValue {.column = Schema::anchorNodeParent().column(), .value = associationValue},
         });
         return true;

@@ -20,6 +20,7 @@ namespace dspx {
         void refresh(bool notify);
         Handle relationHandle() const;
         dini::Value associationValue() const;
+        Handle itemAtPosition(int position, Handle except = {}) const;
 
         AnchorNodeSequence *q_ptr = nullptr;
         Parameter *parameter = nullptr;
