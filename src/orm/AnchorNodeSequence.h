@@ -7,6 +7,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace dspx {
 
@@ -28,6 +29,7 @@ namespace dspx {
         Q_PROPERTY(AnchorNode *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(AnchorNodeRole role READ role CONSTANT)
         Q_PROPERTY(Parameter *parameter READ parameter CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Anchor node sequence role.
@@ -99,6 +101,10 @@ namespace dspx {
          * @post parameter() != nullptr.
          */
         Parameter *parameter() const;
+
+        auto asRange() const {
+            return impl::SequenceRange(this);
+        }
 
     signals:
         void sizeChanged(int size);

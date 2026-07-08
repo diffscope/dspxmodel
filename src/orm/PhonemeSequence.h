@@ -9,6 +9,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct Phoneme;
@@ -34,6 +35,7 @@ namespace dspx {
         Q_PROPERTY(Phoneme *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(PhonemeRole role READ role CONSTANT)
         Q_PROPERTY(Note *note READ note CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Phoneme role.
@@ -101,6 +103,10 @@ namespace dspx {
          * @post note() != nullptr.
          */
         Note *note() const;
+
+        auto asRange() const {
+            return impl::SequenceRange(this);
+        }
 
         /**
          * @brief Converts to OpenDSPX phonemes.

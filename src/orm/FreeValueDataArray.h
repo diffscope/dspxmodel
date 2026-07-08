@@ -8,6 +8,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace dspx {
 
@@ -28,6 +29,7 @@ namespace dspx {
         Q_PROPERTY(QList<QVariant> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(FreeValueRole role READ role CONSTANT)
         Q_PROPERTY(Parameter *parameter READ parameter CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets step.

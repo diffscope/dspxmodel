@@ -68,7 +68,7 @@ namespace dspx {
 
     }
 
-    TrackListPrivate::TrackListPrivate(TrackList *q, Model *model) : q_ptr(q), model(model) {
+    TrackListPrivate::TrackListPrivate(TrackList *q, Model *model) : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::List)) {
     }
 
     void TrackListPrivate::refresh(bool notify, bool itemsChanged) {

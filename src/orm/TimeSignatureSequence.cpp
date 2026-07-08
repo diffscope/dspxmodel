@@ -38,7 +38,7 @@ namespace dspx {
 
     }
 
-    TimeSignatureSequencePrivate::TimeSignatureSequencePrivate(TimeSignatureSequence *q, Model *model) : q_ptr(q), model(model) {
+    TimeSignatureSequencePrivate::TimeSignatureSequencePrivate(TimeSignatureSequence *q, Model *model) : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void TimeSignatureSequencePrivate::refresh(bool notify) {

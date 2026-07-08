@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct DynamicMixingAnchor;
@@ -32,6 +33,7 @@ namespace dspx {
         Q_PROPERTY(DynamicMixingAnchor *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(DynamicMixingAnchor *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Sources *sources READ sources CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.
@@ -100,6 +102,10 @@ namespace dspx {
          * @post sources() != nullptr.
          */
         Sources *sources() const;
+
+        auto asRange() const {
+            return impl::SequenceRange(this);
+        }
 
     signals:
         void sizeChanged(int size);

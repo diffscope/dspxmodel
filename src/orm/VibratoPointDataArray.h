@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct ControlPoint;
@@ -32,6 +33,7 @@ namespace dspx {
         Q_PROPERTY(QList<QPointF> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(VibratoPointRole role READ role CONSTANT)
         Q_PROPERTY(Note *note READ note CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Vibrato point data role.

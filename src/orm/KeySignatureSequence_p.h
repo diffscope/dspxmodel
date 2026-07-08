@@ -4,6 +4,7 @@
 #include <dspxmodelORM/KeySignatureSequence.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -21,6 +22,8 @@ namespace dspx {
         int size = 0;
         KeySignature *first = nullptr;
         KeySignature *last = nullptr;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

@@ -7,6 +7,7 @@
 
 #include <dspxmodelORM/Handle.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -27,6 +28,8 @@ namespace dspx {
         FreeValueDataArray::FreeValueRole role = FreeValueDataArray::Original;
         int size = 0;
         bool suppressNotifications = false;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

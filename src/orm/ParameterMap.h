@@ -9,6 +9,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     class Params;
@@ -33,6 +34,7 @@ namespace dspx {
         Q_PROPERTY(QStringList keys READ keys NOTIFY keysChanged)
         Q_PROPERTY(QList<Parameter *> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(SingingClip *singingClip READ singingClip CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.

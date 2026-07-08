@@ -38,7 +38,7 @@ namespace dspx {
 
     }
 
-    TempoSequencePrivate::TempoSequencePrivate(TempoSequence *q, Model *model) : q_ptr(q), model(model) {
+    TempoSequencePrivate::TempoSequencePrivate(TempoSequence *q, Model *model) : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void TempoSequencePrivate::refresh(bool notify) {

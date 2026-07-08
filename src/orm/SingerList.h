@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct Singer;
@@ -34,6 +35,7 @@ namespace dspx {
         Q_PROPERTY(QList<Singer *> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(Sources *sources READ sources CONSTANT)
         Q_PROPERTY(MixedSinger *mixedSinger READ mixedSinger CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.

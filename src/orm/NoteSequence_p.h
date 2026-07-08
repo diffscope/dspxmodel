@@ -4,6 +4,7 @@
 #include <dspxmodelORM/NoteSequence.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -22,6 +23,8 @@ namespace dspx {
         int size = 0;
         Note *first = nullptr;
         Note *last = nullptr;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

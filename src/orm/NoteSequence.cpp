@@ -41,7 +41,7 @@ namespace dspx {
 
     }
 
-    NoteSequencePrivate::NoteSequencePrivate(NoteSequence *q, SingingClip *singingClip) : q_ptr(q), singingClip(singingClip) {
+    NoteSequencePrivate::NoteSequencePrivate(NoteSequence *q, SingingClip *singingClip) : q_ptr(q), singingClip(singingClip), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void NoteSequencePrivate::refresh(bool notify) {

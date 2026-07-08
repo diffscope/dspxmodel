@@ -38,7 +38,7 @@ namespace dspx {
 
     }
 
-    LabelSequencePrivate::LabelSequencePrivate(LabelSequence *q, Model *model) : q_ptr(q), model(model) {
+    LabelSequencePrivate::LabelSequencePrivate(LabelSequence *q, Model *model) : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void LabelSequencePrivate::refresh(bool notify) {

@@ -45,7 +45,7 @@ namespace dspx {
 
     }
 
-    ClipSequencePrivate::ClipSequencePrivate(ClipSequence *q, Track *track) : q_ptr(q), track(track) {
+    ClipSequencePrivate::ClipSequencePrivate(ClipSequence *q, Track *track) : q_ptr(q), track(track), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void ClipSequencePrivate::refresh(bool notify) {

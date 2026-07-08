@@ -52,7 +52,7 @@ namespace dspx {
     }
 
     PhonemeSequencePrivate::PhonemeSequencePrivate(PhonemeSequence *q, Note *note, PhonemeSequence::PhonemeRole role)
-        : q_ptr(q), note(note), role(role) {
+        : q_ptr(q), note(note), role(role), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     Handle PhonemeSequencePrivate::relationHandle() const {

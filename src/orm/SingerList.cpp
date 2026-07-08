@@ -33,11 +33,11 @@ namespace dspx {
 
     }
 
-    SingerListPrivate::SingerListPrivate(SingerList *q, Sources *sources) : q_ptr(q), sources(sources) {
+    SingerListPrivate::SingerListPrivate(SingerList *q, Sources *sources) : q_ptr(q), sources(sources), jsIterable(new JSIterable(q, JSIterable::List)) {
     }
 
     SingerListPrivate::SingerListPrivate(SingerList *q, MixedSinger *mixedSinger)
-        : q_ptr(q), mixedSinger(mixedSinger) {
+        : q_ptr(q), mixedSinger(mixedSinger), jsIterable(new JSIterable(q, JSIterable::List)) {
     }
 
     Handle SingerListPrivate::mixableHandle(bool create) const {

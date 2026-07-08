@@ -42,7 +42,7 @@ namespace dspx {
 
     DynamicMixingAnchorSequencePrivate::DynamicMixingAnchorSequencePrivate(DynamicMixingAnchorSequence *q,
                                                                            Sources *sources)
-        : q_ptr(q), sources(sources) {
+        : q_ptr(q), sources(sources), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void DynamicMixingAnchorSequencePrivate::refresh(bool notify) {

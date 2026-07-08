@@ -4,6 +4,7 @@
 #include <dspxmodelORM/TempoSequence.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -21,6 +22,8 @@ namespace dspx {
         int size = 0;
         Tempo *first = nullptr;
         Tempo *last = nullptr;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

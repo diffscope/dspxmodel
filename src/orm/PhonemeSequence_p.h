@@ -6,6 +6,7 @@
 #include <dini/value.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -27,6 +28,8 @@ namespace dspx {
         int size = 0;
         Phoneme *first = nullptr;
         Phoneme *last = nullptr;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

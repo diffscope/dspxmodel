@@ -124,7 +124,7 @@ namespace dspx {
     VibratoPointDataArrayPrivate::VibratoPointDataArrayPrivate(VibratoPointDataArray *q,
                                                                Note *note,
                                                                VibratoPointDataArray::VibratoPointRole role)
-        : q_ptr(q), note(note), role(role) {
+        : q_ptr(q), note(note), role(role), jsIterable(new JSIterable(q, JSIterable::DataArray)) {
     }
 
     Handle VibratoPointDataArrayPrivate::relationHandle() const {

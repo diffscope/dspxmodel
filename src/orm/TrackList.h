@@ -9,6 +9,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct Track;
@@ -32,6 +33,7 @@ namespace dspx {
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
         Q_PROPERTY(QList<Track *> items READ items NOTIFY itemsChanged)
         Q_PROPERTY(Model *model READ model CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.

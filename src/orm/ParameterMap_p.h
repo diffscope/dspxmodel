@@ -4,6 +4,7 @@
 #include <dspxmodelORM/ParameterMap.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -20,6 +21,8 @@ namespace dspx {
         ParameterMap *q_ptr = nullptr;
         SingingClip *singingClip = nullptr;
         int size = 0;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }

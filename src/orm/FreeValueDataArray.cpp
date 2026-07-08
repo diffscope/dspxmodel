@@ -134,7 +134,7 @@ namespace dspx {
     }
 
     FreeValueDataArrayPrivate::FreeValueDataArrayPrivate(FreeValueDataArray *q, Parameter *parameter, FreeValueDataArray::FreeValueRole role)
-        : q_ptr(q), parameter(parameter), role(role) {
+        : q_ptr(q), parameter(parameter), role(role), jsIterable(new JSIterable(q, JSIterable::DataArray)) {
     }
 
     Handle FreeValueDataArrayPrivate::relationHandle() const {

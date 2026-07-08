@@ -9,6 +9,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct Note;
@@ -33,6 +34,7 @@ namespace dspx {
         Q_PROPERTY(Note *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Note *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(SingingClip *singingClip READ singingClip CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.
@@ -88,6 +90,10 @@ namespace dspx {
          * @post singingClip() != nullptr.
          */
         SingingClip *singingClip() const;
+
+        auto asRange() const {
+            return impl::SequenceRange(this);
+        }
 
         /**
          * @brief Converts to OpenDSPX note sequence.

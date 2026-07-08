@@ -9,6 +9,7 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
+#include <dspxmodelORM/RangeHelpers.h>
 
 namespace opendspx {
     struct Tempo;
@@ -33,6 +34,7 @@ namespace dspx {
         Q_PROPERTY(Tempo *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Tempo *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Model *model READ model CONSTANT)
+        Q_PRIVATE_PROPERTY(d_func()->jsIterable, QJSValue iterable READ iterable CONSTANT)
     public:
         /**
          * @brief Gets size.
@@ -82,6 +84,10 @@ namespace dspx {
          * @post model() != nullptr.
          */
         Model *model() const;
+
+        auto asRange() const {
+            return impl::SequenceRange(this);
+        }
 
         /**
          * @brief Converts to OpenDSPX tempo sequence.

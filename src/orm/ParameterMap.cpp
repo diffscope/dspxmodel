@@ -57,7 +57,7 @@ namespace dspx {
     }
 
     ParameterMapPrivate::ParameterMapPrivate(ParameterMap *q, SingingClip *singingClip)
-        : q_ptr(q), singingClip(singingClip) {
+        : q_ptr(q), singingClip(singingClip), jsIterable(new JSIterable(q, JSIterable::Map)) {
     }
 
     void ParameterMapPrivate::refresh(bool notify) {

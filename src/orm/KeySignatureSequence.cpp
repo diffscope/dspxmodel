@@ -39,7 +39,7 @@ namespace dspx {
 
     }
 
-    KeySignatureSequencePrivate::KeySignatureSequencePrivate(KeySignatureSequence *q, Model *model) : q_ptr(q), model(model) {
+    KeySignatureSequencePrivate::KeySignatureSequencePrivate(KeySignatureSequence *q, Model *model) : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     void KeySignatureSequencePrivate::refresh(bool notify) {

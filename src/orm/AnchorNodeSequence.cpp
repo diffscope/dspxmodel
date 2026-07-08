@@ -50,7 +50,7 @@ namespace dspx {
     }
 
     AnchorNodeSequencePrivate::AnchorNodeSequencePrivate(AnchorNodeSequence *q, Parameter *parameter, AnchorNodeSequence::AnchorNodeRole role)
-        : q_ptr(q), parameter(parameter), role(role) {
+        : q_ptr(q), parameter(parameter), role(role), jsIterable(new JSIterable(q, JSIterable::Sequence)) {
     }
 
     Handle AnchorNodeSequencePrivate::relationHandle() const {

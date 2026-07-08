@@ -4,6 +4,7 @@
 #include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/JSIterable_p.h>
 
 namespace dspx {
 
@@ -22,6 +23,8 @@ namespace dspx {
         int size = 0;
         DynamicMixingAnchor *first = nullptr;
         DynamicMixingAnchor *last = nullptr;
+
+        JSIterable *jsIterable = nullptr;
     };
 
 }
