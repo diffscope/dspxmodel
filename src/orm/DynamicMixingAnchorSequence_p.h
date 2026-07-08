@@ -16,7 +16,6 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(DynamicMixingAnchorSequence)
 
         void refresh(bool notify);
-        Handle itemAtPosition(int position, Handle except = {}) const;
 
         DynamicMixingAnchorSequence *q_ptr = nullptr;
         Sources *sources = nullptr;

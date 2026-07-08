@@ -81,25 +81,6 @@ namespace dspx {
         }
     }
 
-    Handle KeySignatureSequencePrivate::itemAtPosition(int position, Handle except) const {
-        auto *modelData = ModelPrivate::get(model);
-        const auto result = modelData->engine->query(
-            Schema::keySignatureTable(),
-            dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::keySignatureParent(), modelData->modelHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::keySignaturePositionColumn()), dini::Value(static_cast<std::int64_t>(position))),
-                }),
-            }).toVector();
-        for (const auto &snapshot : result) {
-            const auto handle = orm::handleFromId(snapshot.id);
-            if (handle != except) {
-                return handle;
-            }
-        }
-        return {};
-    }
-
     KeySignatureSequence::KeySignatureSequence(Model *model)
         : QObject(model), d_ptr(new KeySignatureSequencePrivate(this, model)) {
     }
@@ -147,10 +128,6 @@ namespace dspx {
             return false;
         }
         auto *modelData = ModelPrivate::get(model());
-        const auto conflict = KeySignatureSequencePrivate::get(this)->itemAtPosition(item->position(), item->handle());
-        if (conflict) {
-            modelData->update(conflict, Schema::keySignatureParent().column(), dini::Value::null());
-        }
         modelData->update(item->handle(), Schema::keySignatureParent().column(), orm::valueFromHandle(modelData->modelHandle));
         return true;
     }

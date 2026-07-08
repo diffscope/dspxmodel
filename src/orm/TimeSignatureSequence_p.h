@@ -16,8 +16,6 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(TimeSignatureSequence)
 
         void refresh(bool notify);
-        Handle itemAtIndex(int index, Handle except = {}) const;
-
         TimeSignatureSequence *q_ptr = nullptr;
         Model *model = nullptr;
         int size = 0;

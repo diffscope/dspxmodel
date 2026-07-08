@@ -193,13 +193,6 @@ namespace dspx {
         if (currentPosition == position) {
             return;
         }
-        auto *sequence = dynamicMixingAnchorOwnerFromValue(*modelData, orm::snapshotValue(snapshot, Schema::dynamicMixingAnchorParent().column()));
-        if (sequence && position >= 0) {
-            const auto conflict = DynamicMixingAnchorSequencePrivate::get(sequence)->itemAtPosition(position, handle());
-            if (conflict) {
-                modelData->update(conflict, Schema::dynamicMixingAnchorParent().column(), dini::Value::null());
-            }
-        }
         modelData->update(handle(), Schema::dynamicMixingAnchorPositionColumn(), dini::Value(static_cast<std::int64_t>(position)));
     }
 

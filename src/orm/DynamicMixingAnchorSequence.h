@@ -61,6 +61,7 @@ namespace dspx {
         /**
          * @brief Inserts item.
          * @pre item is not null.
+         * @pre No other item in this sequence has item->position().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
          */
@@ -76,6 +77,7 @@ namespace dspx {
          * @brief Moves item.
          * @pre item is not null.
          * @pre sequence is not null.
+         * @pre No other item in sequence has item->position().
          * @post If successful, item is contained in sequence.
          * @returns true if successful, false if item is not contained in this sequence, or item is already contained in
          * the target sequence or another sequence.

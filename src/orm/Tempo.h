@@ -40,12 +40,9 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
-         *
-         * If this tempo is contained in a tempo sequence and another item in the same sequence already has the target
-         * position, that item is removed from the sequence before this position is updated.
-         *
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
+         * @pre If tempoSequence() != nullptr, no other item in tempoSequence() has position.
          * @post position() == position.
          */
         void setPosition(int position);

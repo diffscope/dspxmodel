@@ -58,6 +58,7 @@ namespace dspx {
         /**
          * @brief Sets x.
          * @pre x >= 0.
+         * @pre If anchorNodeSequence() != nullptr, no other item in anchorNodeSequence() has x.
          * @post x() == x.
          */
         void setX(int x);

@@ -48,12 +48,9 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
-         *
-         * If this key signature is contained in a key signature sequence and another item in the same sequence already
-         * has the target position, that item is removed from the sequence before this position is updated.
-         *
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
+         * @pre If keySignatureSequence() != nullptr, no other item in keySignatureSequence() has position.
          * @post position() == position.
          */
         void setPosition(int position);

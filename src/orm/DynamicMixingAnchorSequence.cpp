@@ -86,26 +86,6 @@ namespace dspx {
         }
     }
 
-    Handle DynamicMixingAnchorSequencePrivate::itemAtPosition(int position, Handle except) const {
-        auto *modelData = ModelPrivate::get(sources->model());
-        const auto result = modelData->engine->query(
-            Schema::dynamicMixingAnchorTable(),
-            dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::dynamicMixingAnchorParent(), sources->handle()),
-                    orm::equalFilter(dini::FieldRef::column(Schema::dynamicMixingAnchorPositionColumn()),
-                                     dini::Value(static_cast<std::int64_t>(position))),
-                }),
-            }).toVector();
-        for (const auto &snapshot : result) {
-            const auto handle = orm::handleFromId(snapshot.id);
-            if (handle != except) {
-                return handle;
-            }
-        }
-        return {};
-    }
-
     DynamicMixingAnchorSequence::DynamicMixingAnchorSequence(Sources *sources)
         : QObject(sources), d_ptr(new DynamicMixingAnchorSequencePrivate(this, sources)) {
     }
@@ -156,12 +136,7 @@ namespace dspx {
         if (!item || item->model() != sources()->model() || item->dynamicMixingAnchorSequence()) {
             return false;
         }
-        auto *modelData = ModelPrivate::get(sources()->model());
-        const auto conflict = DynamicMixingAnchorSequencePrivate::get(this)->itemAtPosition(item->position(), item->handle());
-        if (conflict) {
-            modelData->update(conflict, Schema::dynamicMixingAnchorParent().column(), dini::Value::null());
-        }
-        modelData->update(item->handle(), Schema::dynamicMixingAnchorParent().column(), orm::valueFromHandle(sources()->handle()));
+        ModelPrivate::get(sources()->model())->update(item->handle(), Schema::dynamicMixingAnchorParent().column(), orm::valueFromHandle(sources()->handle()));
         return true;
     }
 
@@ -177,12 +152,7 @@ namespace dspx {
         if (!contains(item) || !sequence || sequence->sources()->model() != sources()->model() || sequence->contains(item)) {
             return false;
         }
-        auto *modelData = ModelPrivate::get(sources()->model());
-        const auto conflict = DynamicMixingAnchorSequencePrivate::get(sequence)->itemAtPosition(item->position(), item->handle());
-        if (conflict) {
-            modelData->update(conflict, Schema::dynamicMixingAnchorParent().column(), dini::Value::null());
-        }
-        modelData->update(item->handle(), Schema::dynamicMixingAnchorParent().column(), orm::valueFromHandle(sequence->sources()->handle()));
+        ModelPrivate::get(sources()->model())->update(item->handle(), Schema::dynamicMixingAnchorParent().column(), orm::valueFromHandle(sequence->sources()->handle()));
         return true;
     }
 

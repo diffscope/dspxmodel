@@ -16,8 +16,6 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(KeySignatureSequence)
 
         void refresh(bool notify);
-        Handle itemAtPosition(int position, Handle except = {}) const;
-
         KeySignatureSequence *q_ptr = nullptr;
         Model *model = nullptr;
         int size = 0;

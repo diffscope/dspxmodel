@@ -16,8 +16,6 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(TempoSequence)
 
         void refresh(bool notify);
-        Handle itemAtPosition(int position, Handle except = {}) const;
-
         TempoSequence *q_ptr = nullptr;
         Model *model = nullptr;
         int size = 0;

@@ -41,6 +41,7 @@ namespace dspx {
         /**
          * @brief Sets position.
          * @pre position >= 0.
+         * @pre If dynamicMixingAnchorSequence() != nullptr, no other item in dynamicMixingAnchorSequence() has position.
          * @post position() == position.
          */
         void setPosition(int position);

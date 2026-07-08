@@ -127,7 +127,7 @@ namespace dspx {
     }
 
     bool ParameterMap::insertItem(const QString &key, Parameter *item) {
-        if (!item || item->model() != singingClip()->model() || item->parameterMap() || containsKey(key)) {
+        if (!item || item->model() != singingClip()->model() || item->parameterMap()) {
             return false;
         }
         ModelPrivate::get(singingClip()->model())->update(item->handle(), {
@@ -151,7 +151,7 @@ namespace dspx {
 
     bool ParameterMap::moveItem(const QString &key, ParameterMap *map, const QString &newKey) {
         auto *parameter = item(key);
-        if (!parameter || !map || map->singingClip()->model() != singingClip()->model() || map->containsKey(newKey)) {
+        if (!parameter || !map || map->singingClip()->model() != singingClip()->model()) {
             return false;
         }
         ModelPrivate::get(singingClip()->model())->update(parameter->handle(), {

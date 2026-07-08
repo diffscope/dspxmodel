@@ -120,13 +120,6 @@ namespace dspx {
         if (currentIndex == index) {
             return;
         }
-        const bool contained = modelData->isModelValue(orm::snapshotValue(snapshot, Schema::timeSignatureParent().column()));
-        if (contained && index >= 0) {
-            const auto conflict = TimeSignatureSequencePrivate::get(modelData->timeSignatures)->itemAtIndex(index, handle());
-            if (conflict) {
-                modelData->update(conflict, Schema::timeSignatureParent().column(), dini::Value::null());
-            }
-        }
         modelData->update(handle(), Schema::timeSignatureIndexColumn(), dini::Value(static_cast<std::int64_t>(index)));
     }
 

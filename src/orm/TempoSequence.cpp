@@ -79,25 +79,6 @@ namespace dspx {
         }
     }
 
-    Handle TempoSequencePrivate::itemAtPosition(int position, Handle except) const {
-        auto *modelData = ModelPrivate::get(model);
-        const auto result = modelData->engine->query(
-            Schema::tempoTable(),
-            dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::tempoParent(), modelData->modelHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::tempoPositionColumn()), dini::Value(static_cast<std::int64_t>(position))),
-                }),
-            }).toVector();
-        for (const auto &snapshot : result) {
-            const auto handle = orm::handleFromId(snapshot.id);
-            if (handle != except) {
-                return handle;
-            }
-        }
-        return {};
-    }
-
     TempoSequence::TempoSequence(Model *model) : QObject(model), d_ptr(new TempoSequencePrivate(this, model)) {
     }
 
@@ -144,10 +125,6 @@ namespace dspx {
             return false;
         }
         auto *modelData = ModelPrivate::get(model());
-        const auto conflict = TempoSequencePrivate::get(this)->itemAtPosition(item->position(), item->handle());
-        if (conflict) {
-            modelData->update(conflict, Schema::tempoParent().column(), dini::Value::null());
-        }
         modelData->update(item->handle(), Schema::tempoParent().column(), orm::valueFromHandle(modelData->modelHandle));
         return true;
     }

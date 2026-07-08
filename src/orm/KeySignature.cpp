@@ -122,13 +122,6 @@ namespace dspx {
         if (currentPosition == position) {
             return;
         }
-        const bool contained = modelData->isModelValue(orm::snapshotValue(snapshot, Schema::keySignatureParent().column()));
-        if (contained && position >= 0) {
-            const auto conflict = KeySignatureSequencePrivate::get(modelData->keySignatures)->itemAtPosition(position, handle());
-            if (conflict) {
-                modelData->update(conflict, Schema::keySignatureParent().column(), dini::Value::null());
-            }
-        }
         modelData->update(handle(), Schema::keySignaturePositionColumn(), dini::Value(static_cast<std::int64_t>(position)));
     }
 

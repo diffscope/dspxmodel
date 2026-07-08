@@ -63,9 +63,9 @@ namespace dspx {
         /**
          * @brief Inserts item.
          * @pre item is not null.
+         * @pre key is not contained in this map.
          * @post If successful, item is contained in this map.
-         * @returns true if successful, false if key is already contained in this map, or item is already contained in
-         * this map or another map.
+         * @returns true if successful, false if item is already contained in this map or another map.
          */
         Q_INVOKABLE bool insertItem(const QString &key, Parameter *item);
         /**
@@ -77,9 +77,9 @@ namespace dspx {
         /**
          * @brief Moves item.
          * @pre map is not null.
+         * @pre newKey is not contained in map.
          * @post If successful, item is contained in map.
-         * @returns true if successful, false if key is not contained in this map, or newKey is already contained in the
-         * target map, or item is already contained in another map.
+         * @returns true if successful, false if key is not contained in this map, or item is already contained in another map.
          */
         Q_INVOKABLE bool moveItem(const QString &key, ParameterMap *map, const QString &newKey);
 

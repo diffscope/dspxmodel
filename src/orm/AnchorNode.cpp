@@ -160,15 +160,7 @@ namespace dspx {
     }
 
     void AnchorNode::setX(int x) {
-        auto *modelData = ModelPrivate::get(model());
-        Q_D(const AnchorNode);
-        if (d->sequence) {
-            const auto conflict = AnchorNodeSequencePrivate::get(d->sequence)->itemAtPosition(x, handle());
-            if (conflict) {
-                modelData->update(conflict, Schema::anchorNodeParent().column(), dini::Value::null());
-            }
-        }
-        modelData->update(handle(), Schema::anchorNodeXColumn(), dini::Value(static_cast<std::int64_t>(x)));
+        ModelPrivate::get(model())->update(handle(), Schema::anchorNodeXColumn(), dini::Value(static_cast<std::int64_t>(x)));
     }
 
     int AnchorNode::y() const {

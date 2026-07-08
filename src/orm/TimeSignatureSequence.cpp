@@ -79,25 +79,6 @@ namespace dspx {
         }
     }
 
-    Handle TimeSignatureSequencePrivate::itemAtIndex(int index, Handle except) const {
-        auto *modelData = ModelPrivate::get(model);
-        const auto result = modelData->engine->query(
-            Schema::timeSignatureTable(),
-            dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::timeSignatureParent(), modelData->modelHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::timeSignatureIndexColumn()), dini::Value(static_cast<std::int64_t>(index))),
-                }),
-            }).toVector();
-        for (const auto &snapshot : result) {
-            const auto handle = orm::handleFromId(snapshot.id);
-            if (handle != except) {
-                return handle;
-            }
-        }
-        return {};
-    }
-
     TimeSignatureSequence::TimeSignatureSequence(Model *model)
         : QObject(model), d_ptr(new TimeSignatureSequencePrivate(this, model)) {
     }
@@ -145,10 +126,6 @@ namespace dspx {
             return false;
         }
         auto *modelData = ModelPrivate::get(model());
-        const auto conflict = TimeSignatureSequencePrivate::get(this)->itemAtIndex(item->index(), item->handle());
-        if (conflict) {
-            modelData->update(conflict, Schema::timeSignatureParent().column(), dini::Value::null());
-        }
         modelData->update(item->handle(), Schema::timeSignatureParent().column(), orm::valueFromHandle(modelData->modelHandle));
         return true;
     }

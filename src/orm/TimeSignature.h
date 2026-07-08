@@ -41,12 +41,9 @@ namespace dspx {
         int index() const;
         /**
          * @brief Sets index.
-         *
-         * If this time signature is contained in a time signature sequence and another item in the same sequence
-         * already has the target index, that item is removed from the sequence before this index is updated.
-         *
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre index >= 0.
+         * @pre If timeSignatureSequence() != nullptr, no other item in timeSignatureSequence() has index.
          * @post index() == index.
          */
         void setIndex(int index);

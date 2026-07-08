@@ -62,12 +62,9 @@ namespace dspx {
         Q_INVOKABLE bool contains(Tempo *item) const;
         /**
          * @brief Inserts item.
-         *
-         * If another item in this sequence already has the inserted item's position, that item is removed from this
-         * sequence before the inserted item is added.
-         *
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item != nullptr && item->model() == model().
+         * @pre No other item in this sequence has item->position().
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
          */
