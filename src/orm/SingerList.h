@@ -68,7 +68,7 @@ namespace dspx {
          * @pre index >= 0.
          * @post If successful, size may change.
          */
-        Q_INVOKABLE bool removeItem(int index);
+        Q_INVOKABLE Singer *removeItem(int index);
         /**
          * @brief Moves item.
          * @pre index >= 0.

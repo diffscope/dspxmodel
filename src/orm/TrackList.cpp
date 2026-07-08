@@ -147,13 +147,13 @@ namespace dspx {
         return true;
     }
 
-    bool TrackList::removeItem(int index) {
+    Track *TrackList::removeItem(int index) {
         auto *track = item(index);
         if (!track) {
-            return false;
+            return nullptr;
         }
         ModelPrivate::get(model())->update(track->handle(), Schema::trackParent().column(), dini::Value::null());
-        return true;
+        return track;
     }
 
     bool TrackList::rotate(int leftIndex, int middleIndex, int rightIndex) {

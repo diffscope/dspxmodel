@@ -170,13 +170,13 @@ namespace dspx {
         return true;
     }
 
-    bool SingerList::removeItem(int index) {
+    Singer *SingerList::removeItem(int index) {
         auto *singer = item(index);
         if (!singer) {
-            return false;
+            return nullptr;
         }
         ModelPrivate::get(singer->model())->update(singer->handle(), Schema::singerParent().column(), dini::Value::null());
-        return true;
+        return singer;
     }
 
     bool SingerList::moveItem(int index, SingerList *list, int newIndex) {

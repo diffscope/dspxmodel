@@ -21,6 +21,7 @@ private slots:
     void entityPropertySignals();
     void trackListSignals();
     void noteSequenceSignals();
+    void undoInsertedNoteDoesNotReadRemovedItem();
 };
 
 void OrmSignalsTest::initTestCase()
@@ -170,6 +171,40 @@ void OrmSignalsTest::noteSequenceSignals()
         QCOMPARE(removedSpy.count(), 1);
         QCOMPARE(sizeSpy.count(), 2);
     });
+}
+
+void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem()
+{
+    OrmTestContext context;
+    SingingClip *clip = nullptr;
+    Note *note = nullptr;
+
+    context.withTransaction([&] {
+        clip = context.model.createSingingClip();
+        context.verifyEntity(clip);
+    });
+
+    context.withTransaction([&] {
+        note = context.model.createNote();
+        context.verifyEntity(note);
+        note->setPosition(0);
+        note->setLength(120);
+        note->setKeyNumber(60);
+        note->setLyric(QStringLiteral("la"));
+        QVERIFY(clip->notes()->insertItem(note));
+    });
+
+    QCOMPARE(clip->notes()->size(), 1);
+    QVERIFY(context.document.engine()->canUndo());
+
+    try {
+        context.document.engine()->undo();
+    } catch (const std::exception &e) {
+        QFAIL(e.what());
+    }
+
+    QCOMPARE(clip->notes()->size(), 0);
+    QVERIFY(!context.document.engine()->contains(static_cast<dini::ItemId>(note->handle().d)));
 }
 
 QTEST_GUILESS_MAIN(OrmSignalsTest)

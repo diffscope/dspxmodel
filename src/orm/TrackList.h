@@ -69,7 +69,7 @@ namespace dspx {
          * @pre index >= 0.
          * @post If successful, size may change.
          */
-        Q_INVOKABLE bool removeItem(int index);
+        Q_INVOKABLE Track *removeItem(int index);
         /**
          * @brief Rotates items.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.

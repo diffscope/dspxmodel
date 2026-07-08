@@ -16,7 +16,7 @@ namespace dspx {
     /**
      * @brief Audio path information.
      */
-    struct AudioPathInfo {
+    struct DSPXMODEL_ORM_EXPORT AudioPathInfo {
         Q_GADGET
         Q_PROPERTY(QString absoluteDir MEMBER absoluteDir)
         Q_PROPERTY(QString relativeDir MEMBER relativeDir)

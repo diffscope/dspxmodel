@@ -378,6 +378,8 @@ namespace dspx {
 
         std::vector<const orm::TableBinding *> tableBindings;
         std::vector<const orm::ListBinding *> listBindings;
+        bool eventSnapshotOverridesActive = false;
+        QHash<dini::ItemId, dini::ItemSnapshot> eventSnapshotOverrides;
 
         QHash<Handle, Label *> labelObjects;
         QHash<Handle, AnchorNode *> anchorNodeObjects;

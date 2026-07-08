@@ -34,7 +34,7 @@ namespace dspx::impl {
 
             iterator &operator++() {
                 if (m_item) {
-                    m_item = m_sequence->nextItem(m_item);
+                    m_item = m_item->nextItem();
                 }
                 return *this;
             }
@@ -47,7 +47,7 @@ namespace dspx::impl {
 
             iterator &operator--() {
                 if (m_item) {
-                    m_item = m_sequence->previousItem(m_item);
+                    m_item = m_item->previousItem();
                 } else {
                     m_item = m_sequence->lastItem();
                 }

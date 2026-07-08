@@ -42,6 +42,7 @@ namespace dspx {
     namespace orm {
 
         dini::DocumentEngine *getModelEngine(ModelPrivate &model);
+        const dini::ItemSnapshot *currentEventSnapshot(ModelPrivate &model, dini::ItemId itemId);
 
         struct OrderSpec {
             std::vector<dini::ColumnHandle> columns;
@@ -325,7 +326,11 @@ namespace dspx {
                     const bool order = containsColumn(spec.orderColumns, change.column);
                     auto *group = groupForChange(groups, change.itemId);
                     if (!group) {
-                        auto snapshot = getModelEngine(model)->read(change.itemId);
+                        const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
+                        if (!eventSnapshot && !getModelEngine(model)->contains(change.itemId)) {
+                            continue;
+                        }
+                        auto snapshot = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                         groups.push_back({
                             .itemId = change.itemId,
                             .oldSnapshot = snapshot,
@@ -541,7 +546,11 @@ namespace dspx {
                 for (const auto &change : changes) {
                     auto *group = groupForChange(groups, change.itemId);
                     if (!group) {
-                        auto snapshot = getModelEngine(model)->read(change.itemId);
+                        const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
+                        if (!eventSnapshot && !getModelEngine(model)->contains(change.itemId)) {
+                            continue;
+                        }
+                        auto snapshot = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                         groups.push_back({
                             .itemId = change.itemId,
                             .oldSnapshot = snapshot,
@@ -894,25 +903,28 @@ namespace dspx {
                         auto *oldOwner = spec.ownerForAssociationValue(model, change.oldValue);
                         auto *newOwner = spec.ownerForAssociationValue(model, change.newValue);
                         emitSplice(oldOwner, static_cast<int>(change.oldListIndex.value_or(0)), 1, QList<ItemValue>());
-                        if (newOwner && getModelEngine(model)->contains(change.itemId)) {
-                            const auto item = getModelEngine(model)->read(change.itemId);
+                        const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
+                        if (newOwner && (eventSnapshot || getModelEngine(model)->contains(change.itemId))) {
+                            const auto item = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                             emitSplice(newOwner, static_cast<int>(change.associationOptions.targetIndex.value_or(0)), 0, oneValue(item));
                         }
                         return;
                     }
-                    if (!getModelEngine(model)->contains(change.itemId)) {
+                    const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
+                    if (!eventSnapshot && !getModelEngine(model)->contains(change.itemId)) {
                         return;
                     }
-                    const auto item = getModelEngine(model)->read(change.itemId);
+                    const auto item = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                     if (item.listAssociationValue.has_value()) {
                         refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
                     }
                 },
                 .computedColumnUpdated = [spec, refresh](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
-                    if (!getModelEngine(model)->contains(change.itemId)) {
+                    const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
+                    if (!eventSnapshot && !getModelEngine(model)->contains(change.itemId)) {
                         return;
                     }
-                    const auto item = getModelEngine(model)->read(change.itemId);
+                    const auto item = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                     if (item.listAssociationValue.has_value()) {
                         refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
                     }

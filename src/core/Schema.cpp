@@ -1523,7 +1523,7 @@ namespace dspx {
                 trackHeightColumn = trackListBuilder.addColumn({
                     .debugName = "height",
                     .type = dini::ValueType::Double,
-                    .defaultValue = 0.0,
+                    .defaultValue = 80.0,
                     .nullable = false,
                 });
                 trackNameColumn = trackListBuilder.addColumn({
