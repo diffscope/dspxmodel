@@ -827,6 +827,113 @@ namespace dspx {
         return true;
     }
 
+    QObject *Model::find(const QMetaObject &t, Handle handle) const {
+        Q_D(const Model);
+        if (!handle) {
+            return nullptr;
+        }
+        if (&t == &Model::staticMetaObject) {
+            return handle == this->handle() ? const_cast<Model *>(this) : nullptr;
+        } else if (&t == &EntityObject::staticMetaObject && handle == this->handle()) {
+            return const_cast<Model *>(this);
+        }
+
+        const auto matches = [&t](const QMetaObject &type, const QMetaObject *base = nullptr) {
+            return &t == &EntityObject::staticMetaObject || &t == &type || (base && &t == base);
+        };
+
+        if (matches(Label::staticMetaObject)) {
+            if (auto *object = d->find<Label>(handle)) {
+                return object;
+            }
+        }
+        if (matches(AnchorNode::staticMetaObject)) {
+            if (auto *object = d->find<AnchorNode>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Note::staticMetaObject)) {
+            if (auto *object = d->find<Note>(handle)) {
+                return object;
+            }
+        }
+        if (matches(DynamicMixingAnchor::staticMetaObject)) {
+            if (auto *object = d->find<DynamicMixingAnchor>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Parameter::staticMetaObject)) {
+            if (auto *object = d->find<Parameter>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Phoneme::staticMetaObject)) {
+            if (auto *object = d->find<Phoneme>(handle)) {
+                return object;
+            }
+        }
+        if (matches(SingleSinger::staticMetaObject, &Singer::staticMetaObject)) {
+            if (auto *object = d->find<SingleSinger>(handle)) {
+                return object;
+            }
+        }
+        if (matches(MixedSinger::staticMetaObject, &Singer::staticMetaObject)) {
+            if (auto *object = d->find<MixedSinger>(handle)) {
+                return object;
+            }
+        }
+        if (matches(KeySignature::staticMetaObject)) {
+            if (auto *object = d->find<KeySignature>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Tempo::staticMetaObject)) {
+            if (auto *object = d->find<Tempo>(handle)) {
+                return object;
+            }
+        }
+        if (matches(TimeSignature::staticMetaObject)) {
+            if (auto *object = d->find<TimeSignature>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Track::staticMetaObject)) {
+            if (auto *object = d->find<Track>(handle)) {
+                return object;
+            }
+        }
+        if (matches(AudioClip::staticMetaObject, &Clip::staticMetaObject)) {
+            if (auto *object = d->find<AudioClip>(handle)) {
+                return object;
+            }
+        }
+        if (matches(SingingClip::staticMetaObject, &Clip::staticMetaObject)) {
+            if (auto *object = d->find<SingingClip>(handle)) {
+                return object;
+            }
+        }
+        if (matches(Sources::staticMetaObject)) {
+            if (auto *object = d->find<Sources>(handle)) {
+                return object;
+            }
+        }
+
+        if (&t == &Singer::staticMetaObject || &t == &EntityObject::staticMetaObject) {
+            if (auto *object = d->find<Singer>(handle)) {
+                return object;
+            }
+        }
+        if (&t == &Clip::staticMetaObject || &t == &EntityObject::staticMetaObject) {
+            if (auto *object = d->find<Clip>(handle)) {
+                return object;
+            }
+        }
+        if (&t == &EntityObject::staticMetaObject) {
+            return nullptr;
+        }
+        return nullptr;
+    }
+
 }
 
 
