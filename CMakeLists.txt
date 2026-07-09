@@ -7,6 +7,7 @@ project(dspxmodel VERSION 0.0.1.0 LANGUAGES CXX)
 # ----------------------------------
 option(DSPXMODEL_BUILD_STATIC "Build static libraries" OFF)
 option(DSPXMODEL_BUILD_TESTS "Build test cases" OFF)
+option(DSPXMODEL_BUILD_BENCHMARKS "Build benchmark targets" OFF)
 option(DSPXMODEL_INSTALL "Install library" ON)
 
 # ----------------------------------
@@ -52,7 +53,15 @@ qm_init_directories()
 # ----------------------------------
 add_subdirectory(lib)
 add_subdirectory(src)
-if(DSPXMODEL_BUILD_TESTS)
+
+if(DSPXMODEL_BUILD_TESTS OR DSPXMODEL_BUILD_BENCHMARKS)
     enable_testing()
+endif()
+
+if(DSPXMODEL_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+if(DSPXMODEL_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()

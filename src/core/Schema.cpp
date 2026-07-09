@@ -655,13 +655,15 @@ namespace dspx {
                                      std::vector<dini::ColumnHandle> orderColumns,
                                      dini::ColumnHandle previousColumn,
                                      dini::ColumnHandle nextColumn,
-                                     std::optional<dini::ColumnHandle> roleColumn = {})
+                                     std::optional<dini::ColumnHandle> roleColumn = {},
+                                     std::optional<dini::OrderedIndexHandle> orderedIndex = {})
                 : table(std::move(table)),
                   parent(std::move(parent)),
                   roleColumn(std::move(roleColumn)),
                   orderColumns(std::move(orderColumns)),
                   previousColumn(std::move(previousColumn)),
-                  nextColumn(std::move(nextColumn)) {
+                  nextColumn(std::move(nextColumn)),
+                  orderedIndex(std::move(orderedIndex)) {
             }
 
             void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
@@ -816,13 +818,8 @@ namespace dspx {
                 return filters;
             }
 
-            void addExclusionFilters(std::vector<dini::FilterExpression> &filters,
-                                     const std::set<dini::ItemId> &excludedIds) const {
-                for (const auto id : excludedIds) {
-                    filters.push_back(dini::FilterExpression(dini::Filter(dini::FieldRef::id(),
-                                                                          dini::ComparisonOperator::NotEqual,
-                                                                          dini::Value(static_cast<std::uint64_t>(id)))));
-                }
+            bool isExcluded(dini::ItemId id, const std::set<dini::ItemId> &excludedIds) const {
+                return excludedIds.find(id) != excludedIds.end();
             }
 
             std::vector<dini::SortKey> fullSort(bool descending = false) const {
@@ -851,11 +848,14 @@ namespace dspx {
                 filters.push_back(dini::FilterExpression(dini::Filter(dini::FieldRef::column(orderColumns.front()),
                                                                       dini::ComparisonOperator::Equal,
                                                                       primaryValue)));
-                addExclusionFilters(filters, excludedIds);
-                return ctx.engine().query(table, {
+                auto result = ctx.engine().query(table, {
                     .filter = filterExpression(std::move(filters)),
                     .sortKeys = fullSort(),
                 }).toVector();
+                result.erase(std::remove_if(result.begin(), result.end(), [&](const auto &candidate) {
+                    return isExcluded(candidate.id, excludedIds);
+                }), result.end());
+                return result;
             }
 
             std::optional<dini::ItemSnapshot> queryDifferentPrimary(dini::TransactionContext &ctx,
@@ -867,16 +867,23 @@ namespace dspx {
                 filters.push_back(dini::FilterExpression(dini::Filter(dini::FieldRef::column(orderColumns.front()),
                                                                       op,
                                                                       itemValue(item, orderColumns.front()))));
-                addExclusionFilters(filters, excludedIds);
                 auto result = ctx.engine().query(table, {
                     .filter = filterExpression(std::move(filters)),
                     .sortKeys = primarySort(descending),
-                }).limit(1).toVector();
-                if (result.empty()) {
+                }).limit(excludedIds.size() + 1).toVector();
+
+                const dini::ItemSnapshot *firstIncluded = nullptr;
+                for (const auto &candidate : result) {
+                    if (!isExcluded(candidate.id, excludedIds)) {
+                        firstIncluded = &candidate;
+                        break;
+                    }
+                }
+                if (!firstIncluded) {
                     return {};
                 }
 
-                const auto primaryValue = itemValue(result.front(), orderColumns.front());
+                const auto primaryValue = itemValue(*firstIncluded, orderColumns.front());
                 auto bucket = queryExactPrimary(ctx, item, primaryValue, excludedIds);
                 if (bucket.empty()) {
                     return {};
@@ -889,6 +896,9 @@ namespace dspx {
                                                        const std::set<dini::ItemId> &excludedIds) const {
                 if (!hasSequenceKey(item)) {
                     return {};
+                }
+                if (orderedIndex.has_value()) {
+                    return ctx.engine().previous(*orderedIndex, item, excludedIds);
                 }
                 auto bucket = queryExactPrimary(ctx, item, itemValue(item, orderColumns.front()), excludedIds);
                 std::optional<dini::ItemSnapshot> result;
@@ -910,6 +920,9 @@ namespace dspx {
                                                    const std::set<dini::ItemId> &excludedIds) const {
                 if (!hasSequenceKey(item)) {
                     return {};
+                }
+                if (orderedIndex.has_value()) {
+                    return ctx.engine().next(*orderedIndex, item, excludedIds);
                 }
                 auto bucket = queryExactPrimary(ctx, item, itemValue(item, orderColumns.front()), excludedIds);
                 for (const auto &candidate : bucket) {
@@ -984,6 +997,7 @@ namespace dspx {
             std::vector<dini::ColumnHandle> orderColumns;
             dini::ColumnHandle previousColumn;
             dini::ColumnHandle nextColumn;
+            std::optional<dini::OrderedIndexHandle> orderedIndex;
         };
 
         thread_local int overlapCountUpdateDepth = 0;
@@ -1013,13 +1027,15 @@ namespace dspx {
                                       dini::ColumnHandle positionColumn,
                                       dini::ColumnHandle lengthColumn,
                                       dini::ColumnHandle endColumn,
-                                      dini::ColumnHandle overlapCountColumn)
+                                      dini::ColumnHandle overlapCountColumn,
+                                      std::optional<dini::IntervalIndexHandle> intervalIndex = {})
                 : table(std::move(table)),
                   parent(std::move(parent)),
                   positionColumn(std::move(positionColumn)),
                   lengthColumn(std::move(lengthColumn)),
                   endColumn(std::move(endColumn)),
-                  overlapCountColumn(std::move(overlapCountColumn)) {
+                  overlapCountColumn(std::move(overlapCountColumn)),
+                  intervalIndex(std::move(intervalIndex)) {
             }
 
             void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
@@ -1155,19 +1171,21 @@ namespace dspx {
                     return items;
                 }
 
-                auto existingItems = ctx.engine().query(table, {
-                    .filter = dini::FilterExpression::all({
-                        dini::FilterExpression(dini::Filter(dini::FieldRef::parent(parent),
-                                                            dini::ComparisonOperator::Equal,
-                                                            parentValue)),
-                        dini::FilterExpression(dini::Filter(dini::FieldRef::column(positionColumn),
-                                                            dini::ComparisonOperator::Less,
-                                                            dini::Value(end(probe)))),
-                        dini::FilterExpression(dini::Filter(dini::FieldRef::column(endColumn),
-                                                            dini::ComparisonOperator::Greater,
-                                                            dini::Value(start(probe)))),
-                    }),
-                }).toVector();
+                auto existingItems = intervalIndex.has_value()
+                    ? ctx.engine().overlapping(*intervalIndex, probe, excludedIds)
+                    : ctx.engine().query(table, {
+                          .filter = dini::FilterExpression::all({
+                              dini::FilterExpression(dini::Filter(dini::FieldRef::parent(parent),
+                                                                  dini::ComparisonOperator::Equal,
+                                                                  parentValue)),
+                              dini::FilterExpression(dini::Filter(dini::FieldRef::column(positionColumn),
+                                                                  dini::ComparisonOperator::Less,
+                                                                  dini::Value(end(probe)))),
+                              dini::FilterExpression(dini::Filter(dini::FieldRef::column(endColumn),
+                                                                  dini::ComparisonOperator::Greater,
+                                                                  dini::Value(start(probe)))),
+                          }),
+                      }).toVector();
                 for (const auto &item : existingItems) {
                     if (excludedIds.find(item.id) != excludedIds.end() || virtualItemById(virtualItems, item.id)) {
                         continue;
@@ -1262,6 +1280,7 @@ namespace dspx {
             dini::ColumnHandle lengthColumn;
             dini::ColumnHandle endColumn;
             dini::ColumnHandle overlapCountColumn;
+            std::optional<dini::IntervalIndexHandle> intervalIndex;
         };
 
         template <typename Builder, typename Callback>
@@ -1416,15 +1435,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(keySignatureTableBuilder);
                 keySignaturePreviousItemColumn = links.previous;
                 keySignatureNextItemColumn = links.next;
-                keySignatureTableBuilder.addRangeIndex({
+                auto keySignatureOrderIndex = keySignatureTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {keySignatureParent.column(), keySignaturePositionColumn},
+                    .groupBy = {keySignatureParent.column()},
+                    .orderBy = {keySignaturePositionColumn},
                 });
                 addBeforeApplyHook(keySignatureTableBuilder, OrderedLinkHook(keySignatureTable,
                                                                              keySignatureParent,
                                                                              {keySignaturePositionColumn},
                                                                              keySignaturePreviousItemColumn,
-                                                                             keySignatureNextItemColumn));
+                                                                             keySignatureNextItemColumn,
+                                                                             {},
+                                                                             keySignatureOrderIndex));
             }
 
             void buildLabelTable() {
@@ -1451,15 +1473,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(labelTableBuilder);
                 labelPreviousItemColumn = links.previous;
                 labelNextItemColumn = links.next;
-                labelTableBuilder.addRangeIndex({
+                auto labelOrderIndex = labelTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {labelParent.column(), labelPositionColumn},
+                    .groupBy = {labelParent.column()},
+                    .orderBy = {labelPositionColumn},
                 });
                 addBeforeApplyHook(labelTableBuilder, OrderedLinkHook(labelTable,
                                                                       labelParent,
                                                                       {labelPositionColumn},
                                                                       labelPreviousItemColumn,
-                                                                      labelNextItemColumn));
+                                                                      labelNextItemColumn,
+                                                                      {},
+                                                                      labelOrderIndex));
             }
 
             void buildTempoTable() {
@@ -1487,15 +1512,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(tempoTableBuilder);
                 tempoPreviousItemColumn = links.previous;
                 tempoNextItemColumn = links.next;
-                tempoTableBuilder.addRangeIndex({
+                auto tempoOrderIndex = tempoTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {tempoParent.column(), tempoPositionColumn},
+                    .groupBy = {tempoParent.column()},
+                    .orderBy = {tempoPositionColumn},
                 });
                 addBeforeApplyHook(tempoTableBuilder, OrderedLinkHook(tempoTable,
                                                                       tempoParent,
                                                                       {tempoPositionColumn},
                                                                       tempoPreviousItemColumn,
-                                                                      tempoNextItemColumn));
+                                                                      tempoNextItemColumn,
+                                                                      {},
+                                                                      tempoOrderIndex));
             }
 
             void buildTimeSignatureTable() {
@@ -1533,15 +1561,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(timeSignatureTableBuilder);
                 timeSignaturePreviousItemColumn = links.previous;
                 timeSignatureNextItemColumn = links.next;
-                timeSignatureTableBuilder.addRangeIndex({
+                auto timeSignatureOrderIndex = timeSignatureTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {timeSignatureParent.column(), timeSignatureIndexColumn},
+                    .groupBy = {timeSignatureParent.column()},
+                    .orderBy = {timeSignatureIndexColumn},
                 });
                 addBeforeApplyHook(timeSignatureTableBuilder, OrderedLinkHook(timeSignatureTable,
                                                                               timeSignatureParent,
                                                                               {timeSignatureIndexColumn},
                                                                               timeSignaturePreviousItemColumn,
-                                                                              timeSignatureNextItemColumn));
+                                                                              timeSignatureNextItemColumn,
+                                                                              {},
+                                                                              timeSignatureOrderIndex));
             }
 
             void buildTrackList() {
@@ -1705,29 +1736,31 @@ namespace dspx {
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
-                clipTableBuilder.addRangeIndex({
-                    .debugName = "range",
-                    .columns = {clipPositionColumn, clipClipLengthColumn},
-                });
-                clipTableBuilder.addRangeIndex({
+                auto clipOrderIndex = clipTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {clipParent.column(), clipPositionColumn},
+                    .groupBy = {clipParent.column()},
+                    .orderBy = {clipPositionColumn, clipClipLengthColumn},
                 });
-                clipTableBuilder.addRangeIndex({
+                auto clipOverlapIndex = clipTableBuilder.addIntervalIndex({
                     .debugName = "overlap",
-                    .columns = {clipParent.column(), clipPositionColumn, clipEndColumn},
+                    .groupBy = {clipParent.column()},
+                    .start = clipPositionColumn,
+                    .end = clipEndColumn,
                 });
                 addBeforeApplyHook(clipTableBuilder, OrderedLinkHook(clipTable,
                                                                      clipParent,
                                                                      {clipPositionColumn, clipClipLengthColumn},
                                                                      clipPreviousItemColumn,
-                                                                     clipNextItemColumn));
+                                                                     clipNextItemColumn,
+                                                                     {},
+                                                                     clipOrderIndex));
                 addBeforeApplyHook(clipTableBuilder, OverlapCountHook(clipTable,
                                                                       clipParent,
                                                                       clipPositionColumn,
                                                                       clipClipLengthColumn,
                                                                       clipEndColumn,
-                                                                      clipOverlappedCountColumn));
+                                                                      clipOverlappedCountColumn,
+                                                                      clipOverlapIndex));
             }
 
             void buildSourcesMixableAndDynamicMixingAnchorTablesAndSingerList() {
@@ -1819,15 +1852,18 @@ namespace dspx {
                 auto dynamicMixingAnchorLinks = addOrderedLinkColumns(dynamicMixingAnchorTableBuilder);
                 dynamicMixingAnchorPreviousItemColumn = dynamicMixingAnchorLinks.previous;
                 dynamicMixingAnchorNextItemColumn = dynamicMixingAnchorLinks.next;
-                dynamicMixingAnchorTableBuilder.addRangeIndex({
+                auto dynamicMixingAnchorOrderIndex = dynamicMixingAnchorTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {dynamicMixingAnchorParent.column(), dynamicMixingAnchorPositionColumn},
+                    .groupBy = {dynamicMixingAnchorParent.column()},
+                    .orderBy = {dynamicMixingAnchorPositionColumn},
                 });
                 addBeforeApplyHook(dynamicMixingAnchorTableBuilder, OrderedLinkHook(dynamicMixingAnchorTable,
                                                                                    dynamicMixingAnchorParent,
                                                                                    {dynamicMixingAnchorPositionColumn},
                                                                                    dynamicMixingAnchorPreviousItemColumn,
-                                                                                   dynamicMixingAnchorNextItemColumn));
+                                                                                   dynamicMixingAnchorNextItemColumn,
+                                                                                   {},
+                                                                                   dynamicMixingAnchorOrderIndex));
                 addBeforeApplyHook(sourcesTableBuilder,
                                    SourcesAssociationCheckHook(clipTable, sourcesTable, sourcesParent, singingClipVariant));
                 addBeforeApplyHook(sourcesTableBuilder, VirtualCascadeDeleteHook(VirtualCascadeDeleteHook::Mode::Sources,
@@ -1972,30 +2008,33 @@ namespace dspx {
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
-                noteTableBuilder.addRangeIndex({
-                    .debugName = "range",
-                    .columns = {notePositionColumn, noteLengthColumn}
+                auto noteOrderIndex = noteTableBuilder.addOrderedIndex({
+                    .debugName = "noteOrder",
+                    .groupBy = {noteParent.column()},
+                    .orderBy = {notePositionColumn, noteLengthColumn, noteKeyNumberColumn},
+                    .tieBreakById = true,
                 });
-                noteTableBuilder.addRangeIndex({
-                    .debugName = "order",
-                    .columns = {noteParent.column(), notePositionColumn}
-                });
-                noteTableBuilder.addRangeIndex({
-                    .debugName = "overlap",
-                    .columns = {noteParent.column(), notePositionColumn, noteEndColumn}
+                auto noteOverlapIndex = noteTableBuilder.addIntervalIndex({
+                    .debugName = "noteOverlap",
+                    .groupBy = {noteParent.column()},
+                    .start = notePositionColumn,
+                    .end = noteEndColumn,
                 });
                 addBeforeApplyHook(noteTableBuilder, ParentVariantCheckHook(clipTable, noteParent, singingClipVariant));
                 addBeforeApplyHook(noteTableBuilder, OrderedLinkHook(noteTable,
                                                                      noteParent,
                                                                      {notePositionColumn, noteLengthColumn, noteKeyNumberColumn},
                                                                      notePreviousItemColumn,
-                                                                     noteNextItemColumn));
+                                                                     noteNextItemColumn,
+                                                                     {},
+                                                                     noteOrderIndex));
                 addBeforeApplyHook(noteTableBuilder, OverlapCountHook(noteTable,
                                                                       noteParent,
                                                                       notePositionColumn,
                                                                       noteLengthColumn,
                                                                       noteEndColumn,
-                                                                      noteOverlappedCountColumn));
+                                                                      noteOverlappedCountColumn,
+                                                                      noteOverlapIndex));
                 buildNoteVibratoPointRelationTable(noteTableBuilder);
                 buildNotePhonemeRelationTable(noteTableBuilder);
             }
@@ -2111,15 +2150,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(phonemeTableBuilder);
                 phonemePreviousItemColumn = links.previous;
                 phonemeNextItemColumn = links.next;
-                phonemeTableBuilder.addRangeIndex({
+                auto phonemeOrderIndex = phonemeTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {phonemeParent.column(), phonemeStartColumn},
+                    .groupBy = {phonemeParent.column()},
+                    .orderBy = {phonemeStartColumn},
                 });
                 addBeforeApplyHook(phonemeTableBuilder, OrderedLinkHook(phonemeTable,
                                                                         phonemeParent,
                                                                         {phonemeStartColumn},
                                                                         phonemePreviousItemColumn,
-                                                                        phonemeNextItemColumn));
+                                                                        phonemeNextItemColumn,
+                                                                        {},
+                                                                        phonemeOrderIndex));
             }
 
             void buildParameterTable() {
@@ -2244,15 +2286,18 @@ namespace dspx {
                 auto links = addOrderedLinkColumns(anchorNodeTableBuilder);
                 anchorNodePreviousItemColumn = links.previous;
                 anchorNodeNextItemColumn = links.next;
-                anchorNodeTableBuilder.addRangeIndex({
+                auto anchorNodeOrderIndex = anchorNodeTableBuilder.addOrderedIndex({
                     .debugName = "order",
-                    .columns = {anchorNodeParent.column(), anchorNodeXColumn},
+                    .groupBy = {anchorNodeParent.column()},
+                    .orderBy = {anchorNodeXColumn},
                 });
                 addBeforeApplyHook(anchorNodeTableBuilder, OrderedLinkHook(anchorNodeTable,
                                                                            anchorNodeParent,
                                                                            {anchorNodeXColumn},
                                                                            anchorNodePreviousItemColumn,
-                                                                           anchorNodeNextItemColumn));
+                                                                           anchorNodeNextItemColumn,
+                                                                           {},
+                                                                           anchorNodeOrderIndex));
             }
 
             dini::SchemaBuilder schemaBuilder;
