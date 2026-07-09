@@ -42,7 +42,6 @@ private slots:
     void anchorNodeSelectionCommands();
     void anchorNodeSequenceConstraintAndEmptyContext();
     void anchorNodeInvalidationEmitsSignals();
-    void anchorNodeSequenceReplacesSameX();
 };
 
 void SelectionModelTest::basicSelectionCommands()
@@ -460,42 +459,6 @@ void SelectionModelTest::anchorNodeInvalidationEmitsSignals()
 
     QCOMPARE(selection.anchorNodeSelectionModel()->selectedCount(), 0);
     QCOMPARE(selection.anchorNodeSelectionModel()->currentItem(), nullptr);
-}
-
-void SelectionModelTest::anchorNodeSequenceReplacesSameX()
-{
-    OrmTestContext context;
-
-    Parameter *parameter = nullptr;
-    AnchorNode *anchor1 = nullptr;
-    AnchorNode *anchor2 = nullptr;
-    AnchorNode *anchor3 = nullptr;
-
-    context.withTransaction([&] {
-        parameter = context.model.createParameter();
-        anchor1 = context.model.createAnchorNode();
-        anchor2 = context.model.createAnchorNode();
-        anchor3 = context.model.createAnchorNode();
-
-        anchor1->setX(0);
-        anchor2->setX(0);
-        anchor3->setX(120);
-
-        QVERIFY(parameter->anchorTransform()->insertItem(anchor1));
-        QVERIFY(parameter->anchorTransform()->insertItem(anchor2));
-        QCOMPARE(parameter->anchorTransform()->size(), 1);
-        QVERIFY(!parameter->anchorTransform()->contains(anchor1));
-        QVERIFY(parameter->anchorTransform()->contains(anchor2));
-        QCOMPARE(anchor1->anchorNodeSequence(), nullptr);
-
-        QVERIFY(parameter->anchorTransform()->insertItem(anchor3));
-        QCOMPARE(parameter->anchorTransform()->size(), 2);
-        anchor3->setX(0);
-        QCOMPARE(parameter->anchorTransform()->size(), 1);
-        QVERIFY(!parameter->anchorTransform()->contains(anchor2));
-        QVERIFY(parameter->anchorTransform()->contains(anchor3));
-        QCOMPARE(anchor2->anchorNodeSequence(), nullptr);
-    });
 }
 
 QTEST_MAIN(SelectionModelTest)

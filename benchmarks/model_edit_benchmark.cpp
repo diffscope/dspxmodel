@@ -168,16 +168,54 @@ void BM_ShiftAllNotePositions(benchmark::State &state) {
 
 BENCHMARK(BM_ShiftAllNotePositions)->Apply(shiftNoteCounts);
 
-void buildModelWithTracks(int trackCount) {
-    Document document;
-    Model model(&document);
+void removeAllNotes(Document &document, SingingClip *clip) {
+    withTransaction(document, [&] {
+        QVector<Note *> notes;
+        std::ranges::copy(clip->notes()->asRange(), std::back_inserter(notes));
+        for (auto it = notes.rbegin(); it != notes.rend(); ++it) {
+            clip->notes()->removeItem(*it);
+        }
+    });
+}
 
+void removeNoteCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_RemoveAllNotes(benchmark::State &state) {
+    const auto noteCount = static_cast<int>(state.range(0));
+    const auto generatedNotes = generateNotes(noteCount);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *clip = createSingingClipWithNotes(document, model, generatedNotes);
+        state.ResumeTiming();
+
+        removeAllNotes(document, clip);
+
+        benchmark::DoNotOptimize(clip->notes()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * noteCount);
+}
+
+BENCHMARK(BM_RemoveAllNotes)->Apply(removeNoteCounts);
+
+void createTracks(Document &document, Model &model, int trackCount) {
     withTransaction(document, [&] {
         for (int i = 0; i < trackCount; ++i) {
             auto *track = model.createTrack();
             model.tracks()->insertItem(model.tracks()->size(), track);
         }
     });
+}
+
+void buildModelWithTracks(int trackCount) {
+    Document document;
+    Model model(&document);
+
+    createTracks(document, model, trackCount);
 
     benchmark::DoNotOptimize(model.tracks()->size());
     benchmark::ClobberMemory();
@@ -196,6 +234,37 @@ void BM_CreateModelWithTracks(benchmark::State &state) {
 }
 
 BENCHMARK(BM_CreateModelWithTracks)->Apply(addTrackCounts);
+
+void removeAllTracks(Document &document, Model &model) {
+    withTransaction(document, [&] {
+        while (model.tracks()->size() > 0) {
+            model.tracks()->removeItem(model.tracks()->size() - 1);
+        }
+    });
+}
+
+void removeTrackCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_RemoveAllTracksFromEnd(benchmark::State &state) {
+    const auto trackCount = static_cast<int>(state.range(0));
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        createTracks(document, model, trackCount);
+        state.ResumeTiming();
+
+        removeAllTracks(document, model);
+
+        benchmark::DoNotOptimize(model.tracks()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * trackCount);
+}
+
+BENCHMARK(BM_RemoveAllTracksFromEnd)->Apply(removeTrackCounts);
 
 constexpr double defaultTempoValue = 120.0;
 
@@ -267,5 +336,38 @@ void BM_ShiftAllTempoPositions(benchmark::State &state) {
 }
 
 BENCHMARK(BM_ShiftAllTempoPositions)->Apply(shiftTempoCounts);
+
+void removeAllTempos(Document &document, Model &model) {
+    withTransaction(document, [&] {
+        QVector<Tempo *> tempos;
+        std::ranges::copy(model.tempos()->asRange(), std::back_inserter(tempos));
+        for (auto it = tempos.rbegin(); it != tempos.rend(); ++it) {
+            model.tempos()->removeItem(*it);
+        }
+    });
+}
+
+void removeTempoCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_RemoveAllTempos(benchmark::State &state) {
+    const auto tempoCount = static_cast<int>(state.range(0));
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        createTempos(document, model, tempoCount);
+        state.ResumeTiming();
+
+        removeAllTempos(document, model);
+
+        benchmark::DoNotOptimize(model.tempos()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * tempoCount);
+}
+
+BENCHMARK(BM_RemoveAllTempos)->Apply(removeTempoCounts);
 
 } // namespace
