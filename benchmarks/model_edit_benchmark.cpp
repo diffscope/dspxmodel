@@ -79,15 +79,13 @@ std::vector<GeneratedNote> generateNotes(int noteCount) {
     return notes;
 }
 
-void buildModelWithSingingClipAndNotes(const std::vector<GeneratedNote> &generatedNotes) {
-    Document document;
-    Model model(&document);
-
+SingingClip *createSingingClipWithNotes(Document &document, Model &model, const std::vector<GeneratedNote> &generatedNotes) {
+    SingingClip *clip = nullptr;
     withTransaction(document, [&] {
         auto *track = model.createTrack();
         model.tracks()->insertItem(0, track);
 
-        auto *clip = model.createSingingClip();
+        clip = model.createSingingClip();
         clip->setPosition(0);
         clip->setClipStart(0);
         track->clips()->insertItem(clip);
@@ -108,12 +106,21 @@ void buildModelWithSingingClipAndNotes(const std::vector<GeneratedNote> &generat
         }
     });
 
+    return clip;
+}
+
+void buildModelWithSingingClipAndNotes(const std::vector<GeneratedNote> &generatedNotes) {
+    Document document;
+    Model model(&document);
+
+    createSingingClipWithNotes(document, model, generatedNotes);
+
     benchmark::DoNotOptimize(model.tracks()->size());
     benchmark::ClobberMemory();
 }
 
 void addNoteCounts(benchmark::internal::Benchmark *benchmark) {
-    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000)->Arg(5000)->Arg(10000);
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
 }
 
 void BM_CreateModelWithSingingClipAndNotes(benchmark::State &state) {
@@ -127,12 +134,72 @@ void BM_CreateModelWithSingingClipAndNotes(benchmark::State &state) {
 
 BENCHMARK(BM_CreateModelWithSingingClipAndNotes)->Apply(addNoteCounts);
 
-constexpr double defaultTempoValue = 120.0;
+void shiftAllNotePositions(Document &document, SingingClip *clip, int offset) {
+    withTransaction(document, [&] {
+        QVector<Note *> notes;
+        std::ranges::copy(clip->notes()->asRange(), std::back_inserter(notes));
+        for (auto *note : notes) {
+            note->setPosition(note->position() + offset);
+        }
+    });
+}
 
-void buildModelWithTempos(int tempoCount) {
+void shiftNoteCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_ShiftAllNotePositions(benchmark::State &state) {
+    const auto noteCount = static_cast<int>(state.range(0));
+    const auto generatedNotes = generateNotes(noteCount);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *clip = createSingingClipWithNotes(document, model, generatedNotes);
+        state.ResumeTiming();
+
+        shiftAllNotePositions(document, clip, 240);
+
+        benchmark::DoNotOptimize(clip->notes()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * noteCount);
+}
+
+BENCHMARK(BM_ShiftAllNotePositions)->Apply(shiftNoteCounts);
+
+void buildModelWithTracks(int trackCount) {
     Document document;
     Model model(&document);
 
+    withTransaction(document, [&] {
+        for (int i = 0; i < trackCount; ++i) {
+            auto *track = model.createTrack();
+            model.tracks()->insertItem(model.tracks()->size(), track);
+        }
+    });
+
+    benchmark::DoNotOptimize(model.tracks()->size());
+    benchmark::ClobberMemory();
+}
+
+void addTrackCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_CreateModelWithTracks(benchmark::State &state) {
+    const auto trackCount = static_cast<int>(state.range(0));
+    for (auto _ : state) {
+        buildModelWithTracks(trackCount);
+    }
+    state.SetItemsProcessed(state.iterations() * trackCount);
+}
+
+BENCHMARK(BM_CreateModelWithTracks)->Apply(addTrackCounts);
+
+constexpr double defaultTempoValue = 120.0;
+
+void createTempos(Document &document, Model &model, int tempoCount) {
     withTransaction(document, [&] {
         for (int i = 0; i < tempoCount; ++i) {
             auto *tempo = model.createTempo();
@@ -141,13 +208,20 @@ void buildModelWithTempos(int tempoCount) {
             model.tempos()->insertItem(tempo);
         }
     });
+}
+
+void buildModelWithTempos(int tempoCount) {
+    Document document;
+    Model model(&document);
+
+    createTempos(document, model, tempoCount);
 
     benchmark::DoNotOptimize(model.tempos()->size());
     benchmark::ClobberMemory();
 }
 
 void addTempoCounts(benchmark::internal::Benchmark *benchmark) {
-    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000)->Arg(5000)->Arg(10000);
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
 }
 
 void BM_CreateModelWithTempos(benchmark::State &state) {
@@ -159,5 +233,39 @@ void BM_CreateModelWithTempos(benchmark::State &state) {
 }
 
 BENCHMARK(BM_CreateModelWithTempos)->Apply(addTempoCounts);
+
+void shiftAllTempoPositions(Document &document, Model &model, int offset) {
+    withTransaction(document, [&] {
+        QVector<Tempo *> tempos;
+        std::ranges::copy(model.tempos()->asRange(), std::back_inserter(tempos));
+        for (auto it = tempos.rbegin(); it != tempos.rend(); ++it) {
+            auto *tempo = *it;
+            tempo->setPosition(tempo->position() + offset);
+        }
+    });
+}
+
+void shiftTempoCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(10)->Arg(20)->Arg(50)->Arg(100)->Arg(200)->Arg(500)->Arg(1000)->Arg(2000);
+}
+
+void BM_ShiftAllTempoPositions(benchmark::State &state) {
+    const auto tempoCount = static_cast<int>(state.range(0));
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        createTempos(document, model, tempoCount);
+        state.ResumeTiming();
+
+        shiftAllTempoPositions(document, model, 240);
+
+        benchmark::DoNotOptimize(model.tempos()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * tempoCount);
+}
+
+BENCHMARK(BM_ShiftAllTempoPositions)->Apply(shiftTempoCounts);
 
 } // namespace
