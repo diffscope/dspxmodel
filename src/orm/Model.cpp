@@ -827,8 +827,8 @@ namespace dspx {
         return true;
     }
 
-    QObject *Model::find(const QMetaObject &t, Handle handle) const {
-        Q_D(const Model);
+    QObject *Model::find(const QMetaObject &t, Handle handle) {
+        Q_D(Model);
         if (!handle) {
             return nullptr;
         }
@@ -843,88 +843,88 @@ namespace dspx {
         };
 
         if (matches(Label::staticMetaObject)) {
-            if (auto *object = d->find<Label>(handle)) {
+            if (auto *object = d->ensure<Label>(handle)) {
                 return object;
             }
         }
         if (matches(AnchorNode::staticMetaObject)) {
-            if (auto *object = d->find<AnchorNode>(handle)) {
+            if (auto *object = d->ensure<AnchorNode>(handle)) {
                 return object;
             }
         }
         if (matches(Note::staticMetaObject)) {
-            if (auto *object = d->find<Note>(handle)) {
+            if (auto *object = d->ensure<Note>(handle)) {
                 return object;
             }
         }
         if (matches(DynamicMixingAnchor::staticMetaObject)) {
-            if (auto *object = d->find<DynamicMixingAnchor>(handle)) {
+            if (auto *object = d->ensure<DynamicMixingAnchor>(handle)) {
                 return object;
             }
         }
         if (matches(Parameter::staticMetaObject)) {
-            if (auto *object = d->find<Parameter>(handle)) {
+            if (auto *object = d->ensure<Parameter>(handle)) {
                 return object;
             }
         }
         if (matches(Phoneme::staticMetaObject)) {
-            if (auto *object = d->find<Phoneme>(handle)) {
+            if (auto *object = d->ensure<Phoneme>(handle)) {
                 return object;
             }
         }
         if (matches(SingleSinger::staticMetaObject, &Singer::staticMetaObject)) {
-            if (auto *object = d->find<SingleSinger>(handle)) {
+            if (auto *object = d->ensure<SingleSinger>(handle)) {
                 return object;
             }
         }
         if (matches(MixedSinger::staticMetaObject, &Singer::staticMetaObject)) {
-            if (auto *object = d->find<MixedSinger>(handle)) {
+            if (auto *object = d->ensure<MixedSinger>(handle)) {
                 return object;
             }
         }
         if (matches(KeySignature::staticMetaObject)) {
-            if (auto *object = d->find<KeySignature>(handle)) {
+            if (auto *object = d->ensure<KeySignature>(handle)) {
                 return object;
             }
         }
         if (matches(Tempo::staticMetaObject)) {
-            if (auto *object = d->find<Tempo>(handle)) {
+            if (auto *object = d->ensure<Tempo>(handle)) {
                 return object;
             }
         }
         if (matches(TimeSignature::staticMetaObject)) {
-            if (auto *object = d->find<TimeSignature>(handle)) {
+            if (auto *object = d->ensure<TimeSignature>(handle)) {
                 return object;
             }
         }
         if (matches(Track::staticMetaObject)) {
-            if (auto *object = d->find<Track>(handle)) {
+            if (auto *object = d->ensure<Track>(handle)) {
                 return object;
             }
         }
         if (matches(AudioClip::staticMetaObject, &Clip::staticMetaObject)) {
-            if (auto *object = d->find<AudioClip>(handle)) {
+            if (auto *object = d->ensure<AudioClip>(handle)) {
                 return object;
             }
         }
         if (matches(SingingClip::staticMetaObject, &Clip::staticMetaObject)) {
-            if (auto *object = d->find<SingingClip>(handle)) {
+            if (auto *object = d->ensure<SingingClip>(handle)) {
                 return object;
             }
         }
         if (matches(Sources::staticMetaObject)) {
-            if (auto *object = d->find<Sources>(handle)) {
+            if (auto *object = d->ensure<Sources>(handle)) {
                 return object;
             }
         }
 
         if (&t == &Singer::staticMetaObject || &t == &EntityObject::staticMetaObject) {
-            if (auto *object = d->find<Singer>(handle)) {
+            if (auto *object = d->ensure<Singer>(handle)) {
                 return object;
             }
         }
         if (&t == &Clip::staticMetaObject || &t == &EntityObject::staticMetaObject) {
-            if (auto *object = d->find<Clip>(handle)) {
+            if (auto *object = d->ensure<Clip>(handle)) {
                 return object;
             }
         }

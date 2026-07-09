@@ -332,11 +332,11 @@ namespace dspx {
         Q_INVOKABLE bool destroyItem(EntityObject *item);
 
         template <class T = EntityObject>
-        T *find(Handle handle) const {
+        T *find(Handle handle) {
             return static_cast<T *>(find(T::staticMetaObject, handle));
         }
 
-        QObject *find(const QMetaObject &t, Handle handle) const;
+        QObject *find(const QMetaObject &t, Handle handle);
 
     signals:
         void projectNameChanged(const QString &projectName);
