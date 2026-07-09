@@ -70,6 +70,15 @@ namespace dspx {
             return true;
         }
 
+        dini::Value intervalEndValue(const std::vector<dini::Value> &values) {
+            const auto itemStart = values[0].asInt64();
+            const auto itemLength = values[1].asInt64();
+            if (itemLength > std::numeric_limits<std::int64_t>::max() - itemStart) {
+                return dini::Value(std::numeric_limits<std::int64_t>::max());
+            }
+            return dini::Value(itemStart + itemLength);
+        }
+
         dini::ItemSnapshot querySingle(dini::TransactionContext &ctx, const dini::TableHandle &table, quint64 id, const char *message) {
             auto result = ctx.engine().query(table, {
                 .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, id))
@@ -1003,11 +1012,13 @@ namespace dspx {
                                       dini::RelationHandle parent,
                                       dini::ColumnHandle positionColumn,
                                       dini::ColumnHandle lengthColumn,
+                                      dini::ColumnHandle endColumn,
                                       dini::ColumnHandle overlapCountColumn)
                 : table(std::move(table)),
                   parent(std::move(parent)),
                   positionColumn(std::move(positionColumn)),
                   lengthColumn(std::move(lengthColumn)),
+                  endColumn(std::move(endColumn)),
                   overlapCountColumn(std::move(overlapCountColumn)) {
             }
 
@@ -1029,22 +1040,13 @@ namespace dspx {
                 for (const auto &change : changeSet.operations()) {
                     if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
                         const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
-                        refreshAffectedGroups(ctx,
-                                              {itemValue(inserted.item, parent.column())},
-                                              {inserted.item},
-                                              removedIds);
+                        refreshInsertedItem(ctx, inserted.item, removedIds);
                     } else if (change.kind() == dini::ChangeOperationKind::ItemRemoved) {
                         const auto &removed = std::get<dini::ItemRemovedChange>(change.payload());
-                        refreshAffectedGroups(ctx,
-                                              {itemValue(removed.item, parent.column())},
-                                              {},
-                                              removedIds);
+                        refreshRemovedItem(ctx, removed.item, removedIds);
                     } else if (change.kind() == dini::ChangeOperationKind::CascadeRemoved) {
                         const auto &removed = std::get<dini::CascadeRemovedChange>(change.payload());
-                        refreshAffectedGroups(ctx,
-                                              {itemValue(removed.item, parent.column())},
-                                              {},
-                                              removedIds);
+                        refreshRemovedItem(ctx, removed.item, removedIds);
                     } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
                         const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
                         if (updated.column == overlapCountColumn) {
@@ -1066,11 +1068,7 @@ namespace dspx {
                         continue;
                     }
 
-                    refreshAffectedGroups(ctx,
-                                          {itemValue(overlapChange.oldItem, parent.column()),
-                                           itemValue(overlapChange.newItem, parent.column())},
-                                          {overlapChange.newItem},
-                                          removedIds);
+                    refreshUpdatedItem(ctx, overlapChange, removedIds);
                 }
             }
 
@@ -1127,41 +1125,60 @@ namespace dspx {
                 return lhs.id != rhs.id && start(lhs) < end(rhs) && start(rhs) < end(lhs);
             }
 
-            bool containsParentValue(const std::vector<dini::Value> &values, const dini::Value &value) const {
-                return std::any_of(values.begin(), values.end(), [&](const auto &candidate) {
-                    return candidate == value;
+            const dini::ItemSnapshot *virtualItemById(const std::vector<dini::ItemSnapshot> &virtualItems,
+                                                      dini::ItemId id) const {
+                auto it = std::find_if(virtualItems.begin(), virtualItems.end(), [&](const auto &item) {
+                    return item.id == id;
                 });
+                return it == virtualItems.end() ? nullptr : &*it;
             }
 
-            bool isVirtualItem(const std::vector<dini::ItemSnapshot> &virtualItems, dini::ItemId id) const {
-                return std::any_of(virtualItems.begin(), virtualItems.end(), [&](const auto &item) {
+            bool containsItem(const std::vector<dini::ItemSnapshot> &items, dini::ItemId id) const {
+                return std::any_of(items.begin(), items.end(), [&](const auto &item) {
                     return item.id == id;
                 });
             }
 
-            std::vector<dini::ItemSnapshot> queryGroup(dini::TransactionContext &ctx,
-                                                       const dini::Value &parentValue,
-                                                       const std::vector<dini::ItemSnapshot> &virtualItems,
-                                                       const std::set<dini::ItemId> &excludedIds) const {
+            void addAffectedItem(std::vector<dini::ItemSnapshot> &items, const dini::ItemSnapshot &item) const {
+                if (!containsItem(items, item.id)) {
+                    items.push_back(item);
+                }
+            }
+
+            std::vector<dini::ItemSnapshot> queryOverlapCandidates(dini::TransactionContext &ctx,
+                                                                   const dini::ItemSnapshot &probe,
+                                                                   const std::vector<dini::ItemSnapshot> &virtualItems,
+                                                                   const std::set<dini::ItemId> &excludedIds) const {
                 std::vector<dini::ItemSnapshot> items;
+                const auto parentValue = itemValue(probe, parent.column());
                 if (parentValue.isNull()) {
                     return items;
                 }
 
                 auto existingItems = ctx.engine().query(table, {
-                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::parent(parent),
-                                                                  dini::ComparisonOperator::Equal,
-                                                                  parentValue)),
+                    .filter = dini::FilterExpression::all({
+                        dini::FilterExpression(dini::Filter(dini::FieldRef::parent(parent),
+                                                            dini::ComparisonOperator::Equal,
+                                                            parentValue)),
+                        dini::FilterExpression(dini::Filter(dini::FieldRef::column(positionColumn),
+                                                            dini::ComparisonOperator::Less,
+                                                            dini::Value(end(probe)))),
+                        dini::FilterExpression(dini::Filter(dini::FieldRef::column(endColumn),
+                                                            dini::ComparisonOperator::Greater,
+                                                            dini::Value(start(probe)))),
+                    }),
                 }).toVector();
                 for (const auto &item : existingItems) {
-                    if (excludedIds.find(item.id) != excludedIds.end() || isVirtualItem(virtualItems, item.id)) {
+                    if (excludedIds.find(item.id) != excludedIds.end() || virtualItemById(virtualItems, item.id)) {
                         continue;
                     }
-                    items.push_back(item);
+                    if (overlaps(probe, item)) {
+                        items.push_back(item);
+                    }
                 }
                 for (const auto &item : virtualItems) {
-                    if (excludedIds.find(item.id) == excludedIds.end() &&
-                        itemValue(item, parent.column()) == parentValue) {
+                    if (itemValue(item, parent.column()) == parentValue &&
+                        overlaps(probe, item)) {
                         items.push_back(item);
                     }
                 }
@@ -1177,53 +1194,73 @@ namespace dspx {
                 ctx.update(itemId, overlapCountColumn, value);
             }
 
-            void refreshGroup(dini::TransactionContext &ctx,
-                              const dini::Value &parentValue,
-                              const std::vector<dini::ItemSnapshot> &virtualItems,
-                              const std::set<dini::ItemId> &excludedIds) const {
-                auto items = queryGroup(ctx, parentValue, virtualItems, excludedIds);
-                for (const auto &item : items) {
-                    std::int64_t count = 0;
-                    for (const auto &candidate : items) {
-                        if (overlaps(item, candidate)) {
-                            ++count;
-                        }
-                    }
-                    updateCount(ctx, item.id, count);
+            std::int64_t countOverlaps(dini::TransactionContext &ctx,
+                                       const dini::ItemSnapshot &item,
+                                       const std::vector<dini::ItemSnapshot> &virtualItems,
+                                       const std::set<dini::ItemId> &excludedIds) const {
+                return static_cast<std::int64_t>(queryOverlapCandidates(ctx, item, virtualItems, excludedIds).size());
+            }
+
+            void collectAffectedItems(dini::TransactionContext &ctx,
+                                      const dini::ItemSnapshot &probe,
+                                      const std::vector<dini::ItemSnapshot> &virtualItems,
+                                      const std::set<dini::ItemId> &excludedIds,
+                                      std::vector<dini::ItemSnapshot> &affectedItems) const {
+                for (const auto &item : queryOverlapCandidates(ctx, probe, virtualItems, excludedIds)) {
+                    addAffectedItem(affectedItems, item);
                 }
             }
 
-            void refreshAffectedGroups(dini::TransactionContext &ctx,
-                                       std::vector<dini::Value> parentValues,
-                                       const std::vector<dini::ItemSnapshot> &virtualItems,
-                                       const std::set<dini::ItemId> &excludedIds) const {
-                for (const auto &item : virtualItems) {
-                    const auto value = itemValue(item, parent.column());
-                    if (!containsParentValue(parentValues, value)) {
-                        parentValues.push_back(value);
-                    }
-                }
-
-                std::vector<dini::Value> refreshed;
-                for (const auto &parentValue : parentValues) {
-                    if (parentValue.isNull() || containsParentValue(refreshed, parentValue)) {
+            void refreshItems(dini::TransactionContext &ctx,
+                              const std::vector<dini::ItemSnapshot> &affectedItems,
+                              const std::vector<dini::ItemSnapshot> &virtualItems,
+                              const std::set<dini::ItemId> &excludedIds) const {
+                for (const auto &affectedItem : affectedItems) {
+                    const auto *virtualItem = virtualItemById(virtualItems, affectedItem.id);
+                    if (!virtualItem && excludedIds.find(affectedItem.id) != excludedIds.end()) {
                         continue;
                     }
-                    refreshGroup(ctx, parentValue, virtualItems, excludedIds);
-                    refreshed.push_back(parentValue);
+                    const auto &item = virtualItem ? *virtualItem : affectedItem;
+                    updateCount(ctx, item.id, countOverlaps(ctx, item, virtualItems, excludedIds));
                 }
+            }
 
-                for (const auto &item : virtualItems) {
-                    if (itemValue(item, parent.column()).isNull()) {
-                        updateCount(ctx, item.id, 0);
-                    }
-                }
+            void refreshInsertedItem(dini::TransactionContext &ctx,
+                                     const dini::ItemSnapshot &item,
+                                     const std::set<dini::ItemId> &excludedIds) const {
+                const std::vector<dini::ItemSnapshot> virtualItems {item};
+                std::vector<dini::ItemSnapshot> affectedItems;
+                addAffectedItem(affectedItems, item);
+                collectAffectedItems(ctx, item, virtualItems, excludedIds, affectedItems);
+                refreshItems(ctx, affectedItems, virtualItems, excludedIds);
+            }
+
+            void refreshRemovedItem(dini::TransactionContext &ctx,
+                                    const dini::ItemSnapshot &item,
+                                    const std::set<dini::ItemId> &excludedIds) const {
+                std::vector<dini::ItemSnapshot> affectedItems;
+                collectAffectedItems(ctx, item, {}, excludedIds, affectedItems);
+                refreshItems(ctx, affectedItems, {}, excludedIds);
+            }
+
+            void refreshUpdatedItem(dini::TransactionContext &ctx,
+                                    const OverlapChange &change,
+                                    const std::set<dini::ItemId> &removedIds) const {
+                auto excludedIds = removedIds;
+                excludedIds.insert(change.oldItem.id);
+                const std::vector<dini::ItemSnapshot> virtualItems {change.newItem};
+                std::vector<dini::ItemSnapshot> affectedItems;
+                addAffectedItem(affectedItems, change.newItem);
+                collectAffectedItems(ctx, change.oldItem, {}, excludedIds, affectedItems);
+                collectAffectedItems(ctx, change.newItem, virtualItems, excludedIds, affectedItems);
+                refreshItems(ctx, affectedItems, virtualItems, excludedIds);
             }
 
             dini::TableHandle table;
             dini::RelationHandle parent;
             dini::ColumnHandle positionColumn;
             dini::ColumnHandle lengthColumn;
+            dini::ColumnHandle endColumn;
             dini::ColumnHandle overlapCountColumn;
         };
 
@@ -1637,6 +1674,14 @@ namespace dspx {
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
                 });
+                auto clipEndColumn = clipTableBuilder.addComputedColumn({
+                    .debugName = "end",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Normal,
+                    .nullable = false,
+                    .dependsOn = {clipPositionColumn, clipClipLengthColumn},
+                    .compute = intervalEndValue,
+                });
                 auto links = addOrderedLinkColumns(clipTableBuilder);
                 clipPreviousItemColumn = links.previous;
                 clipNextItemColumn = links.next;
@@ -1668,6 +1713,10 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {clipParent.column(), clipPositionColumn},
                 });
+                clipTableBuilder.addRangeIndex({
+                    .debugName = "overlap",
+                    .columns = {clipParent.column(), clipPositionColumn, clipEndColumn},
+                });
                 addBeforeApplyHook(clipTableBuilder, OrderedLinkHook(clipTable,
                                                                      clipParent,
                                                                      {clipPositionColumn, clipClipLengthColumn},
@@ -1677,6 +1726,7 @@ namespace dspx {
                                                                       clipParent,
                                                                       clipPositionColumn,
                                                                       clipClipLengthColumn,
+                                                                      clipEndColumn,
                                                                       clipOverlappedCountColumn));
             }
 
@@ -1845,6 +1895,14 @@ namespace dspx {
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
                 });
+                auto noteEndColumn = noteTableBuilder.addComputedColumn({
+                    .debugName = "end",
+                    .type = dini::ValueType::Int64,
+                    .index = dini::IndexKind::Normal,
+                    .nullable = false,
+                    .dependsOn = {notePositionColumn, noteLengthColumn},
+                    .compute = intervalEndValue,
+                });
                 noteOriginalPronunciationColumn = noteTableBuilder.addColumn({
                     .debugName = "originalPronunciation",
                     .type = dini::ValueType::String,
@@ -1922,6 +1980,10 @@ namespace dspx {
                     .debugName = "order",
                     .columns = {noteParent.column(), notePositionColumn}
                 });
+                noteTableBuilder.addRangeIndex({
+                    .debugName = "overlap",
+                    .columns = {noteParent.column(), notePositionColumn, noteEndColumn}
+                });
                 addBeforeApplyHook(noteTableBuilder, ParentVariantCheckHook(clipTable, noteParent, singingClipVariant));
                 addBeforeApplyHook(noteTableBuilder, OrderedLinkHook(noteTable,
                                                                      noteParent,
@@ -1932,6 +1994,7 @@ namespace dspx {
                                                                       noteParent,
                                                                       notePositionColumn,
                                                                       noteLengthColumn,
+                                                                      noteEndColumn,
                                                                       noteOverlappedCountColumn));
                 buildNoteVibratoPointRelationTable(noteTableBuilder);
                 buildNotePhonemeRelationTable(noteTableBuilder);
