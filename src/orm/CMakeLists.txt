@@ -12,7 +12,7 @@ find_package(opendspx CONFIG REQUIRED)
 
 dspxmodel_add_library(${PROJECT_NAME} AUTOGEN
     SOURCES ${_src}
-    LINKS dspxmodelCore opendspx::opendspxmodel opendspx::opendspxinterpolator
+    LINKS dspxmodelCore opendspx::model opendspx::interpolator
     QT_LINKS Core Qml
     QT_INCLUDE_PRIVATE Core Qml
     INCLUDE_PRIVATE *
