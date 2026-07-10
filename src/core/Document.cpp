@@ -189,16 +189,51 @@ namespace dspx {
             return readUInt64(first + rest);
         }
 
-        void replayCommitLog(dini::DocumentEngine *engine, QIODevice *device) {
+        void replayCommitLog(dini::DocumentEngine *engine, QIODevice *device, Document::RestoreOptions options) {
             if (!device) {
                 return;
             }
-            readCommitLogHeader(device);
-            while (const auto recordSize = readCommitLogRecordSize(device)) {
-                const auto payload = readExactly(device, *recordSize, "incomplete document commit log record");
+            ensureReadableDevice(device, "commit log device is not readable");
+            if (device->atEnd()) {
+                return;
+            }
+            const bool discardInvalidTail = options.testFlag(Document::RO_DiscardInvalidCommitLogTail);
+            try {
+                readCommitLogHeader(device);
+            } catch (const dini::RecoveryError &) {
+                if (discardInvalidTail) {
+                    return;
+                }
+                throw;
+            }
+            while (true) {
+                std::optional<quint64> recordSize;
+                try {
+                    recordSize = readCommitLogRecordSize(device);
+                } catch (const dini::RecoveryError &) {
+                    if (discardInvalidTail) {
+                        return;
+                    }
+                    throw;
+                }
+                if (!recordSize) {
+                    return;
+                }
+                QByteArray payload;
+                try {
+                    payload = readExactly(device, *recordSize, "incomplete document commit log record");
+                } catch (const dini::RecoveryError &) {
+                    if (discardInvalidTail) {
+                        return;
+                    }
+                    throw;
+                }
                 try {
                     engine->replayChangeSet(dini::ChangeSet::deserialize(bytesFromQByteArray(payload)));
                 } catch (const dini::DiniError &error) {
+                    if (discardInvalidTail) {
+                        return;
+                    }
                     throw dini::RecoveryError(std::string("invalid document commit log record: ") + error.what());
                 }
             }
@@ -300,9 +335,13 @@ namespace dspx {
     }
 
     Document *Document::restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice, QObject *parent) {
+        return restore(snapshotDevice, commitLogDevice, {}, parent);
+    }
+
+    Document *Document::restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice, RestoreOptions options, QObject *parent) {
         auto d = std::make_unique<DocumentPrivate>(DocumentPrivate::InitializationMode::EmptyForRestore);
         d->engine->restoreSnapshot(bytesFromQByteArray(readSnapshotPayload(snapshotDevice)));
-        replayCommitLog(d->engine.get(), commitLogDevice);
+        replayCommitLog(d->engine.get(), commitLogDevice, options);
 
         auto document = std::unique_ptr<Document>(new Document(d.release(), parent));
         return document.release();

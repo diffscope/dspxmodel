@@ -29,7 +29,12 @@ namespace dspx {
         void writeSnapshot(QIODevice *device) const;
         void setCommitLogDevice(QIODevice *device);
         QIODevice *commitLogDevice() const;
+        enum RestoreOptionFlag {
+            RO_DiscardInvalidCommitLogTail = 0x01,
+        };
+        Q_DECLARE_FLAGS(RestoreOptions, RestoreOptionFlag)
         static Document *restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice = nullptr, QObject *parent = nullptr);
+        static Document *restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice, RestoreOptions options, QObject *parent = nullptr);
 
         dini::Transaction *transaction() const;
         void setTransaction(dini::Transaction *transaction);
@@ -41,5 +46,7 @@ namespace dspx {
     };
 
 }
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(dspx::Document::RestoreOptions)
 
 #endif // DSPXMODEL_DOCUMENT_H
