@@ -24,8 +24,7 @@ private slots:
     void undoInsertedNoteDoesNotReadRemovedItem();
 };
 
-void OrmSignalsTest::initTestCase()
-{
+void OrmSignalsTest::initTestCase() {
     qRegisterMetaType<Note *>("Note*");
     qRegisterMetaType<Note *>("dspx::Note*");
     qRegisterMetaType<NoteSequence *>("NoteSequence*");
@@ -36,8 +35,7 @@ void OrmSignalsTest::initTestCase()
     qRegisterMetaType<TrackList *>("dspx::TrackList*");
 }
 
-void OrmSignalsTest::modelPropertySignals()
-{
+void OrmSignalsTest::modelPropertySignals() {
     OrmTestContext context;
 
     QSignalSpy projectNameSpy(&context.model, &Model::projectNameChanged);
@@ -56,8 +54,7 @@ void OrmSignalsTest::modelPropertySignals()
     QCOMPARE(gainSpy.at(0).at(0).toDouble(), 0.5);
 }
 
-void OrmSignalsTest::entityPropertySignals()
-{
+void OrmSignalsTest::entityPropertySignals() {
     OrmTestContext context;
     Track *track = nullptr;
     Note *note = nullptr;
@@ -95,8 +92,7 @@ void OrmSignalsTest::entityPropertySignals()
     QCOMPARE(notePositionSpy.at(0).at(0).toInt(), 240);
 }
 
-void OrmSignalsTest::trackListSignals()
-{
+void OrmSignalsTest::trackListSignals() {
     OrmTestContext context;
 
     context.withTransaction([&] {
@@ -131,8 +127,7 @@ void OrmSignalsTest::trackListSignals()
     });
 }
 
-void OrmSignalsTest::noteSequenceSignals()
-{
+void OrmSignalsTest::noteSequenceSignals() {
     OrmTestContext context;
 
     context.withTransaction([&] {
@@ -173,8 +168,7 @@ void OrmSignalsTest::noteSequenceSignals()
     });
 }
 
-void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem()
-{
+void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem() {
     OrmTestContext context;
     SingingClip *clip = nullptr;
     Note *note = nullptr;

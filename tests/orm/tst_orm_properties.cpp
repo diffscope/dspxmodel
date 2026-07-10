@@ -35,8 +35,7 @@ private slots:
     void parameterSourceSingerAndAnchorProperties();
 };
 
-void OrmPropertiesTest::modelProperties()
-{
+void OrmPropertiesTest::modelProperties() {
     OrmTestContext context;
 
     context.withTransaction([&] {
@@ -64,8 +63,7 @@ void OrmPropertiesTest::modelProperties()
     QCOMPARE(context.model.loopLength(), 960);
 }
 
-void OrmPropertiesTest::timelineEntityProperties()
-{
+void OrmPropertiesTest::timelineEntityProperties() {
     OrmTestContext context;
 
     context.withTransaction([&] {
@@ -105,8 +103,7 @@ void OrmPropertiesTest::timelineEntityProperties()
     });
 }
 
-void OrmPropertiesTest::trackClipNoteAndPhonemeProperties()
-{
+void OrmPropertiesTest::trackClipNoteAndPhonemeProperties() {
     OrmTestContext context;
 
     context.withTransaction([&] {
@@ -206,8 +203,7 @@ void OrmPropertiesTest::trackClipNoteAndPhonemeProperties()
     });
 }
 
-void OrmPropertiesTest::parameterSourceSingerAndAnchorProperties()
-{
+void OrmPropertiesTest::parameterSourceSingerAndAnchorProperties() {
     OrmTestContext context;
 
     context.withTransaction([&] {

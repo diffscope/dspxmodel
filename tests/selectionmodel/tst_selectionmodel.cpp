@@ -44,8 +44,7 @@ private slots:
     void anchorNodeInvalidationEmitsSignals();
 };
 
-void SelectionModelTest::basicSelectionCommands()
-{
+void SelectionModelTest::basicSelectionCommands() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -122,8 +121,7 @@ void SelectionModelTest::basicSelectionCommands()
     QCOMPARE(selection.noteSelectionModel()->noteSequenceWithSelectedItems(), clip->notes());
 }
 
-void SelectionModelTest::topLevelSignalsAndSafeDispatch()
-{
+void SelectionModelTest::topLevelSignalsAndSafeDispatch() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -164,8 +162,7 @@ void SelectionModelTest::topLevelSignalsAndSafeDispatch()
     QCOMPARE(selection.currentItem(), nullptr);
 }
 
-void SelectionModelTest::clipTrackConnectionsArePerItem()
-{
+void SelectionModelTest::clipTrackConnectionsArePerItem() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -199,8 +196,7 @@ void SelectionModelTest::clipTrackConnectionsArePerItem()
     QVERIFY(!selection.clipSelectionModel()->isItemSelected(clip2));
 }
 
-void SelectionModelTest::clipMoveRebindsTrackConnection()
-{
+void SelectionModelTest::clipMoveRebindsTrackConnection() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -237,8 +233,7 @@ void SelectionModelTest::clipMoveRebindsTrackConnection()
     QCOMPARE(selection.clipSelectionModel()->selectedCount(), 0);
 }
 
-void SelectionModelTest::noteInvalidationEmitsSignals()
-{
+void SelectionModelTest::noteInvalidationEmitsSignals() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -275,8 +270,7 @@ void SelectionModelTest::noteInvalidationEmitsSignals()
     QCOMPARE(sequenceSpy.count(), 1);
 }
 
-void SelectionModelTest::invalidNoteAfterClearStillEmits()
-{
+void SelectionModelTest::invalidNoteAfterClearStillEmits() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -310,8 +304,7 @@ void SelectionModelTest::invalidNoteAfterClearStillEmits()
     QCOMPARE(selectedCountSpy.count(), 1);
 }
 
-void SelectionModelTest::anchorNodeSelectionCommands()
-{
+void SelectionModelTest::anchorNodeSelectionCommands() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -356,8 +349,7 @@ void SelectionModelTest::anchorNodeSelectionCommands()
     QCOMPARE(selection.anchorNodeSelectionModel()->anchorNodeSequenceWithSelectedItems(), parameter->anchorTransform());
 }
 
-void SelectionModelTest::anchorNodeSequenceConstraintAndEmptyContext()
-{
+void SelectionModelTest::anchorNodeSequenceConstraintAndEmptyContext() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 
@@ -412,8 +404,7 @@ void SelectionModelTest::anchorNodeSequenceConstraintAndEmptyContext()
     QCOMPARE(selection.anchorNodeSelectionModel()->selectedCount(), 0);
 }
 
-void SelectionModelTest::anchorNodeInvalidationEmitsSignals()
-{
+void SelectionModelTest::anchorNodeInvalidationEmitsSignals() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
 

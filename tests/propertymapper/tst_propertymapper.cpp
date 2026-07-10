@@ -39,8 +39,7 @@ namespace {
 constexpr auto SelectCurrent = SelectionModel::Select | SelectionModel::SetCurrentItem;
 constexpr auto SelectOnlyCurrent = SelectionModel::Select | SelectionModel::ClearPreviousSelection | SelectionModel::SetCurrentItem;
 
-QVariant mappedValue(const QVariant &value)
-{
+QVariant mappedValue(const QVariant &value) {
     if (value.metaType() == QMetaType::fromType<QVariant>()) {
         return value.value<QVariant>();
     }
@@ -48,18 +47,15 @@ QVariant mappedValue(const QVariant &value)
 }
 
 template <typename T>
-T mappedAs(const QVariant &value)
-{
+T mappedAs(const QVariant &value) {
     return mappedValue(value).value<T>();
 }
 
-bool mappedInvalid(const QVariant &value)
-{
+bool mappedInvalid(const QVariant &value) {
     return !mappedValue(value).isValid();
 }
 
-void selectOnly(SelectionModel &selection, QObject *item)
-{
+void selectOnly(SelectionModel &selection, QObject *item) {
     selection.select(item, SelectOnlyCurrent);
 }
 
@@ -71,8 +67,7 @@ struct ClipFixture {
     AnchorNode *anchor = nullptr;
 };
 
-ClipFixture createClipFixture(OrmTestContext &context)
-{
+ClipFixture createClipFixture(OrmTestContext &context) {
     ClipFixture fixture;
     context.withTransaction([&] {
         fixture.track = context.model.createTrack();
@@ -118,8 +113,7 @@ ClipFixture createClipFixture(OrmTestContext &context)
     return fixture;
 }
 
-void verifyClipMapper(ClipPropertyMapper &mapper, SingingClip *clip, Track *track)
-{
+void verifyClipMapper(ClipPropertyMapper &mapper, SingingClip *clip, Track *track) {
     QCOMPARE(mappedValue(mapper.name()).toString(), clip->name());
     QCOMPARE(mappedAs<Clip::ClipType>(mapper.type()), Clip::Singing);
     QCOMPARE(mappedAs<Track *>(mapper.associatedTrack()), track);
@@ -132,8 +126,7 @@ void verifyClipMapper(ClipPropertyMapper &mapper, SingingClip *clip, Track *trac
     QCOMPARE(mappedValue(mapper.length()).toInt(), clip->length());
 }
 
-void verifyTrackMapper(TrackPropertyMapper &mapper, Track *track)
-{
+void verifyTrackMapper(TrackPropertyMapper &mapper, Track *track) {
     QCOMPARE(mappedValue(mapper.name()).toString(), track->name());
     QCOMPARE(mappedValue(mapper.colorId()).toInt(), track->colorId());
     QCOMPARE(mappedValue(mapper.height()).toDouble(), track->height());
@@ -159,8 +152,7 @@ private slots:
     void destroyedConnectionDoesNotAccumulate();
 };
 
-void PropertyMapperTest::noteMapperUnifiedAndDivergentValues()
-{
+void PropertyMapperTest::noteMapperUnifiedAndDivergentValues() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     NotePropertyMapper mapper;
@@ -219,8 +211,7 @@ void PropertyMapperTest::noteMapperUnifiedAndDivergentValues()
     QCOMPARE(mappedAs<PhonemeSequence *>(mapper.originalPhonemes()), note1->originalPhonemes());
 }
 
-void PropertyMapperTest::noteMapperWritesSelectedNotes()
-{
+void PropertyMapperTest::noteMapperWritesSelectedNotes() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     NotePropertyMapper mapper;
@@ -283,8 +274,7 @@ void PropertyMapperTest::noteMapperWritesSelectedNotes()
     QVERIFY(editedPronunciationSpy.count() >= 1);
 }
 
-void PropertyMapperTest::clipMapperFromClipNoteAndAnchorSelection()
-{
+void PropertyMapperTest::clipMapperFromClipNoteAndAnchorSelection() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     ClipPropertyMapper mapper;
@@ -301,8 +291,7 @@ void PropertyMapperTest::clipMapperFromClipNoteAndAnchorSelection()
     verifyClipMapper(mapper, fixture.clip, fixture.track);
 }
 
-void PropertyMapperTest::clipMapperAssociatedTrackMovesClip()
-{
+void PropertyMapperTest::clipMapperAssociatedTrackMovesClip() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     ClipPropertyMapper mapper;
@@ -334,8 +323,7 @@ void PropertyMapperTest::clipMapperAssociatedTrackMovesClip()
     QCOMPARE(mappedAs<Track *>(mapper.associatedTrack()), track2);
 }
 
-void PropertyMapperTest::trackMapperFromTrackClipNoteAndAnchorSelection()
-{
+void PropertyMapperTest::trackMapperFromTrackClipNoteAndAnchorSelection() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     TrackPropertyMapper mapper;
@@ -355,8 +343,7 @@ void PropertyMapperTest::trackMapperFromTrackClipNoteAndAnchorSelection()
     verifyTrackMapper(mapper, fixture.track);
 }
 
-void PropertyMapperTest::simpleTimelineMappers()
-{
+void PropertyMapperTest::simpleTimelineMappers() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     LabelPropertyMapper labelMapper;
@@ -463,8 +450,7 @@ void PropertyMapperTest::simpleTimelineMappers()
     QCOMPARE(key1->position(), 960);
 }
 
-void PropertyMapperTest::destroyedConnectionDoesNotAccumulate()
-{
+void PropertyMapperTest::destroyedConnectionDoesNotAccumulate() {
     OrmTestContext context;
     SelectionModel selection(&context.model);
     ClipPropertyMapper mapper;

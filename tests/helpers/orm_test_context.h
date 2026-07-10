@@ -19,8 +19,7 @@ public:
     dspx::Model model {&document};
 
     template <typename Func>
-    void withTransaction(Func &&func)
-    {
+    void withTransaction(Func &&func) {
         auto transaction = document.engine()->beginTransaction();
         document.setTransaction(&transaction);
         try {
@@ -33,8 +32,7 @@ public:
         }
     }
 
-    void verifyEntity(dspx::EntityObject *entity)
-    {
+    void verifyEntity(dspx::EntityObject *entity) {
         QVERIFY(entity != nullptr);
         QCOMPARE(entity->model(), &model);
         QVERIFY(entity->handle());

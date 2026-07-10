@@ -58,8 +58,7 @@ private slots:
 
 private:
     template <typename Func>
-    void withTransaction(Document &document, Func &&func)
-    {
+    void withTransaction(Document &document, Func &&func) {
         auto transaction = document.engine()->beginTransaction();
         document.setTransaction(&transaction);
         std::invoke(std::forward<Func>(func));
@@ -67,16 +66,14 @@ private:
         document.setTransaction(nullptr);
     }
 
-    void verifyEntity(EntityObject *entity, Model *model)
-    {
+    void verifyEntity(EntityObject *entity, Model *model) {
         QVERIFY(entity != nullptr);
         QCOMPARE(entity->model(), model);
         QVERIFY(entity->handle());
     }
 };
 
-void OrmSmokeTest::modelPropertiesAndRootContainers()
-{
+void OrmSmokeTest::modelPropertiesAndRootContainers() {
     Document document;
     Model model(&document);
 
@@ -112,8 +109,7 @@ void OrmSmokeTest::modelPropertiesAndRootContainers()
     QVERIFY(model.tracks() != nullptr);
 }
 
-void OrmSmokeTest::timelineEntitiesAndSequences()
-{
+void OrmSmokeTest::timelineEntitiesAndSequences() {
     Document document;
     Model model(&document);
 
@@ -231,8 +227,7 @@ void OrmSmokeTest::timelineEntitiesAndSequences()
     });
 }
 
-void OrmSmokeTest::trackClipNoteAndPhonemeGraph()
-{
+void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
     Document document;
     Model model(&document);
 
@@ -454,8 +449,7 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph()
     });
 }
 
-void OrmSmokeTest::parametersAndDataContainers()
-{
+void OrmSmokeTest::parametersAndDataContainers() {
     Document document;
     Model model(&document);
 
@@ -563,8 +557,7 @@ void OrmSmokeTest::parametersAndDataContainers()
     });
 }
 
-void OrmSmokeTest::sourcesSingersAndDynamicMixing()
-{
+void OrmSmokeTest::sourcesSingersAndDynamicMixing() {
     Document document;
     Model model(&document);
 
@@ -665,8 +658,7 @@ void OrmSmokeTest::sourcesSingersAndDynamicMixing()
     });
 }
 
-void OrmSmokeTest::destroyItem()
-{
+void OrmSmokeTest::destroyItem() {
     Document document;
     Model model(&document);
 
