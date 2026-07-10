@@ -1112,10 +1112,17 @@ namespace dspx {
                 auto &change = overlapChangeForUpdate(ctx, changes, updated.itemId);
                 setItemValue(change.oldItem, updated.column, updated.oldValue);
                 setItemValue(change.newItem, updated.column, updated.newValue);
+                if (affectsIntervalEnd(updated.column)) {
+                    refreshEnd(change.newItem);
+                }
             }
 
             bool affectsOverlap(const dini::ColumnHandle &column) const {
                 return column == parent.column() || column == positionColumn || column == lengthColumn;
+            }
+
+            bool affectsIntervalEnd(const dini::ColumnHandle &column) const {
+                return column == positionColumn || column == lengthColumn;
             }
 
             bool sameOverlapPlacement(const dini::ItemSnapshot &lhs, const dini::ItemSnapshot &rhs) const {
@@ -1135,6 +1142,10 @@ namespace dspx {
                     return std::numeric_limits<std::int64_t>::max();
                 }
                 return itemStart + itemLength;
+            }
+
+            void refreshEnd(dini::ItemSnapshot &item) const {
+                setItemValue(item, endColumn, dini::Value(end(item)));
             }
 
             bool overlaps(const dini::ItemSnapshot &lhs, const dini::ItemSnapshot &rhs) const {
