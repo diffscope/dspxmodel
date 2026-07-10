@@ -6,6 +6,8 @@
 
 #include <dspxmodelCore/DSPXModelCoreGlobal.h>
 
+class QIODevice;
+
 namespace dini {
     class DocumentEngine;
     class Transaction;
@@ -24,10 +26,17 @@ namespace dspx {
 
         dini::DocumentEngine *engine() const;
 
+        void writeSnapshot(QIODevice *device) const;
+        void setCommitLogDevice(QIODevice *device);
+        QIODevice *commitLogDevice() const;
+        static Document *restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice = nullptr, QObject *parent = nullptr);
+
         dini::Transaction *transaction() const;
         void setTransaction(dini::Transaction *transaction);
 
     private:
+        explicit Document(DocumentPrivate *d, QObject *parent = nullptr);
+
         QScopedPointer<DocumentPrivate> d_ptr;
     };
 
