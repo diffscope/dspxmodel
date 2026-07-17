@@ -311,7 +311,17 @@ namespace dspx {
                 .setPlacement = [](Parameter *item, ParameterMap *owner, QString key, bool notify) {
                     ParameterPrivate::get(item)->setPlacement(owner, std::move(key), notify);
                 },
+                .placementChangedAfterCommit = [](Parameter *item, ParameterMap *owner) {
+                    emit item->parameterMapChangedAfterCommit(owner);
+                },
                 .refreshOwner = [](ParameterMap *owner, bool notify) { ParameterMapPrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](ParameterMap *owner, bool sizeChanged, bool itemsChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (itemsChanged) {
+                        emit owner->keysChangedAfterCommit();
+                        emit owner->itemsChangedAfterCommit();
+                    }
+                },
                 .itemAboutToInsert = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedFrom) {
                     emit owner->itemAboutToInsert(key, item, movedFrom);
                 },
@@ -323,6 +333,18 @@ namespace dspx {
                 },
                 .itemRemoved = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedTo) {
                     emit owner->itemRemoved(key, item, movedTo);
+                },
+                .itemAboutToInsertAfterCommit = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedFrom) {
+                    emit owner->itemAboutToInsertAfterCommit(key, item, movedFrom);
+                },
+                .itemInsertedAfterCommit = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedFrom) {
+                    emit owner->itemInsertedAfterCommit(key, item, movedFrom);
+                },
+                .itemAboutToRemoveAfterCommit = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedTo) {
+                    emit owner->itemAboutToRemoveAfterCommit(key, item, movedTo);
+                },
+                .itemRemovedAfterCommit = [](ParameterMap *owner, const QString &key, Parameter *item, ParameterMap *movedTo) {
+                    emit owner->itemRemovedAfterCommit(key, item, movedTo);
                 },
             });
             return binding;
@@ -339,6 +361,9 @@ namespace dspx {
         bool applyParameterColumn(Parameter *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
             if (column != Schema::parameterParent().column() && column != Schema::parameterKeyColumn()) {
                 return false;
+            }
+            if (currentNotificationStage == NotificationStage::AfterCommit) {
+                return true;
             }
 
             auto *d = ParameterPrivate::get(item);

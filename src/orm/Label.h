@@ -90,6 +90,11 @@ namespace dspx {
         void previousItemChanged(Label *previousItem);
         void nextItemChanged(Label *nextItem);
         void labelSequenceChanged(LabelSequence *labelSequence);
+        void positionChangedAfterCommit(int position);
+        void textChangedAfterCommit(const QString &text);
+        void previousItemChangedAfterCommit(Label *previousItem);
+        void nextItemChangedAfterCommit(Label *nextItem);
+        void labelSequenceChangedAfterCommit(LabelSequence *labelSequence);
 
     private:
         ~Label() override;

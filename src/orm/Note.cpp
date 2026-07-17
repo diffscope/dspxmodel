@@ -33,16 +33,16 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Note>> &noteColumnBindings() {
             static const std::vector<orm::ColumnBinding<Note>> bindings {
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteCentShiftColumn(), &NotePrivate::centShift, &Note::centShiftChanged),
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteKeyNumberColumn(), &NotePrivate::keyNumber, &Note::keyNumberChanged),
-                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLanguageColumn(), &NotePrivate::language, &Note::languageChanged),
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged),
-                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged),
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged),
-                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged),
-                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged),
-                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged),
-                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteCentShiftColumn(), &NotePrivate::centShift, &Note::centShiftChanged, &Note::centShiftChangedAfterCommit),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteKeyNumberColumn(), &NotePrivate::keyNumber, &Note::keyNumberChanged, &Note::keyNumberChangedAfterCommit),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLanguageColumn(), &NotePrivate::language, &Note::languageChanged, &Note::languageChangedAfterCommit),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged, &Note::lengthChangedAfterCommit),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged, &Note::lyricChangedAfterCommit),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged, &Note::positionChangedAfterCommit),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged, &Note::originalPronunciationChangedAfterCommit),
+                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged, &Note::editedPronunciationChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged, &Note::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged, &Note::nextItemChangedAfterCommit),
                 {Schema::noteOverlappedCountColumn(), [](Note *q, const dini::Value &value) {
                      auto *d = NotePrivate::get(q);
                      const auto oldOverlapped = d->overlappedCount > 0;
@@ -50,14 +50,16 @@ namespace dspx {
                      return oldOverlapped != (d->overlappedCount > 0);
                  }, [](Note *q) {
                      emit q->overlappedChanged(q->overlapped());
+                 }, [](Note *q) {
+                     emit q->overlappedChangedAfterCommit(q->overlapped());
                  }},
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoAmplitudeColumn(), &NotePrivate::vibratoAmplitude, &Note::vibratoAmplitudeChanged),
-                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoEndColumn(), &NotePrivate::vibratoEnd, &Note::vibratoEndChanged),
-                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoFrequencyColumn(), &NotePrivate::vibratoFrequency, &Note::vibratoFrequencyChanged),
-                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged),
-                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged),
-                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged),
-                orm::binaryField<Note, NotePrivate>(Schema::noteWorkspaceColumn(), &NotePrivate::workspaceData, nullptr),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoAmplitudeColumn(), &NotePrivate::vibratoAmplitude, &Note::vibratoAmplitudeChanged, &Note::vibratoAmplitudeChangedAfterCommit),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoEndColumn(), &NotePrivate::vibratoEnd, &Note::vibratoEndChanged, &Note::vibratoEndChangedAfterCommit),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoFrequencyColumn(), &NotePrivate::vibratoFrequency, &Note::vibratoFrequencyChanged, &Note::vibratoFrequencyChangedAfterCommit),
+                orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoOffsetColumn(), &NotePrivate::vibratoOffset, &Note::vibratoOffsetChanged, &Note::vibratoOffsetChangedAfterCommit),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoPhaseColumn(), &NotePrivate::vibratoPhase, &Note::vibratoPhaseChanged, &Note::vibratoPhaseChangedAfterCommit),
+                orm::doubleFieldWithSignal<Note, NotePrivate>(Schema::noteVibratoStartColumn(), &NotePrivate::vibratoStart, &Note::vibratoStartChanged, &Note::vibratoStartChangedAfterCommit),
+                orm::binaryField<Note, NotePrivate>(Schema::noteWorkspaceColumn(), &NotePrivate::workspaceData, nullptr, nullptr),
                 {Schema::noteParent().column(), [](Note *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = NotePrivate::get(q);
@@ -67,6 +69,8 @@ namespace dspx {
                      return changed;
                  }, [](Note *q) {
                      emit q->noteSequenceChanged(NotePrivate::get(q)->sequence);
+                 }, [](Note *q) {
+                     emit q->noteSequenceChangedAfterCommit(NotePrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -103,11 +107,23 @@ namespace dspx {
                     return note ? note->noteSequence() : nullptr;
                 },
                 .setOwner = [](Note *item, NoteSequence *owner, bool notify) { NotePrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](Note *item, NoteSequence *owner) { emit item->noteSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](NoteSequence *owner, bool notify) { NoteSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](NoteSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemAboutToInsert(item, movedFrom); },
                 .itemInserted = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemInserted(item, movedFrom); },
                 .itemAboutToRemove = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemAboutToRemove(item, movedTo); },
                 .itemRemoved = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemRemoved(item, movedTo); },
+                .itemAboutToInsertAfterCommit = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemAboutToInsertAfterCommit(item, movedFrom); },
+                .itemInsertedAfterCommit = [](NoteSequence *owner, Note *item, NoteSequence *movedFrom) { emit owner->itemInsertedAfterCommit(item, movedFrom); },
+                .itemAboutToRemoveAfterCommit = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemAboutToRemoveAfterCommit(item, movedTo); },
+                .itemRemovedAfterCommit = [](NoteSequence *owner, Note *item, NoteSequence *movedTo) { emit owner->itemRemovedAfterCommit(item, movedTo); },
             });
             return binding;
         }

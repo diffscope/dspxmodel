@@ -54,11 +54,11 @@ namespace dspx {
         const std::vector<orm::ColumnBinding<AnchorNode>> &anchorNodeColumnBindings() {
             static const std::vector<orm::ColumnBinding<AnchorNode>> bindings {
                 orm::enumFieldWithSignal<AnchorNode::InterpolationMode, AnchorNode, AnchorNodePrivate>(
-                    Schema::anchorNodeInterpolationModeColumn(), &AnchorNodePrivate::interpolationMode, &AnchorNode::interpolationModeChanged),
-                orm::intFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeXColumn(), &AnchorNodePrivate::x, &AnchorNode::xChanged),
-                orm::intFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeYColumn(), &AnchorNodePrivate::y, &AnchorNode::yChanged),
-                orm::previousNextFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodePreviousItemColumn(), &AnchorNodePrivate::previousHandle, &AnchorNodePrivate::previous, &AnchorNode::previousItemChanged),
-                orm::previousNextFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeNextItemColumn(), &AnchorNodePrivate::nextHandle, &AnchorNodePrivate::next, &AnchorNode::nextItemChanged),
+                    Schema::anchorNodeInterpolationModeColumn(), &AnchorNodePrivate::interpolationMode, &AnchorNode::interpolationModeChanged, &AnchorNode::interpolationModeChangedAfterCommit),
+                orm::intFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeXColumn(), &AnchorNodePrivate::x, &AnchorNode::xChanged, &AnchorNode::xChangedAfterCommit),
+                orm::intFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeYColumn(), &AnchorNodePrivate::y, &AnchorNode::yChanged, &AnchorNode::yChangedAfterCommit),
+                orm::previousNextFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodePreviousItemColumn(), &AnchorNodePrivate::previousHandle, &AnchorNodePrivate::previous, &AnchorNode::previousItemChanged, &AnchorNode::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<AnchorNode, AnchorNodePrivate>(Schema::anchorNodeNextItemColumn(), &AnchorNodePrivate::nextHandle, &AnchorNodePrivate::next, &AnchorNode::nextItemChanged, &AnchorNode::nextItemChangedAfterCommit),
             };
             return bindings;
         }
@@ -87,11 +87,23 @@ namespace dspx {
                     return anchorNodeOwnerFromSnapshot(model, snapshot);
                 },
                 .setOwner = [](AnchorNode *item, AnchorNodeSequence *owner, bool notify) { AnchorNodePrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](AnchorNode *item, AnchorNodeSequence *owner) { emit item->anchorNodeSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](AnchorNodeSequence *owner, bool notify) { AnchorNodeSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](AnchorNodeSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedFrom) { emit owner->itemAboutToInsert(item, movedFrom); },
                 .itemInserted = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedFrom) { emit owner->itemInserted(item, movedFrom); },
                 .itemAboutToRemove = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedTo) { emit owner->itemAboutToRemove(item, movedTo); },
                 .itemRemoved = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedTo) { emit owner->itemRemoved(item, movedTo); },
+                .itemAboutToInsertAfterCommit = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedFrom) { emit owner->itemAboutToInsertAfterCommit(item, movedFrom); },
+                .itemInsertedAfterCommit = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedFrom) { emit owner->itemInsertedAfterCommit(item, movedFrom); },
+                .itemAboutToRemoveAfterCommit = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedTo) { emit owner->itemAboutToRemoveAfterCommit(item, movedTo); },
+                .itemRemovedAfterCommit = [](AnchorNodeSequence *owner, AnchorNode *item, AnchorNodeSequence *movedTo) { emit owner->itemRemovedAfterCommit(item, movedTo); },
             });
             return binding;
         }
@@ -106,6 +118,10 @@ namespace dspx {
         bool applyAnchorNodeColumn(AnchorNode *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
             auto *d = AnchorNodePrivate::get(item);
             if (column == Schema::anchorNodeParent().column()) {
+                if (currentNotificationStage == NotificationStage::AfterCommit) {
+                    emit item->anchorNodeSequenceChangedAfterCommit(d->sequence);
+                    return true;
+                }
                 d->setPlacement(orm::handleFromValue(value), notify);
                 return true;
             }

@@ -114,6 +114,13 @@ namespace dspx {
         void itemInserted(AnchorNode *item, AnchorNodeSequence *sequenceFromWhichMoved = nullptr);
         void itemAboutToRemove(AnchorNode *item, AnchorNodeSequence *sequenceToWhichMoved = nullptr);
         void itemRemoved(AnchorNode *item, AnchorNodeSequence *sequenceToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(AnchorNode *firstItem);
+        void lastItemChangedAfterCommit(AnchorNode *lastItem);
+        void itemAboutToInsertAfterCommit(AnchorNode *item, AnchorNodeSequence *sequenceFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(AnchorNode *item, AnchorNodeSequence *sequenceFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(AnchorNode *item, AnchorNodeSequence *sequenceToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(AnchorNode *item, AnchorNodeSequence *sequenceToWhichMoved = nullptr);
 
     private:
         ~AnchorNodeSequence() override;

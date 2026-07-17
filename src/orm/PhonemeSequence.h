@@ -127,6 +127,13 @@ namespace dspx {
         void itemInserted(Phoneme *item, PhonemeSequence *sequenceFromWhichMoved = nullptr);
         void itemAboutToRemove(Phoneme *item, PhonemeSequence *sequenceToWhichMoved = nullptr);
         void itemRemoved(Phoneme *item, PhonemeSequence *sequenceToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(Phoneme *firstItem);
+        void lastItemChangedAfterCommit(Phoneme *lastItem);
+        void itemAboutToInsertAfterCommit(Phoneme *item, PhonemeSequence *sequenceFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(Phoneme *item, PhonemeSequence *sequenceFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(Phoneme *item, PhonemeSequence *sequenceToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(Phoneme *item, PhonemeSequence *sequenceToWhichMoved = nullptr);
 
     private:
         ~PhonemeSequence() override;

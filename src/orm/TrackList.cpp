@@ -55,13 +55,24 @@ namespace dspx {
                     return model.isModelValue(orm::snapshotValue(snapshot, Schema::trackParent().column())) ? model.tracks : nullptr;
                 },
                 .setOwner = [](Track *item, TrackList *owner, bool notify) { TrackPrivate::get(item)->setTrackList(owner, notify); },
+                .ownerChangedAfterCommit = [](Track *item, TrackList *owner) { emit item->trackListChangedAfterCommit(owner); },
                 .refreshOwner = [](TrackList *owner, bool notify, bool itemsChanged) { TrackListPrivate::get(owner)->refresh(notify, itemsChanged); },
+                .refreshOwnerAfterCommit = [](TrackList *owner, bool sizeChanged, bool itemsChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (itemsChanged) emit owner->itemsChangedAfterCommit();
+                },
                 .itemAboutToInsert = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemAboutToInsert(index, item); },
                 .itemInserted = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemInserted(index, item); },
                 .itemAboutToRemove = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemAboutToRemove(index, item); },
                 .itemRemoved = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemRemoved(index, item); },
                 .aboutToRotate = [](TrackList *owner, int left, int middle, int right) { emit owner->aboutToRotate(left, middle, right); },
                 .rotated = [](TrackList *owner, int left, int middle, int right) { emit owner->rotated(left, middle, right); },
+                .itemAboutToInsertAfterCommit = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemAboutToInsertAfterCommit(index, item); },
+                .itemInsertedAfterCommit = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemInsertedAfterCommit(index, item); },
+                .itemAboutToRemoveAfterCommit = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemAboutToRemoveAfterCommit(index, item); },
+                .itemRemovedAfterCommit = [](TrackList *owner, int index, Track *item, TrackList *) { emit owner->itemRemovedAfterCommit(index, item); },
+                .aboutToRotateAfterCommit = [](TrackList *owner, int left, int middle, int right) { emit owner->aboutToRotateAfterCommit(left, middle, right); },
+                .rotatedAfterCommit = [](TrackList *owner, int left, int middle, int right) { emit owner->rotatedAfterCommit(left, middle, right); },
             });
             return binding;
         }

@@ -48,6 +48,7 @@ namespace dspx {
 
     signals:
         void idChanged(const QString &id);
+        void idChangedAfterCommit(const QString &id);
 
     private:
         ~SingleSinger() override;

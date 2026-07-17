@@ -109,6 +109,13 @@ namespace dspx {
         void itemInserted(TimeSignature *item);
         void itemAboutToRemove(TimeSignature *item);
         void itemRemoved(TimeSignature *item);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(TimeSignature *firstItem);
+        void lastItemChangedAfterCommit(TimeSignature *lastItem);
+        void itemAboutToInsertAfterCommit(TimeSignature *item);
+        void itemInsertedAfterCommit(TimeSignature *item);
+        void itemAboutToRemoveAfterCommit(TimeSignature *item);
+        void itemRemovedAfterCommit(TimeSignature *item);
 
     private:
         ~TimeSignatureSequence() override;

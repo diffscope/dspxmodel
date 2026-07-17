@@ -80,6 +80,8 @@ namespace dspx {
                      return changed;
                  }, [](AudioClip *q) {
                      emit q->pathChanged(AudioClipPrivate::get(q)->path);
+                 }, [](AudioClip *q) {
+                     emit q->pathChangedAfterCommit(AudioClipPrivate::get(q)->path);
                  }},
             };
             return bindings;

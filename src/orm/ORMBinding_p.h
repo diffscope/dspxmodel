@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <QList>
+#include <QObject>
 #include <QString>
 
 #include <dini/change.h>
@@ -43,6 +44,14 @@ namespace dspx {
 
         dini::DocumentEngine *getModelEngine(ModelPrivate &model);
         const dini::ItemSnapshot *currentEventSnapshot(ModelPrivate &model, dini::ItemId itemId);
+        void deferObjectDestruction(ModelPrivate &model, QObject *object, std::function<void()> finalize);
+
+        enum class NotificationStage {
+            AfterApply,
+            AfterCommit,
+        };
+
+        inline thread_local NotificationStage currentNotificationStage = NotificationStage::AfterApply;
 
         struct OrderSpec {
             std::vector<dini::ColumnHandle> columns;
@@ -65,7 +74,8 @@ namespace dspx {
         struct ColumnBinding {
             dini::ColumnHandle column;
             std::function<bool(Object *, const dini::Value &)> apply;
-            std::function<void(Object *)> notify;
+            std::function<void(Object *)> notifyAfterApply;
+            std::function<void(Object *)> notifyAfterCommit;
         };
 
         template <typename Related, typename Object>
@@ -75,9 +85,15 @@ namespace dspx {
         bool applyColumnBinding(const std::vector<ColumnBinding<Object>> &bindings, Object *object, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
             for (const auto &binding : bindings) {
                 if (binding.column == column) {
+                    if (currentNotificationStage == NotificationStage::AfterCommit) {
+                        if (notify && binding.notifyAfterCommit) {
+                            binding.notifyAfterCommit(object);
+                        }
+                        return true;
+                    }
                     const bool changed = binding.apply(object, value);
-                    if (notify && changed && binding.notify) {
-                        binding.notify(object);
+                    if (notify && changed && binding.notifyAfterApply) {
+                        binding.notifyAfterApply(object);
                     }
                     return true;
                 }
@@ -87,23 +103,34 @@ namespace dspx {
 
         template <typename Object>
         void syncColumnBindings(const std::vector<ColumnBinding<Object>> &bindings, Object *object, const dini::ItemSnapshot &snapshot, bool notify) {
+            if (currentNotificationStage == NotificationStage::AfterCommit) {
+                if (notify) {
+                    for (const auto &binding : bindings) {
+                        if (binding.notifyAfterCommit) {
+                            binding.notifyAfterCommit(object);
+                        }
+                    }
+                }
+                return;
+            }
             std::vector<const ColumnBinding<Object> *> changedBindings;
             if (notify) {
                 changedBindings.reserve(bindings.size());
             }
             for (const auto &binding : bindings) {
                 const bool changed = binding.apply(object, snapshotValue(snapshot, binding.column));
-                if (notify && changed && binding.notify) {
+                if (notify && changed && binding.notifyAfterApply) {
                     changedBindings.push_back(&binding);
                 }
             }
             for (const auto *binding : changedBindings) {
-                binding->notify(object);
+                binding->notifyAfterApply(object);
             }
         }
 
-        template <typename Object, typename Private, typename Member, typename Decode, typename Notify>
-        ColumnBinding<Object> field(dini::ColumnHandle column, Member Private::*member, Decode decode, Notify notify) {
+        template <typename Object, typename Private, typename Member, typename Decode, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> field(dini::ColumnHandle column, Member Private::*member, Decode decode,
+                                    NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
             return ColumnBinding<Object> {
                 .column = std::move(column),
                 .apply = [member, decode = std::move(decode)](Object *object, const dini::Value &value) {
@@ -113,89 +140,123 @@ namespace dspx {
                     d->*member = newValue;
                     return changed;
                 },
-                .notify = std::move(notify),
+                .notifyAfterApply = std::move(notifyAfterApply),
+                .notifyAfterCommit = std::move(notifyAfterCommit),
             };
         }
 
-        template <typename Object, typename Private, typename Member, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> intField(dini::ColumnHandle column, Member Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return static_cast<Member>(value.asInt64()); }, std::move(notify));
+        template <typename Object, typename Private, typename Member, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> intField(dini::ColumnHandle column, Member Private::*member,
+                                       NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return static_cast<Member>(value.asInt64()); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Object, typename Private, typename Member, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> intFieldWithSignal(dini::ColumnHandle column, Member Private::*member, Signal notify) {
-            return intField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
+        template <typename Object, typename Private, typename Member, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> intFieldWithSignal(dini::ColumnHandle column, Member Private::*member,
+                                                 AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return intField<Object, Private>(std::move(column), member,
+                                             [member, notifyAfterApply](Object *object) {
+                                                 (object->*notifyAfterApply)(Private::get(object)->*member);
+                                             },
+                                             [member, notifyAfterCommit](Object *object) {
+                                                 (object->*notifyAfterCommit)(Private::get(object)->*member);
+                                             });
         }
 
-        template <typename Object, typename Private, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> doubleField(dini::ColumnHandle column, double Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return value.asDouble(); }, std::move(notify));
+        template <typename Object, typename Private, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> doubleField(dini::ColumnHandle column, double Private::*member,
+                                          NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return value.asDouble(); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Object, typename Private, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> doubleFieldWithSignal(dini::ColumnHandle column, double Private::*member, Signal notify) {
-            return doubleField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
+        template <typename Object, typename Private, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> doubleFieldWithSignal(dini::ColumnHandle column, double Private::*member,
+                                                    AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return doubleField<Object, Private>(std::move(column), member,
+                                                [member, notifyAfterApply](Object *object) {
+                                                    (object->*notifyAfterApply)(Private::get(object)->*member);
+                                                },
+                                                [member, notifyAfterCommit](Object *object) {
+                                                    (object->*notifyAfterCommit)(Private::get(object)->*member);
+                                                });
         }
 
-        template <typename Object, typename Private, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> boolField(dini::ColumnHandle column, bool Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return value.asBool(); }, std::move(notify));
+        template <typename Object, typename Private, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> boolField(dini::ColumnHandle column, bool Private::*member,
+                                        NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return value.asBool(); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Object, typename Private, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> boolFieldWithSignal(dini::ColumnHandle column, bool Private::*member, Signal notify) {
-            return boolField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
+        template <typename Object, typename Private, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> boolFieldWithSignal(dini::ColumnHandle column, bool Private::*member,
+                                                  AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return boolField<Object, Private>(std::move(column), member,
+                                              [member, notifyAfterApply](Object *object) {
+                                                  (object->*notifyAfterApply)(Private::get(object)->*member);
+                                              },
+                                              [member, notifyAfterCommit](Object *object) {
+                                                  (object->*notifyAfterCommit)(Private::get(object)->*member);
+                                              });
         }
 
-        template <typename Object, typename Private, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return stringFromValue(value); }, std::move(notify));
+        template <typename Object, typename Private, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> stringField(dini::ColumnHandle column, QString Private::*member,
+                                          NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return stringFromValue(value); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Object, typename Private, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> stringFieldWithSignal(dini::ColumnHandle column, QString Private::*member, Signal notify) {
-            return stringField<Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
+        template <typename Object, typename Private, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> stringFieldWithSignal(dini::ColumnHandle column, QString Private::*member,
+                                                    AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return stringField<Object, Private>(std::move(column), member,
+                                                [member, notifyAfterApply](Object *object) {
+                                                    (object->*notifyAfterApply)(Private::get(object)->*member);
+                                                },
+                                                [member, notifyAfterCommit](Object *object) {
+                                                    (object->*notifyAfterCommit)(Private::get(object)->*member);
+                                                });
         }
 
-        template <typename Object, typename Private, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> binaryField(dini::ColumnHandle column, dini::ByteArray Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return binaryFromValue(value); }, std::move(notify));
+        template <typename Object, typename Private, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> binaryField(dini::ColumnHandle column, dini::ByteArray Private::*member,
+                                          NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return binaryFromValue(value); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Enum, typename Object, typename Private, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> enumField(dini::ColumnHandle column, Enum Private::*member, Notify notify) {
-            return field<Object, Private>(std::move(column), member, [](const dini::Value &value) { return static_cast<Enum>(value.asInt64()); }, std::move(notify));
+        template <typename Enum, typename Object, typename Private, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> enumField(dini::ColumnHandle column, Enum Private::*member,
+                                        NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
+            return field<Object, Private>(std::move(column), member,
+                                          [](const dini::Value &value) { return static_cast<Enum>(value.asInt64()); },
+                                          std::move(notifyAfterApply), std::move(notifyAfterCommit));
         }
 
-        template <typename Enum, typename Object, typename Private, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> enumFieldWithSignal(dini::ColumnHandle column, Enum Private::*member, Signal notify) {
-            return enumField<Enum, Object, Private>(std::move(column), member, [member, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*member);
-            });
+        template <typename Enum, typename Object, typename Private, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> enumFieldWithSignal(dini::ColumnHandle column, Enum Private::*member,
+                                                  AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return enumField<Enum, Object, Private>(std::move(column), member,
+                                                   [member, notifyAfterApply](Object *object) {
+                                                       (object->*notifyAfterApply)(Private::get(object)->*member);
+                                                   },
+                                                   [member, notifyAfterCommit](Object *object) {
+                                                       (object->*notifyAfterCommit)(Private::get(object)->*member);
+                                                   });
         }
 
-        template <typename Object, typename Private, typename Related, typename Notify>
-            requires (!std::is_member_function_pointer_v<std::decay_t<Notify>>)
-        ColumnBinding<Object> previousNextField(dini::ColumnHandle column, Handle Private::*handleMember, Related *Private::*objectMember, Notify notify) {
+        template <typename Object, typename Private, typename Related, typename NotifyAfterApply, typename NotifyAfterCommit>
+        ColumnBinding<Object> previousNextField(dini::ColumnHandle column, Handle Private::*handleMember,
+                                                Related *Private::*objectMember,
+                                                NotifyAfterApply notifyAfterApply, NotifyAfterCommit notifyAfterCommit) {
             return ColumnBinding<Object> {
                 .column = std::move(column),
                 .apply = [handleMember, objectMember](Object *object, const dini::Value &value) {
@@ -207,36 +268,53 @@ namespace dspx {
                     d->*objectMember = newObject;
                     return changed;
                 },
-                .notify = std::move(notify),
+                .notifyAfterApply = std::move(notifyAfterApply),
+                .notifyAfterCommit = std::move(notifyAfterCommit),
             };
         }
 
-        template <typename Object, typename Private, typename Related, typename Signal>
-            requires std::is_member_function_pointer_v<std::decay_t<Signal>>
-        ColumnBinding<Object> previousNextFieldWithSignal(dini::ColumnHandle column, Handle Private::*handleMember, Related *Private::*objectMember, Signal notify) {
-            return previousNextField<Object, Private, Related>(std::move(column), handleMember, objectMember, [objectMember, notify](Object *object) {
-                (object->*notify)(Private::get(object)->*objectMember);
-            });
+        template <typename Object, typename Private, typename Related, typename AfterApplySignal, typename AfterCommitSignal>
+        ColumnBinding<Object> previousNextFieldWithSignal(dini::ColumnHandle column, Handle Private::*handleMember,
+                                                          Related *Private::*objectMember,
+                                                          AfterApplySignal notifyAfterApply, AfterCommitSignal notifyAfterCommit) {
+            return previousNextField<Object, Private, Related>(std::move(column), handleMember, objectMember,
+                                                               [objectMember, notifyAfterApply](Object *object) {
+                                                                   (object->*notifyAfterApply)(Private::get(object)->*objectMember);
+                                                               },
+                                                               [objectMember, notifyAfterCommit](Object *object) {
+                                                                   (object->*notifyAfterCommit)(Private::get(object)->*objectMember);
+                                                               });
         }
 
         struct TableBinding {
             dini::TableHandle table;
             std::function<void(ModelPrivate &, const dini::ItemInsertedChange &)> itemInserted;
+            std::function<void(ModelPrivate &, const dini::ItemInsertedChange &)> itemInsertedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ItemSnapshot &, bool)> itemRemoved;
+            std::function<void(ModelPrivate &, const dini::ItemSnapshot &, bool)> itemRemovedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdated;
             std::function<void(ModelPrivate &, const std::vector<dini::ColumnUpdatedChange> &)> columnUpdates;
             std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdated;
+            std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdatedAfterCommit;
+            std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdatedAfterCommit;
         };
 
         struct ListBinding {
             dini::ListHandle list;
             std::function<void(ModelPrivate &, const dini::ItemInsertedChange &)> itemInserted;
+            std::function<void(ModelPrivate &, const dini::ItemInsertedChange &)> itemInsertedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ItemSnapshot &, bool)> itemRemoved;
+            std::function<void(ModelPrivate &, const dini::ItemSnapshot &, bool)> itemRemovedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ListInsertedChange &)> listInserted;
+            std::function<void(ModelPrivate &, const dini::ListInsertedChange &)> listInsertedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ListRemovedChange &)> listRemoved;
+            std::function<void(ModelPrivate &, const dini::ListRemovedChange &)> listRemovedAfterCommit;
             std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdated;
             std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdated;
             std::function<void(ModelPrivate &, const dini::ListRotatedChange &)> listRotated;
+            std::function<void(ModelPrivate &, const dini::ListRotatedChange &)> listRotatedAfterCommit;
+            std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdatedAfterCommit;
+            std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdatedAfterCommit;
         };
 
         enum class MoveSemantics {
@@ -265,12 +343,18 @@ namespace dspx {
             std::function<Owner *(ModelPrivate &, const dini::ItemSnapshot &)> ownerForSnapshot;
             std::function<Owner *(ModelPrivate &, const dini::ColumnUpdatedChange &, bool)> ownerForChange;
             std::function<void(Object *, Owner *, bool)> setOwner;
+            std::function<void(Object *, Owner *)> ownerChangedAfterCommit;
             std::function<void(Owner *, bool)> refreshOwner;
+            std::function<void(Owner *, bool, bool)> refreshOwnerAfterCommit;
 
             std::function<void(Owner *, Object *, Owner *)> itemAboutToInsert;
             std::function<void(Owner *, Object *, Owner *)> itemInserted;
             std::function<void(Owner *, Object *, Owner *)> itemAboutToRemove;
             std::function<void(Owner *, Object *, Owner *)> itemRemoved;
+            std::function<void(Owner *, Object *, Owner *)> itemAboutToInsertAfterCommit;
+            std::function<void(Owner *, Object *, Owner *)> itemInsertedAfterCommit;
+            std::function<void(Owner *, Object *, Owner *)> itemAboutToRemoveAfterCommit;
+            std::function<void(Owner *, Object *, Owner *)> itemRemovedAfterCommit;
         };
 
         template <typename T, typename Refresh>
@@ -348,49 +432,67 @@ namespace dspx {
                 }
 
                 for (const auto &group : groups) {
+                    const bool afterCommit = currentNotificationStage == NotificationStage::AfterCommit;
                     auto *item = spec.find(model, handleFromId(group.itemId));
                     auto *oldOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.oldSnapshot) : nullptr;
                     auto *newOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.newSnapshot) : nullptr;
 
                     if (!item) {
-                        if ((group.membership || group.order) && spec.refreshOwner) {
+                        if ((group.membership || group.order) && !afterCommit && spec.refreshOwner) {
                             refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
                         }
                         continue;
                     }
 
+                    const auto &aboutToRemove = afterCommit ? spec.itemAboutToRemoveAfterCommit : spec.itemAboutToRemove;
+                    const auto &aboutToInsert = afterCommit ? spec.itemAboutToInsertAfterCommit : spec.itemAboutToInsert;
+                    const auto &removed = afterCommit ? spec.itemRemovedAfterCommit : spec.itemRemoved;
+                    const auto &inserted = afterCommit ? spec.itemInsertedAfterCommit : spec.itemInserted;
+
                     if (group.membership) {
-                        if (oldOwner && !newOwner && spec.itemAboutToRemove) {
-                            spec.itemAboutToRemove(oldOwner, item, nullptr);
-                        } else if (!oldOwner && newOwner && spec.itemAboutToInsert) {
-                            spec.itemAboutToInsert(newOwner, item, nullptr);
+                        if (oldOwner && !newOwner && aboutToRemove) {
+                            aboutToRemove(oldOwner, item, nullptr);
+                        } else if (!oldOwner && newOwner && aboutToInsert) {
+                            aboutToInsert(newOwner, item, nullptr);
                         } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
-                            if (spec.itemAboutToRemove) {
-                                spec.itemAboutToRemove(oldOwner, item, newOwner);
+                            if (aboutToRemove) {
+                                aboutToRemove(oldOwner, item, newOwner);
                             }
-                            if (spec.itemAboutToInsert) {
-                                spec.itemAboutToInsert(newOwner, item, oldOwner);
+                            if (aboutToInsert) {
+                                aboutToInsert(newOwner, item, oldOwner);
                             }
                         }
                     }
 
-                    spec.sync(item, group.newSnapshot, true);
+                    if (afterCommit) {
+                        for (const auto &change : group.changes) {
+                            spec.applyColumn(item, change.column, change.newValue, true);
+                        }
+                    } else {
+                        spec.sync(item, group.newSnapshot, true);
+                    }
 
-                    if ((group.membership || group.order) && spec.refreshOwner) {
+                    if ((group.membership || group.order) && afterCommit && spec.refreshOwnerAfterCommit) {
+                        const bool sizeChanged = group.membership && oldOwner != newOwner;
+                        refreshUniqueOwner(oldOwner, newOwner,
+                                           [spec, sizeChanged](Owner *owner, bool) {
+                                               spec.refreshOwnerAfterCommit(owner, sizeChanged, true);
+                                           }, true);
+                    } else if ((group.membership || group.order) && spec.refreshOwner) {
                         refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
                     }
 
                     if (group.membership) {
-                        if (oldOwner && !newOwner && spec.itemRemoved) {
-                            spec.itemRemoved(oldOwner, item, nullptr);
-                        } else if (!oldOwner && newOwner && spec.itemInserted) {
-                            spec.itemInserted(newOwner, item, nullptr);
+                        if (oldOwner && !newOwner && removed) {
+                            removed(oldOwner, item, nullptr);
+                        } else if (!oldOwner && newOwner && inserted) {
+                            inserted(newOwner, item, nullptr);
                         } else if (oldOwner && newOwner && oldOwner != newOwner && spec.moveSemantics == MoveSemantics::BetweenOwners) {
-                            if (spec.itemRemoved) {
-                                spec.itemRemoved(oldOwner, item, newOwner);
+                            if (removed) {
+                                removed(oldOwner, item, newOwner);
                             }
-                            if (spec.itemInserted) {
-                                spec.itemInserted(newOwner, item, oldOwner);
+                            if (inserted) {
+                                inserted(newOwner, item, oldOwner);
                             }
                         }
                     }
@@ -415,6 +517,22 @@ namespace dspx {
                         spec.itemInserted(owner, item, nullptr);
                     }
                 },
+                .itemInsertedAfterCommit = [spec](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    auto *item = spec.find(model, handleFromId(change.item.id));
+                    auto *owner = item ? spec.ownerForSnapshot(model, change.item) : nullptr;
+                    if (!item || !owner) {
+                        return;
+                    }
+                    if (spec.itemAboutToInsertAfterCommit) {
+                        spec.itemAboutToInsertAfterCommit(owner, item, nullptr);
+                    }
+                    if (spec.refreshOwnerAfterCommit) {
+                        spec.refreshOwnerAfterCommit(owner, true, true);
+                    }
+                    if (spec.itemInsertedAfterCommit) {
+                        spec.itemInsertedAfterCommit(owner, item, nullptr);
+                    }
+                },
                 .itemRemoved = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
                     auto *item = spec.ensure(model, snapshot);
                     if (!item) {
@@ -427,16 +545,37 @@ namespace dspx {
                     if (spec.setOwner) {
                         spec.setOwner(item, nullptr, true);
                     }
-                    if (spec.removeObject) {
-                        spec.removeObject(model, handleFromId(snapshot.id));
-                    }
+                    const auto handle = handleFromId(snapshot.id);
                     if (owner && spec.refreshOwner) {
                         spec.refreshOwner(owner, true);
                     }
                     if (owner && spec.itemRemoved) {
                         spec.itemRemoved(owner, item, nullptr);
                     }
-                    item->deleteLater();
+                    deferObjectDestruction(model, item, [&model, spec, handle] {
+                        if (spec.removeObject) {
+                            spec.removeObject(model, handle);
+                        }
+                    });
+                },
+                .itemRemovedAfterCommit = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    auto *item = spec.find(model, handleFromId(snapshot.id));
+                    auto *owner = item ? spec.ownerForSnapshot(model, snapshot) : nullptr;
+                    if (!item || !owner) {
+                        return;
+                    }
+                    if (spec.itemAboutToRemoveAfterCommit) {
+                        spec.itemAboutToRemoveAfterCommit(owner, item, nullptr);
+                    }
+                    if (spec.ownerChangedAfterCommit) {
+                        spec.ownerChangedAfterCommit(item, nullptr);
+                    }
+                    if (spec.refreshOwnerAfterCommit) {
+                        spec.refreshOwnerAfterCommit(owner, true, true);
+                    }
+                    if (spec.itemRemovedAfterCommit) {
+                        spec.itemRemovedAfterCommit(owner, item, nullptr);
+                    }
                 },
                 .columnUpdated = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     processColumnUpdates(model, {change});
@@ -445,6 +584,14 @@ namespace dspx {
                     processColumnUpdates(model, changes);
                 },
                 .computedColumnUpdated = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (auto *item = spec.find(model, handleFromId(change.itemId))) {
+                        spec.applyColumn(item, change.column, change.newValue, true);
+                    }
+                },
+                .columnUpdatedAfterCommit = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    processColumnUpdates(model, {change});
+                },
+                .computedColumnUpdatedAfterCommit = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
                     if (auto *item = spec.find(model, handleFromId(change.itemId))) {
                         spec.applyColumn(item, change.column, change.newValue, true);
                     }
@@ -467,12 +614,18 @@ namespace dspx {
             std::function<Owner *(ModelPrivate &, const dini::ItemSnapshot &)> ownerForSnapshot;
             std::function<QString(const dini::ItemSnapshot &)> keyForSnapshot;
             std::function<void(Object *, Owner *, QString, bool)> setPlacement;
+            std::function<void(Object *, Owner *)> placementChangedAfterCommit;
             std::function<void(Owner *, bool)> refreshOwner;
+            std::function<void(Owner *, bool, bool)> refreshOwnerAfterCommit;
 
             std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToInsert;
             std::function<void(Owner *, const QString &, Object *, Owner *)> itemInserted;
             std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToRemove;
             std::function<void(Owner *, const QString &, Object *, Owner *)> itemRemoved;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToInsertAfterCommit;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemInsertedAfterCommit;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemAboutToRemoveAfterCommit;
+            std::function<void(Owner *, const QString &, Object *, Owner *)> itemRemovedAfterCommit;
         };
 
         template <typename Object, typename Owner>
@@ -516,11 +669,14 @@ namespace dspx {
                 if (!placementChanged) {
                     return;
                 }
-                if (oldOwner && spec.itemAboutToRemove) {
-                    spec.itemAboutToRemove(oldOwner, oldKey, item, newOwner);
+                const bool afterCommit = currentNotificationStage == NotificationStage::AfterCommit;
+                const auto &aboutToRemove = afterCommit ? spec.itemAboutToRemoveAfterCommit : spec.itemAboutToRemove;
+                const auto &aboutToInsert = afterCommit ? spec.itemAboutToInsertAfterCommit : spec.itemAboutToInsert;
+                if (oldOwner && aboutToRemove) {
+                    aboutToRemove(oldOwner, oldKey, item, newOwner);
                 }
-                if (newOwner && spec.itemAboutToInsert) {
-                    spec.itemAboutToInsert(newOwner, newKey, item, oldOwner);
+                if (newOwner && aboutToInsert) {
+                    aboutToInsert(newOwner, newKey, item, oldOwner);
                 }
             };
             auto emitMoved = [spec](Owner *oldOwner,
@@ -532,11 +688,14 @@ namespace dspx {
                 if (!placementChanged) {
                     return;
                 }
-                if (oldOwner && spec.itemRemoved) {
-                    spec.itemRemoved(oldOwner, oldKey, item, newOwner);
+                const bool afterCommit = currentNotificationStage == NotificationStage::AfterCommit;
+                const auto &removed = afterCommit ? spec.itemRemovedAfterCommit : spec.itemRemoved;
+                const auto &inserted = afterCommit ? spec.itemInsertedAfterCommit : spec.itemInserted;
+                if (oldOwner && removed) {
+                    removed(oldOwner, oldKey, item, newOwner);
                 }
-                if (newOwner && spec.itemInserted) {
-                    spec.itemInserted(newOwner, newKey, item, oldOwner);
+                if (newOwner && inserted) {
+                    inserted(newOwner, newKey, item, oldOwner);
                 }
             };
             auto processColumnUpdates = [spec, groupForChange, applyValue, hasChangeForColumn, emitAboutToMove, emitMoved](
@@ -567,6 +726,7 @@ namespace dspx {
                 }
 
                 for (const auto &group : groups) {
+                    const bool afterCommit = currentNotificationStage == NotificationStage::AfterCommit;
                     auto *item = spec.find(model, handleFromId(group.itemId));
                     auto *oldOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.oldSnapshot) : nullptr;
                     auto *newOwner = spec.ownerForSnapshot ? spec.ownerForSnapshot(model, group.newSnapshot) : nullptr;
@@ -584,9 +744,24 @@ namespace dspx {
                         emitAboutToMove(oldOwner, oldKey, newOwner, newKey, item);
                     }
 
-                    spec.sync(item, group.newSnapshot, true);
+                    if (afterCommit) {
+                        for (const auto &change : group.changes) {
+                            spec.applyColumn(item, change.column, change.newValue, true);
+                        }
+                        if (oldOwner != newOwner && spec.placementChangedAfterCommit) {
+                            spec.placementChangedAfterCommit(item, newOwner);
+                        }
+                    } else {
+                        spec.sync(item, group.newSnapshot, true);
+                    }
 
-                    if (group.placement && spec.refreshOwner) {
+                    if (group.placement && afterCommit && spec.refreshOwnerAfterCommit) {
+                        const bool sizeChanged = oldOwner != newOwner;
+                        refreshUniqueOwner(oldOwner, newOwner,
+                                           [spec, sizeChanged](Owner *owner, bool) {
+                                               spec.refreshOwnerAfterCommit(owner, sizeChanged, true);
+                                           }, true);
+                    } else if (group.placement && spec.refreshOwner) {
                         refreshUniqueOwner(oldOwner, newOwner, spec.refreshOwner, true);
                     }
 
@@ -616,6 +791,23 @@ namespace dspx {
                         spec.itemInserted(owner, key, item, nullptr);
                     }
                 },
+                .itemInsertedAfterCommit = [spec](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    auto *item = spec.find(model, handleFromId(change.item.id));
+                    auto *owner = item ? spec.ownerForSnapshot(model, change.item) : nullptr;
+                    if (!item || !owner) {
+                        return;
+                    }
+                    const auto key = spec.keyForSnapshot(change.item);
+                    if (spec.itemAboutToInsertAfterCommit) {
+                        spec.itemAboutToInsertAfterCommit(owner, key, item, nullptr);
+                    }
+                    if (spec.refreshOwnerAfterCommit) {
+                        spec.refreshOwnerAfterCommit(owner, true, true);
+                    }
+                    if (spec.itemInsertedAfterCommit) {
+                        spec.itemInsertedAfterCommit(owner, key, item, nullptr);
+                    }
+                },
                 .itemRemoved = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
                     auto *item = spec.ensure(model, snapshot);
                     if (!item) {
@@ -629,16 +821,38 @@ namespace dspx {
                     if (spec.setPlacement) {
                         spec.setPlacement(item, nullptr, QString(), true);
                     }
-                    if (spec.removeObject) {
-                        spec.removeObject(model, handleFromId(snapshot.id));
-                    }
+                    const auto handle = handleFromId(snapshot.id);
                     if (owner && spec.refreshOwner) {
                         spec.refreshOwner(owner, true);
                     }
                     if (owner && spec.itemRemoved) {
                         spec.itemRemoved(owner, key, item, nullptr);
                     }
-                    item->deleteLater();
+                    deferObjectDestruction(model, item, [&model, spec, handle] {
+                        if (spec.removeObject) {
+                            spec.removeObject(model, handle);
+                        }
+                    });
+                },
+                .itemRemovedAfterCommit = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    auto *item = spec.find(model, handleFromId(snapshot.id));
+                    auto *owner = item ? spec.ownerForSnapshot(model, snapshot) : nullptr;
+                    if (!item || !owner) {
+                        return;
+                    }
+                    const auto key = spec.keyForSnapshot(snapshot);
+                    if (spec.itemAboutToRemoveAfterCommit) {
+                        spec.itemAboutToRemoveAfterCommit(owner, key, item, nullptr);
+                    }
+                    if (spec.placementChangedAfterCommit) {
+                        spec.placementChangedAfterCommit(item, nullptr);
+                    }
+                    if (spec.refreshOwnerAfterCommit) {
+                        spec.refreshOwnerAfterCommit(owner, true, true);
+                    }
+                    if (spec.itemRemovedAfterCommit) {
+                        spec.itemRemovedAfterCommit(owner, key, item, nullptr);
+                    }
                 },
                 .columnUpdated = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     processColumnUpdates(model, {change});
@@ -647,6 +861,14 @@ namespace dspx {
                     processColumnUpdates(model, changes);
                 },
                 .computedColumnUpdated = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (auto *item = spec.find(model, handleFromId(change.itemId))) {
+                        spec.applyColumn(item, change.column, change.newValue, true);
+                    }
+                },
+                .columnUpdatedAfterCommit = [processColumnUpdates](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    processColumnUpdates(model, {change});
+                },
+                .computedColumnUpdatedAfterCommit = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
                     if (auto *item = spec.find(model, handleFromId(change.itemId))) {
                         spec.applyColumn(item, change.column, change.newValue, true);
                     }
@@ -668,7 +890,9 @@ namespace dspx {
             std::function<Owner *(ModelPrivate &, const dini::Value &)> ownerForAssociationValue;
             std::function<Owner *(ModelPrivate &, const dini::ItemSnapshot &)> ownerForSnapshot;
             std::function<void(Object *, Owner *, bool)> setOwner;
+            std::function<void(Object *, Owner *)> ownerChangedAfterCommit;
             std::function<void(Owner *, bool, bool)> refreshOwner;
+            std::function<void(Owner *, bool, bool)> refreshOwnerAfterCommit;
 
             std::function<void(Owner *, int, Object *, Owner *)> itemAboutToInsert;
             std::function<void(Owner *, int, Object *, Owner *)> itemInserted;
@@ -676,6 +900,12 @@ namespace dspx {
             std::function<void(Owner *, int, Object *, Owner *)> itemRemoved;
             std::function<void(Owner *, int, int, int)> aboutToRotate;
             std::function<void(Owner *, int, int, int)> rotated;
+            std::function<void(Owner *, int, Object *, Owner *)> itemAboutToInsertAfterCommit;
+            std::function<void(Owner *, int, Object *, Owner *)> itemInsertedAfterCommit;
+            std::function<void(Owner *, int, Object *, Owner *)> itemAboutToRemoveAfterCommit;
+            std::function<void(Owner *, int, Object *, Owner *)> itemRemovedAfterCommit;
+            std::function<void(Owner *, int, int, int)> aboutToRotateAfterCommit;
+            std::function<void(Owner *, int, int, int)> rotatedAfterCommit;
         };
 
         template <typename Object, typename Owner>
@@ -687,6 +917,7 @@ namespace dspx {
                         spec.sync(item, change.item, true);
                     }
                 },
+                .itemInsertedAfterCommit = [](ModelPrivate &, const dini::ItemInsertedChange &) {},
                 .itemRemoved = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
                     auto *item = spec.ensure(model, snapshot);
                     if (!item) {
@@ -700,14 +931,28 @@ namespace dspx {
                     if (spec.setOwner) {
                         spec.setOwner(item, nullptr, true);
                     }
-                    spec.removeObject(model, handleFromId(snapshot.id));
+                    const auto handle = handleFromId(snapshot.id);
                     if (owner && spec.refreshOwner) {
                         spec.refreshOwner(owner, true, true);
                     }
                     if (owner && spec.itemRemoved) {
                         spec.itemRemoved(owner, index, item, nullptr);
                     }
-                    item->deleteLater();
+                    deferObjectDestruction(model, item, [&model, spec, handle] {
+                        if (spec.removeObject) {
+                            spec.removeObject(model, handle);
+                        }
+                    });
+                },
+                .itemRemovedAfterCommit = [spec](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    auto *item = spec.find(model, handleFromId(snapshot.id));
+                    auto *owner = item ? spec.ownerForSnapshot(model, snapshot) : nullptr;
+                    if (!item || !owner) return;
+                    const auto index = static_cast<int>(snapshot.listIndex.value_or(0));
+                    if (spec.itemAboutToRemoveAfterCommit) spec.itemAboutToRemoveAfterCommit(owner, index, item, nullptr);
+                    if (spec.ownerChangedAfterCommit) spec.ownerChangedAfterCommit(item, nullptr);
+                    if (spec.refreshOwnerAfterCommit) spec.refreshOwnerAfterCommit(owner, true, true);
+                    if (spec.itemRemovedAfterCommit) spec.itemRemovedAfterCommit(owner, index, item, nullptr);
                 },
                 .listInserted = [spec](ModelPrivate &model, const dini::ListInsertedChange &change) {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
@@ -727,6 +972,15 @@ namespace dspx {
                         spec.itemInserted(owner, index, item, nullptr);
                     }
                 },
+                .listInsertedAfterCommit = [spec](ModelPrivate &model, const dini::ListInsertedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    auto *item = spec.find(model, handleFromId(change.item.id));
+                    if (!owner || !item) return;
+                    const auto index = static_cast<int>(change.index);
+                    if (spec.itemAboutToInsertAfterCommit) spec.itemAboutToInsertAfterCommit(owner, index, item, nullptr);
+                    if (spec.refreshOwnerAfterCommit) spec.refreshOwnerAfterCommit(owner, true, true);
+                    if (spec.itemInsertedAfterCommit) spec.itemInsertedAfterCommit(owner, index, item, nullptr);
+                },
                 .listRemoved = [spec](ModelPrivate &model, const dini::ListRemovedChange &change) {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
                     auto *item = spec.ensure(model, change.item);
@@ -740,14 +994,28 @@ namespace dspx {
                     if (spec.setOwner) {
                         spec.setOwner(item, nullptr, true);
                     }
-                    spec.removeObject(model, handleFromId(change.item.id));
+                    const auto handle = handleFromId(change.item.id);
                     if (owner && spec.refreshOwner) {
                         spec.refreshOwner(owner, true, true);
                     }
                     if (owner && spec.itemRemoved) {
                         spec.itemRemoved(owner, index, item, nullptr);
                     }
-                    item->deleteLater();
+                    deferObjectDestruction(model, item, [&model, spec, handle] {
+                        if (spec.removeObject) {
+                            spec.removeObject(model, handle);
+                        }
+                    });
+                },
+                .listRemovedAfterCommit = [spec](ModelPrivate &model, const dini::ListRemovedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    auto *item = spec.find(model, handleFromId(change.item.id));
+                    if (!owner || !item) return;
+                    const auto index = static_cast<int>(change.index);
+                    if (spec.itemAboutToRemoveAfterCommit) spec.itemAboutToRemoveAfterCommit(owner, index, item, nullptr);
+                    if (spec.ownerChangedAfterCommit) spec.ownerChangedAfterCommit(item, nullptr);
+                    if (spec.refreshOwnerAfterCommit) spec.refreshOwnerAfterCommit(owner, true, true);
+                    if (spec.itemRemovedAfterCommit) spec.itemRemovedAfterCommit(owner, index, item, nullptr);
                 },
                 .columnUpdated = [spec](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     auto *item = spec.find(model, handleFromId(change.itemId));
@@ -828,6 +1096,42 @@ namespace dspx {
                         spec.rotated(owner, left, middle, right);
                     }
                 },
+                .listRotatedAfterCommit = [spec](ModelPrivate &model, const dini::ListRotatedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    if (!owner) return;
+                    const auto normalized = change.rotation.count == 0 ? 0 : ((change.rotation.offset % static_cast<std::ptrdiff_t>(change.rotation.count)) + static_cast<std::ptrdiff_t>(change.rotation.count)) % static_cast<std::ptrdiff_t>(change.rotation.count);
+                    const auto left = static_cast<int>(change.rotation.startIndex);
+                    const auto middle = static_cast<int>(change.rotation.startIndex + static_cast<std::size_t>(normalized));
+                    const auto right = static_cast<int>(change.rotation.startIndex + change.rotation.count);
+                    if (spec.aboutToRotateAfterCommit) spec.aboutToRotateAfterCommit(owner, left, middle, right);
+                    if (spec.refreshOwnerAfterCommit) spec.refreshOwnerAfterCommit(owner, false, true);
+                    if (spec.rotatedAfterCommit) spec.rotatedAfterCommit(owner, left, middle, right);
+                },
+                .columnUpdatedAfterCommit = [spec](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    auto *item = spec.find(model, handleFromId(change.itemId));
+                    if (change.column != spec.associationColumn) {
+                        if (item) spec.applyColumn(item, change.column, change.newValue, true);
+                        return;
+                    }
+                    auto *oldOwner = spec.ownerForAssociationValue(model, change.oldValue);
+                    auto *newOwner = spec.ownerForAssociationValue(model, change.newValue);
+                    if (!item) return;
+                    const int oldIndex = static_cast<int>(change.oldListIndex.value_or(0));
+                    const int newIndex = static_cast<int>(change.associationOptions.targetIndex.value_or(0));
+                    if (oldOwner && spec.itemAboutToRemoveAfterCommit) spec.itemAboutToRemoveAfterCommit(oldOwner, oldIndex, item, newOwner);
+                    if (newOwner && spec.itemAboutToInsertAfterCommit) spec.itemAboutToInsertAfterCommit(newOwner, newIndex, item, oldOwner);
+                    spec.applyColumn(item, change.column, change.newValue, true);
+                    if (spec.refreshOwnerAfterCommit) {
+                        refreshUniqueOwner(oldOwner, newOwner, [spec](Owner *owner, bool) { spec.refreshOwnerAfterCommit(owner, true, true); }, true);
+                    }
+                    if (oldOwner && spec.itemRemovedAfterCommit) spec.itemRemovedAfterCommit(oldOwner, oldIndex, item, newOwner);
+                    if (newOwner && spec.itemInsertedAfterCommit) spec.itemInsertedAfterCommit(newOwner, newIndex, item, oldOwner);
+                },
+                .computedColumnUpdatedAfterCommit = [spec](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (auto *item = spec.find(model, handleFromId(change.itemId))) {
+                        spec.applyColumn(item, change.column, change.newValue, true);
+                    }
+                },
             };
         }
 
@@ -838,6 +1142,7 @@ namespace dspx {
 
             std::function<Owner *(ModelPrivate &, const dini::Value &)> ownerForAssociationValue;
             std::function<void(Owner *, bool, bool)> refreshOwner;
+            std::function<void(Owner *, bool, bool)> refreshOwnerAfterCommit;
             std::function<ItemValue(const dini::ItemSnapshot &)> decodeItem;
             std::function<bool(Owner *)> notificationsSuppressed;
 
@@ -845,6 +1150,10 @@ namespace dspx {
             std::function<void(Owner *, int, int, const QList<ItemValue> &)> spliced;
             std::function<void(Owner *, int, int, int)> aboutToRotate;
             std::function<void(Owner *, int, int, int)> rotated;
+            std::function<void(Owner *, int, int, const QList<ItemValue> &)> aboutToSpliceAfterCommit;
+            std::function<void(Owner *, int, int, const QList<ItemValue> &)> splicedAfterCommit;
+            std::function<void(Owner *, int, int, int)> aboutToRotateAfterCommit;
+            std::function<void(Owner *, int, int, int)> rotatedAfterCommit;
         };
 
         template <typename Owner, typename ItemValue>
@@ -855,6 +1164,11 @@ namespace dspx {
             auto refresh = [spec, suppressed](Owner *owner, bool itemsChanged) {
                 if (owner && spec.refreshOwner && !suppressed(owner)) {
                     spec.refreshOwner(owner, true, itemsChanged);
+                }
+            };
+            auto refreshAfterCommit = [spec, suppressed](Owner *owner, bool sizeChanged, bool itemsChanged) {
+                if (owner && spec.refreshOwnerAfterCommit && !suppressed(owner)) {
+                    spec.refreshOwnerAfterCommit(owner, sizeChanged, itemsChanged);
                 }
             };
             auto oneValue = [spec](const dini::ItemSnapshot &item) {
@@ -875,11 +1189,23 @@ namespace dspx {
                     spec.spliced(owner, index, length, values);
                 }
             };
+            auto emitSpliceAfterCommit = [spec, suppressed, refreshAfterCommit](Owner *owner, int index, int length, const QList<ItemValue> &values) {
+                if (!owner) return;
+                const bool shouldNotify = !suppressed(owner);
+                if (shouldNotify && spec.aboutToSpliceAfterCommit) spec.aboutToSpliceAfterCommit(owner, index, length, values);
+                refreshAfterCommit(owner, length != static_cast<int>(values.size()), true);
+                if (shouldNotify && spec.splicedAfterCommit) spec.splicedAfterCommit(owner, index, length, values);
+            };
             return ListBinding {
                 .list = spec.list,
                 .itemInserted = [spec, refresh](ModelPrivate &model, const dini::ItemInsertedChange &change) {
                     if (change.item.listAssociationValue.has_value()) {
                         refresh(spec.ownerForAssociationValue(model, change.item.listAssociationValue.value()), true);
+                    }
+                },
+                .itemInsertedAfterCommit = [spec, refreshAfterCommit](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    if (change.item.listAssociationValue.has_value()) {
+                        refreshAfterCommit(spec.ownerForAssociationValue(model, change.item.listAssociationValue.value()), true, true);
                     }
                 },
                 .itemRemoved = [spec, emitSplice](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
@@ -890,13 +1216,24 @@ namespace dspx {
                     const auto index = static_cast<int>(snapshot.listIndex.value_or(0));
                     emitSplice(owner, index, 1, QList<ItemValue>());
                 },
+                .itemRemovedAfterCommit = [spec, emitSpliceAfterCommit](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    if (!snapshot.listAssociationValue.has_value()) return;
+                    emitSpliceAfterCommit(spec.ownerForAssociationValue(model, snapshot.listAssociationValue.value()),
+                                          static_cast<int>(snapshot.listIndex.value_or(0)), 1, QList<ItemValue>());
+                },
                 .listInserted = [spec, emitSplice, oneValue](ModelPrivate &model, const dini::ListInsertedChange &change) {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
                     emitSplice(owner, static_cast<int>(change.index), 0, oneValue(change.item));
                 },
+                .listInsertedAfterCommit = [spec, emitSpliceAfterCommit, oneValue](ModelPrivate &model, const dini::ListInsertedChange &change) {
+                    emitSpliceAfterCommit(spec.ownerForAssociationValue(model, change.associationValue), static_cast<int>(change.index), 0, oneValue(change.item));
+                },
                 .listRemoved = [spec, emitSplice](ModelPrivate &model, const dini::ListRemovedChange &change) {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
                     emitSplice(owner, static_cast<int>(change.index), 1, QList<ItemValue>());
+                },
+                .listRemovedAfterCommit = [spec, emitSpliceAfterCommit](ModelPrivate &model, const dini::ListRemovedChange &change) {
+                    emitSpliceAfterCommit(spec.ownerForAssociationValue(model, change.associationValue), static_cast<int>(change.index), 1, QList<ItemValue>());
                 },
                 .columnUpdated = [spec, emitSplice, oneValue, refresh](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     if (change.column == spec.associationColumn) {
@@ -945,6 +1282,43 @@ namespace dspx {
                     refresh(owner, true);
                     if (shouldNotify && spec.rotated) {
                         spec.rotated(owner, left, middle, right);
+                    }
+                },
+                .listRotatedAfterCommit = [spec, suppressed, refreshAfterCommit](ModelPrivate &model, const dini::ListRotatedChange &change) {
+                    auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
+                    if (!owner) return;
+                    const auto normalized = change.rotation.count == 0 ? 0 : ((change.rotation.offset % static_cast<std::ptrdiff_t>(change.rotation.count)) + static_cast<std::ptrdiff_t>(change.rotation.count)) % static_cast<std::ptrdiff_t>(change.rotation.count);
+                    const auto left = static_cast<int>(change.rotation.startIndex);
+                    const auto middle = static_cast<int>(change.rotation.startIndex + static_cast<std::size_t>(normalized));
+                    const auto right = static_cast<int>(change.rotation.startIndex + change.rotation.count);
+                    const bool shouldNotify = !suppressed(owner);
+                    if (shouldNotify && spec.aboutToRotateAfterCommit) spec.aboutToRotateAfterCommit(owner, left, middle, right);
+                    refreshAfterCommit(owner, false, true);
+                    if (shouldNotify && spec.rotatedAfterCommit) spec.rotatedAfterCommit(owner, left, middle, right);
+                },
+                .columnUpdatedAfterCommit = [spec, emitSpliceAfterCommit, oneValue, refreshAfterCommit](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    if (change.column == spec.associationColumn) {
+                        emitSpliceAfterCommit(spec.ownerForAssociationValue(model, change.oldValue),
+                                              static_cast<int>(change.oldListIndex.value_or(0)), 1, QList<ItemValue>());
+                        auto *newOwner = spec.ownerForAssociationValue(model, change.newValue);
+                        if (newOwner && getModelEngine(model)->contains(change.itemId)) {
+                            emitSpliceAfterCommit(newOwner,
+                                                  static_cast<int>(change.associationOptions.targetIndex.value_or(0)),
+                                                  0, oneValue(getModelEngine(model)->read(change.itemId)));
+                        }
+                        return;
+                    }
+                    if (!getModelEngine(model)->contains(change.itemId)) return;
+                    const auto item = getModelEngine(model)->read(change.itemId);
+                    if (item.listAssociationValue.has_value()) {
+                        refreshAfterCommit(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), false, true);
+                    }
+                },
+                .computedColumnUpdatedAfterCommit = [spec, refreshAfterCommit](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                    if (!getModelEngine(model)->contains(change.itemId)) return;
+                    const auto item = getModelEngine(model)->read(change.itemId);
+                    if (item.listAssociationValue.has_value()) {
+                        refreshAfterCommit(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), false, true);
                     }
                 },
             };

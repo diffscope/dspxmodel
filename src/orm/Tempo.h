@@ -95,6 +95,11 @@ namespace dspx {
         void previousItemChanged(Tempo *previousItem);
         void nextItemChanged(Tempo *nextItem);
         void tempoSequenceChanged(TempoSequence *tempoSequence);
+        void positionChangedAfterCommit(int position);
+        void valueChangedAfterCommit(double value);
+        void previousItemChangedAfterCommit(Tempo *previousItem);
+        void nextItemChangedAfterCommit(Tempo *nextItem);
+        void tempoSequenceChangedAfterCommit(TempoSequence *tempoSequence);
 
     private:
         ~Tempo() override;

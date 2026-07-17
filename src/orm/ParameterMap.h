@@ -110,6 +110,13 @@ namespace dspx {
         void itemInserted(const QString &key, Parameter *item, ParameterMap *mapFromWhichMoved = nullptr);
         void itemAboutToRemove(const QString &key, Parameter *item, ParameterMap *mapToWhichMoved = nullptr);
         void itemRemoved(const QString &key, Parameter *item, ParameterMap *mapToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void keysChangedAfterCommit();
+        void itemsChangedAfterCommit();
+        void itemAboutToInsertAfterCommit(const QString &key, Parameter *item, ParameterMap *mapFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(const QString &key, Parameter *item, ParameterMap *mapFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(const QString &key, Parameter *item, ParameterMap *mapToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(const QString &key, Parameter *item, ParameterMap *mapToWhichMoved = nullptr);
 
     private:
         ~ParameterMap() override;

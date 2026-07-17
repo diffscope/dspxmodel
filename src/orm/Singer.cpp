@@ -103,8 +103,10 @@ namespace dspx {
                      return changed;
                  }, [](Singer *q) {
                      emit q->extraChanged(SingerPrivate::get(q)->extra);
+                 }, [](Singer *q) {
+                     emit q->extraChangedAfterCommit(SingerPrivate::get(q)->extra);
                  }},
-                orm::binaryField<Singer, SingerPrivate>(Schema::singerWorkspaceColumn(), &SingerPrivate::workspaceData, nullptr),
+                orm::binaryField<Singer, SingerPrivate>(Schema::singerWorkspaceColumn(), &SingerPrivate::workspaceData, nullptr, nullptr),
                 {Schema::singerParent().column(), [](Singer *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = SingerPrivate::get(q);
@@ -114,6 +116,8 @@ namespace dspx {
                      return changed;
                  }, [](Singer *q) {
                      emit q->singerListChanged(SingerPrivate::get(q)->singerList);
+                 }, [](Singer *q) {
+                     emit q->singerListChangedAfterCommit(SingerPrivate::get(q)->singerList);
                  }},
             };
             return bindings;
@@ -123,7 +127,8 @@ namespace dspx {
             static const std::vector<orm::ColumnBinding<SingleSinger>> bindings {
                 orm::stringFieldWithSignal<SingleSinger, SingleSingerPrivate>(Schema::singleSingerIdColumn(),
                                                                               &SingleSingerPrivate::id,
-                                                                              &SingleSinger::idChanged),
+                                                                              &SingleSinger::idChanged,
+                                                                              &SingleSinger::idChangedAfterCommit),
             };
             return bindings;
         }
@@ -138,6 +143,8 @@ namespace dspx {
                      return changed;
                  }, [](MixedSinger *q) {
                      emit q->ratioChanged(MixedSingerPrivate::get(q)->ratio);
+                 }, [](MixedSinger *q) {
+                     emit q->ratioChangedAfterCommit(MixedSingerPrivate::get(q)->ratio);
                  }},
             };
             return bindings;
@@ -169,13 +176,24 @@ namespace dspx {
                     return snapshot.listAssociationValue.has_value() ? singerOwnerFromMixableValue(model, snapshot.listAssociationValue.value()) : nullptr;
                 },
                 .setOwner = [](Singer *item, SingerList *owner, bool notify) { SingerPrivate::get(item)->setSingerList(owner, notify); },
+                .ownerChangedAfterCommit = [](Singer *item, SingerList *owner) { emit item->singerListChangedAfterCommit(owner); },
                 .refreshOwner = [](SingerList *owner, bool notify, bool itemsChanged) { SingerListPrivate::get(owner)->refresh(notify, itemsChanged); },
+                .refreshOwnerAfterCommit = [](SingerList *owner, bool sizeChanged, bool itemsChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (itemsChanged) emit owner->itemsChangedAfterCommit();
+                },
                 .itemAboutToInsert = [](SingerList *owner, int index, Singer *item, SingerList *movedFrom) { emit owner->itemAboutToInsert(index, item, movedFrom); },
                 .itemInserted = [](SingerList *owner, int index, Singer *item, SingerList *movedFrom) { emit owner->itemInserted(index, item, movedFrom); },
                 .itemAboutToRemove = [](SingerList *owner, int index, Singer *item, SingerList *movedTo) { emit owner->itemAboutToRemove(index, item, movedTo); },
                 .itemRemoved = [](SingerList *owner, int index, Singer *item, SingerList *movedTo) { emit owner->itemRemoved(index, item, movedTo); },
                 .aboutToRotate = [](SingerList *owner, int left, int middle, int right) { emit owner->aboutToRotate(left, middle, right); },
                 .rotated = [](SingerList *owner, int left, int middle, int right) { emit owner->rotated(left, middle, right); },
+                .itemAboutToInsertAfterCommit = [](SingerList *owner, int index, Singer *item, SingerList *movedFrom) { emit owner->itemAboutToInsertAfterCommit(index, item, movedFrom); },
+                .itemInsertedAfterCommit = [](SingerList *owner, int index, Singer *item, SingerList *movedFrom) { emit owner->itemInsertedAfterCommit(index, item, movedFrom); },
+                .itemAboutToRemoveAfterCommit = [](SingerList *owner, int index, Singer *item, SingerList *movedTo) { emit owner->itemAboutToRemoveAfterCommit(index, item, movedTo); },
+                .itemRemovedAfterCommit = [](SingerList *owner, int index, Singer *item, SingerList *movedTo) { emit owner->itemRemovedAfterCommit(index, item, movedTo); },
+                .aboutToRotateAfterCommit = [](SingerList *owner, int left, int middle, int right) { emit owner->aboutToRotateAfterCommit(left, middle, right); },
+                .rotatedAfterCommit = [](SingerList *owner, int left, int middle, int right) { emit owner->rotatedAfterCommit(left, middle, right); },
             });
             return binding;
         }

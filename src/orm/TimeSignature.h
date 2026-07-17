@@ -113,6 +113,12 @@ namespace dspx {
         void previousItemChanged(TimeSignature *previousItem);
         void nextItemChanged(TimeSignature *nextItem);
         void timeSignatureSequenceChanged(TimeSignatureSequence *timeSignatureSequence);
+        void indexChangedAfterCommit(int index);
+        void numeratorChangedAfterCommit(int numerator);
+        void denominatorChangedAfterCommit(int denominator);
+        void previousItemChangedAfterCommit(TimeSignature *previousItem);
+        void nextItemChangedAfterCommit(TimeSignature *nextItem);
+        void timeSignatureSequenceChangedAfterCommit(TimeSignatureSequence *timeSignatureSequence);
 
     private:
         ~TimeSignature() override;

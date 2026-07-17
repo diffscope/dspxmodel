@@ -76,6 +76,7 @@ namespace dspx {
 
     signals:
         void parameterMapChanged(ParameterMap *parameterMap);
+        void parameterMapChangedAfterCommit(ParameterMap *parameterMap);
 
     private:
         ~Parameter() override;

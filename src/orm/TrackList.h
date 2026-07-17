@@ -105,6 +105,14 @@ namespace dspx {
         void itemRemoved(int index, Track *item);
         void aboutToRotate(int leftIndex, int middleIndex, int rightIndex);
         void rotated(int leftIndex, int middleIndex, int rightIndex);
+        void sizeChangedAfterCommit(int size);
+        void itemsChangedAfterCommit();
+        void itemAboutToInsertAfterCommit(int index, Track *item);
+        void itemInsertedAfterCommit(int index, Track *item);
+        void itemAboutToRemoveAfterCommit(int index, Track *item);
+        void itemRemovedAfterCommit(int index, Track *item);
+        void aboutToRotateAfterCommit(int leftIndex, int middleIndex, int rightIndex);
+        void rotatedAfterCommit(int leftIndex, int middleIndex, int rightIndex);
 
     private:
         ~TrackList() override;

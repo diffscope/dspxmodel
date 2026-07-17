@@ -32,7 +32,8 @@ namespace dspx {
             static const std::vector<orm::ColumnBinding<DynamicMixingAnchor>> bindings {
                 orm::intFieldWithSignal<DynamicMixingAnchor, DynamicMixingAnchorPrivate>(Schema::dynamicMixingAnchorPositionColumn(),
                                                                                          &DynamicMixingAnchorPrivate::position,
-                                                                                         &DynamicMixingAnchor::positionChanged),
+                                                                                         &DynamicMixingAnchor::positionChanged,
+                                                                                         &DynamicMixingAnchor::positionChangedAfterCommit),
                 {Schema::dynamicMixingAnchorRatioColumn(), [](DynamicMixingAnchor *q, const dini::Value &value) {
                      auto *d = DynamicMixingAnchorPrivate::get(q);
                      const auto newValue = orm::ratioFromValue(value);
@@ -41,17 +42,21 @@ namespace dspx {
                      return changed;
                  }, [](DynamicMixingAnchor *q) {
                      emit q->ratioChanged(DynamicMixingAnchorPrivate::get(q)->ratio);
+                 }, [](DynamicMixingAnchor *q) {
+                     emit q->ratioChangedAfterCommit(DynamicMixingAnchorPrivate::get(q)->ratio);
                  }},
                 orm::previousNextFieldWithSignal<DynamicMixingAnchor, DynamicMixingAnchorPrivate>(
                     Schema::dynamicMixingAnchorPreviousItemColumn(),
                     &DynamicMixingAnchorPrivate::previousHandle,
                     &DynamicMixingAnchorPrivate::previous,
-                    &DynamicMixingAnchor::previousItemChanged),
+                    &DynamicMixingAnchor::previousItemChanged,
+                    &DynamicMixingAnchor::previousItemChangedAfterCommit),
                 orm::previousNextFieldWithSignal<DynamicMixingAnchor, DynamicMixingAnchorPrivate>(
                     Schema::dynamicMixingAnchorNextItemColumn(),
                     &DynamicMixingAnchorPrivate::nextHandle,
                     &DynamicMixingAnchorPrivate::next,
-                    &DynamicMixingAnchor::nextItemChanged),
+                    &DynamicMixingAnchor::nextItemChanged,
+                    &DynamicMixingAnchor::nextItemChangedAfterCommit),
                 {Schema::dynamicMixingAnchorParent().column(), [](DynamicMixingAnchor *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = DynamicMixingAnchorPrivate::get(q);
@@ -61,6 +66,8 @@ namespace dspx {
                      return changed;
                  }, [](DynamicMixingAnchor *q) {
                      emit q->dynamicMixingAnchorSequenceChanged(DynamicMixingAnchorPrivate::get(q)->sequence);
+                 }, [](DynamicMixingAnchor *q) {
+                     emit q->dynamicMixingAnchorSequenceChangedAfterCommit(DynamicMixingAnchorPrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -105,8 +112,18 @@ namespace dspx {
                 .setOwner = [](DynamicMixingAnchor *item, DynamicMixingAnchorSequence *owner, bool notify) {
                     DynamicMixingAnchorPrivate::get(item)->setSequence(owner, notify);
                 },
+                .ownerChangedAfterCommit = [](DynamicMixingAnchor *item, DynamicMixingAnchorSequence *owner) {
+                    emit item->dynamicMixingAnchorSequenceChangedAfterCommit(owner);
+                },
                 .refreshOwner = [](DynamicMixingAnchorSequence *owner, bool notify) {
                     DynamicMixingAnchorSequencePrivate::get(owner)->refresh(notify);
+                },
+                .refreshOwnerAfterCommit = [](DynamicMixingAnchorSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
                 },
                 .itemAboutToInsert = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedFrom) {
                     emit owner->itemAboutToInsert(item, movedFrom);
@@ -119,6 +136,18 @@ namespace dspx {
                 },
                 .itemRemoved = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedTo) {
                     emit owner->itemRemoved(item, movedTo);
+                },
+                .itemAboutToInsertAfterCommit = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedFrom) {
+                    emit owner->itemAboutToInsertAfterCommit(item, movedFrom);
+                },
+                .itemInsertedAfterCommit = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedFrom) {
+                    emit owner->itemInsertedAfterCommit(item, movedFrom);
+                },
+                .itemAboutToRemoveAfterCommit = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedTo) {
+                    emit owner->itemAboutToRemoveAfterCommit(item, movedTo);
+                },
+                .itemRemovedAfterCommit = [](DynamicMixingAnchorSequence *owner, DynamicMixingAnchor *item, DynamicMixingAnchorSequence *movedTo) {
+                    emit owner->itemRemovedAfterCommit(item, movedTo);
                 },
             });
             return binding;

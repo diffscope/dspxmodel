@@ -74,7 +74,8 @@ namespace dspx {
             static const std::vector<orm::ColumnBinding<Sources>> bindings {
                 orm::stringFieldWithSignal<Sources, SourcesPrivate>(Schema::sourcesCategoryColumn(),
                                                                     &SourcesPrivate::category,
-                                                                    &Sources::categoryChanged),
+                                                                    &Sources::categoryChanged,
+                                                                    &Sources::categoryChangedAfterCommit),
             };
             return bindings;
         }
@@ -91,15 +92,24 @@ namespace dspx {
                         syncSourcesColumns(item, change.item, true);
                     }
                 },
+                .itemInsertedAfterCommit = [](ModelPrivate &, const dini::ItemInsertedChange &) {},
                 .itemRemoved = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
                     const auto handle = orm::handleFromId(snapshot.id);
                     if (auto *item = model.find<Sources>(handle)) {
                         applySourcesParent(item, dini::Value::null(), true);
-                        model.sourcesObjects.remove(handle);
-                        item->deleteLater();
+                        model.deferObjectDestruction(item, [&model, handle] {
+                            model.sourcesObjects.remove(handle);
+                        });
                         return;
                     }
                     model.sourcesObjects.remove(handle);
+                },
+                .itemRemovedAfterCommit = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
+                    auto *item = model.find<Sources>(orm::handleFromId(snapshot.id));
+                    if (!item) return;
+                    auto *clip = singingClipFromValue(model, orm::snapshotValue(snapshot, Schema::sourcesParent().column()));
+                    if (clip) emit clip->sourcesChangedAfterCommit(clip->sources());
+                    emit item->singingClipChangedAfterCommit(item->singingClip());
                 },
                 .columnUpdated = [](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     const auto handle = orm::handleFromId(change.itemId);
@@ -116,6 +126,19 @@ namespace dspx {
                     }
                     applySourcesColumn(item, change.column, change.newValue, true);
                 },
+                .columnUpdatedAfterCommit = [](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    if (auto *item = model.find<Sources>(orm::handleFromId(change.itemId))) {
+                        if (change.column == Schema::sourcesParent().column()) {
+                            auto *oldClip = singingClipFromValue(model, change.oldValue);
+                            auto *newClip = singingClipFromValue(model, change.newValue);
+                            if (oldClip) emit oldClip->sourcesChangedAfterCommit(oldClip->sources());
+                            if (newClip && newClip != oldClip) emit newClip->sourcesChangedAfterCommit(newClip->sources());
+                            emit item->singingClipChangedAfterCommit(item->singingClip());
+                            return;
+                        }
+                        applySourcesColumn(item, change.column, change.newValue, true);
+                    }
+                },
             };
             return binding;
         }
@@ -130,6 +153,9 @@ namespace dspx {
                 return true;
             }
             if (column == Schema::sourcesParent().column()) {
+                if (currentNotificationStage == NotificationStage::AfterCommit) {
+                    return true;
+                }
                 applySourcesParent(item, value, notify);
                 return true;
             }

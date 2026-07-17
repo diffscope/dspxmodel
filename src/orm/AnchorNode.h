@@ -105,6 +105,12 @@ namespace dspx {
         void previousItemChanged(AnchorNode *previousItem);
         void nextItemChanged(AnchorNode *nextItem);
         void anchorNodeSequenceChanged(AnchorNodeSequence *anchorNodeSequence);
+        void interpolationModeChangedAfterCommit(InterpolationMode interpolationMode);
+        void xChangedAfterCommit(int x);
+        void yChangedAfterCommit(int y);
+        void previousItemChangedAfterCommit(AnchorNode *previousItem);
+        void nextItemChangedAfterCommit(AnchorNode *nextItem);
+        void anchorNodeSequenceChangedAfterCommit(AnchorNodeSequence *anchorNodeSequence);
 
     private:
         ~AnchorNode() override;

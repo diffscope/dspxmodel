@@ -98,6 +98,11 @@ namespace dspx {
         void previousItemChanged(DynamicMixingAnchor *previousItem);
         void nextItemChanged(DynamicMixingAnchor *nextItem);
         void dynamicMixingAnchorSequenceChanged(DynamicMixingAnchorSequence *dynamicMixingAnchorSequence);
+        void positionChangedAfterCommit(int position);
+        void ratioChangedAfterCommit(const QList<double> &ratio);
+        void previousItemChangedAfterCommit(DynamicMixingAnchor *previousItem);
+        void nextItemChangedAfterCommit(DynamicMixingAnchor *nextItem);
+        void dynamicMixingAnchorSequenceChangedAfterCommit(DynamicMixingAnchorSequence *dynamicMixingAnchorSequence);
 
     private:
         ~DynamicMixingAnchor() override;

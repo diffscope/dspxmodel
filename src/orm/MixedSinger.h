@@ -68,6 +68,7 @@ namespace dspx {
 
     signals:
         void ratioChanged(const QList<double> &ratio);
+        void ratioChangedAfterCommit(const QList<double> &ratio);
 
     private:
         ~MixedSinger() override;

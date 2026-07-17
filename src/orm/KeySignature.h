@@ -133,6 +133,13 @@ namespace dspx {
         void previousItemChanged(KeySignature *previousItem);
         void nextItemChanged(KeySignature *nextItem);
         void keySignatureSequenceChanged(KeySignatureSequence *keySignatureSequence);
+        void positionChangedAfterCommit(int position);
+        void modeChangedAfterCommit(int mode);
+        void tonalityChangedAfterCommit(int tonality);
+        void accidentalTypeChangedAfterCommit(AccidentalType accidentalType);
+        void previousItemChangedAfterCommit(KeySignature *previousItem);
+        void nextItemChangedAfterCommit(KeySignature *nextItem);
+        void keySignatureSequenceChangedAfterCommit(KeySignatureSequence *keySignatureSequence);
 
     private:
         ~KeySignature() override;

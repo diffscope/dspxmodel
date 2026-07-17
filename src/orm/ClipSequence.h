@@ -114,6 +114,13 @@ namespace dspx {
         void itemInserted(Clip *item, ClipSequence *sequenceFromWhichMoved = nullptr);
         void itemAboutToRemove(Clip *item, ClipSequence *sequenceToWhichMoved = nullptr);
         void itemRemoved(Clip *item, ClipSequence *sequenceToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(Clip *firstItem);
+        void lastItemChangedAfterCommit(Clip *lastItem);
+        void itemAboutToInsertAfterCommit(Clip *item, ClipSequence *sequenceFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(Clip *item, ClipSequence *sequenceFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(Clip *item, ClipSequence *sequenceToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(Clip *item, ClipSequence *sequenceToWhichMoved = nullptr);
 
     private:
         ~ClipSequence() override;

@@ -106,6 +106,13 @@ namespace dspx {
         void itemInserted(KeySignature *item);
         void itemAboutToRemove(KeySignature *item);
         void itemRemoved(KeySignature *item);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(KeySignature *firstItem);
+        void lastItemChangedAfterCommit(KeySignature *lastItem);
+        void itemAboutToInsertAfterCommit(KeySignature *item);
+        void itemInsertedAfterCommit(KeySignature *item);
+        void itemAboutToRemoveAfterCommit(KeySignature *item);
+        void itemRemovedAfterCommit(KeySignature *item);
 
     private:
         ~KeySignatureSequence() override;

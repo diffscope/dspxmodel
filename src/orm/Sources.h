@@ -71,6 +71,8 @@ namespace dspx {
     signals:
         void categoryChanged(const QString &category);
         void singingClipChanged(SingingClip *singingClip);
+        void categoryChangedAfterCommit(const QString &category);
+        void singingClipChangedAfterCommit(SingingClip *singingClip);
 
     private:
         ~Sources() override;

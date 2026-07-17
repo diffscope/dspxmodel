@@ -111,6 +111,13 @@ namespace dspx {
         void previousItemChanged(Phoneme *previousItem);
         void nextItemChanged(Phoneme *nextItem);
         void phonemeSequenceChanged(PhonemeSequence *phonemeSequence);
+        void languageChangedAfterCommit(const QString &language);
+        void startChangedAfterCommit(int start);
+        void tokenChangedAfterCommit(const QString &token);
+        void onsetChangedAfterCommit(bool onset);
+        void previousItemChangedAfterCommit(Phoneme *previousItem);
+        void nextItemChangedAfterCommit(Phoneme *nextItem);
+        void phonemeSequenceChangedAfterCommit(PhonemeSequence *phonemeSequence);
 
     private:
         ~Phoneme() override;

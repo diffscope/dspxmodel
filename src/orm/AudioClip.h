@@ -72,6 +72,7 @@ namespace dspx {
 
     signals:
         void pathChanged(const AudioPathInfo &path);
+        void pathChangedAfterCommit(const AudioPathInfo &path);
 
     private:
         ~AudioClip() override;

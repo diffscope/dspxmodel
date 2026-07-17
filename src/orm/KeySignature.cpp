@@ -20,12 +20,12 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<KeySignature>> &keySignatureColumnBindings() {
             static const std::vector<orm::ColumnBinding<KeySignature>> bindings {
-                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePositionColumn(), &KeySignaturePrivate::position, &KeySignature::positionChanged),
-                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureModeColumn(), &KeySignaturePrivate::mode, &KeySignature::modeChanged),
-                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureTonalityColumn(), &KeySignaturePrivate::tonality, &KeySignature::tonalityChanged),
-                orm::enumFieldWithSignal<KeySignature::AccidentalType, KeySignature, KeySignaturePrivate>(Schema::keySignatureAccidentalTypeColumn(), &KeySignaturePrivate::accidentalType, &KeySignature::accidentalTypeChanged),
-                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePreviousItemColumn(), &KeySignaturePrivate::previousHandle, &KeySignaturePrivate::previous, &KeySignature::previousItemChanged),
-                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureNextItemColumn(), &KeySignaturePrivate::nextHandle, &KeySignaturePrivate::next, &KeySignature::nextItemChanged),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePositionColumn(), &KeySignaturePrivate::position, &KeySignature::positionChanged, &KeySignature::positionChangedAfterCommit),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureModeColumn(), &KeySignaturePrivate::mode, &KeySignature::modeChanged, &KeySignature::modeChangedAfterCommit),
+                orm::intFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureTonalityColumn(), &KeySignaturePrivate::tonality, &KeySignature::tonalityChanged, &KeySignature::tonalityChangedAfterCommit),
+                orm::enumFieldWithSignal<KeySignature::AccidentalType, KeySignature, KeySignaturePrivate>(Schema::keySignatureAccidentalTypeColumn(), &KeySignaturePrivate::accidentalType, &KeySignature::accidentalTypeChanged, &KeySignature::accidentalTypeChangedAfterCommit),
+                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignaturePreviousItemColumn(), &KeySignaturePrivate::previousHandle, &KeySignaturePrivate::previous, &KeySignature::previousItemChanged, &KeySignature::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<KeySignature, KeySignaturePrivate>(Schema::keySignatureNextItemColumn(), &KeySignaturePrivate::nextHandle, &KeySignaturePrivate::next, &KeySignature::nextItemChanged, &KeySignature::nextItemChangedAfterCommit),
                 {Schema::keySignatureParent().column(), [](KeySignature *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = KeySignaturePrivate::get(q);
@@ -35,6 +35,8 @@ namespace dspx {
                      return changed;
                  }, [](KeySignature *q) {
                      emit q->keySignatureSequenceChanged(KeySignaturePrivate::get(q)->sequence);
+                 }, [](KeySignature *q) {
+                     emit q->keySignatureSequenceChangedAfterCommit(KeySignaturePrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -70,11 +72,23 @@ namespace dspx {
                     return model.keySignatures;
                 },
                 .setOwner = [](KeySignature *item, KeySignatureSequence *owner, bool notify) { KeySignaturePrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](KeySignature *item, KeySignatureSequence *owner) { emit item->keySignatureSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](KeySignatureSequence *owner, bool notify) { KeySignatureSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](KeySignatureSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemAboutToInsert(item); },
                 .itemInserted = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemInserted(item); },
                 .itemAboutToRemove = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemAboutToRemove(item); },
                 .itemRemoved = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemRemoved(item); },
+                .itemAboutToInsertAfterCommit = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemAboutToInsertAfterCommit(item); },
+                .itemInsertedAfterCommit = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemInsertedAfterCommit(item); },
+                .itemAboutToRemoveAfterCommit = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemAboutToRemoveAfterCommit(item); },
+                .itemRemovedAfterCommit = [](KeySignatureSequence *owner, KeySignature *item, KeySignatureSequence *) { emit owner->itemRemovedAfterCommit(item); },
             });
             return binding;
         }

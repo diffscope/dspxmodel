@@ -1,5 +1,10 @@
 #include <QtTest/QtTest>
 
+#include <QEvent>
+#include <QMetaMethod>
+#include <QMetaProperty>
+#include <QPointer>
+
 #include "orm_test_context.h"
 
 #include <dspxmodelORM/ClipSequence.h>
@@ -22,6 +27,11 @@ private slots:
     void trackListSignals();
     void noteSequenceSignals();
     void undoInsertedNoteDoesNotReadRemovedItem();
+    void afterCommitPropertySignals();
+    void afterCommitListSignals();
+    void destroyIsDeferredUntilAfterCommit();
+    void rollbackCancelsAfterCommitAndDestruction();
+    void propertyNotifyRemainsAfterApply();
 };
 
 void OrmSignalsTest::initTestCase() {
@@ -199,6 +209,180 @@ void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem() {
 
     QCOMPARE(clip->notes()->size(), 0);
     QVERIFY(!context.document.engine()->contains(static_cast<dini::ItemId>(note->handle().d)));
+}
+
+void OrmSignalsTest::afterCommitPropertySignals() {
+    OrmTestContext context;
+    Track *track = nullptr;
+    context.withTransaction([&] {
+        track = context.model.createTrack();
+        context.verifyEntity(track);
+    });
+
+    QSignalSpy projectNameApplySpy(&context.model, &Model::projectNameChanged);
+    QSignalSpy projectNameCommitSpy(&context.model, &Model::projectNameChangedAfterCommit);
+    QSignalSpy trackNameApplySpy(track, &Track::nameChanged);
+    QSignalSpy trackNameCommitSpy(track, &Track::nameChangedAfterCommit);
+    QSignalSpy trackPanCommitSpy(track, &Track::panChangedAfterCommit);
+    QVERIFY(projectNameApplySpy.isValid());
+    QVERIFY(projectNameCommitSpy.isValid());
+    QVERIFY(trackNameApplySpy.isValid());
+    QVERIFY(trackNameCommitSpy.isValid());
+    QVERIFY(trackPanCommitSpy.isValid());
+
+    auto transaction = context.document.engine()->beginTransaction();
+    context.document.setTransaction(&transaction);
+    context.model.setProjectName(QStringLiteral("First"));
+    context.model.setProjectName(QStringLiteral("Committed"));
+    track->setName(QStringLiteral("Track After Commit"));
+    track->setPan(-0.25);
+
+    QCOMPARE(projectNameApplySpy.count(), 2);
+    QCOMPARE(trackNameApplySpy.count(), 1);
+    QCOMPARE(projectNameCommitSpy.count(), 0);
+    QCOMPARE(trackNameCommitSpy.count(), 0);
+    QCOMPARE(trackPanCommitSpy.count(), 0);
+    QCOMPARE(context.model.projectName(), QStringLiteral("Committed"));
+
+    transaction.commit();
+    context.document.setTransaction(nullptr);
+
+    QCOMPARE(projectNameCommitSpy.count(), 1);
+    QCOMPARE(projectNameCommitSpy.at(0).at(0).toString(), QStringLiteral("Committed"));
+    QCOMPARE(trackNameCommitSpy.count(), 1);
+    QCOMPARE(trackNameCommitSpy.at(0).at(0).toString(), QStringLiteral("Track After Commit"));
+    QCOMPARE(trackPanCommitSpy.count(), 1);
+    QCOMPARE(trackPanCommitSpy.at(0).at(0).toDouble(), -0.25);
+}
+
+void OrmSignalsTest::afterCommitListSignals() {
+    OrmTestContext context;
+    Track *track = nullptr;
+    context.withTransaction([&] {
+        track = context.model.createTrack();
+        context.verifyEntity(track);
+    });
+
+    auto *tracks = context.model.tracks();
+    QSignalSpy aboutToInsertApplySpy(tracks, &TrackList::itemAboutToInsert);
+    QSignalSpy insertedApplySpy(tracks, &TrackList::itemInserted);
+    QSignalSpy aboutToInsertCommitSpy(tracks, &TrackList::itemAboutToInsertAfterCommit);
+    QSignalSpy insertedCommitSpy(tracks, &TrackList::itemInsertedAfterCommit);
+    QSignalSpy sizeCommitSpy(tracks, &TrackList::sizeChangedAfterCommit);
+    QSignalSpy itemsCommitSpy(tracks, &TrackList::itemsChangedAfterCommit);
+    QVERIFY(aboutToInsertApplySpy.isValid());
+    QVERIFY(insertedApplySpy.isValid());
+    QVERIFY(aboutToInsertCommitSpy.isValid());
+    QVERIFY(insertedCommitSpy.isValid());
+    QVERIFY(sizeCommitSpy.isValid());
+    QVERIFY(itemsCommitSpy.isValid());
+
+    QStringList commitOrder;
+    connect(tracks, &TrackList::itemAboutToInsertAfterCommit, this,
+            [&commitOrder] { commitOrder.append(QStringLiteral("aboutToInsert")); });
+    connect(tracks, &TrackList::itemInsertedAfterCommit, this,
+            [&commitOrder] { commitOrder.append(QStringLiteral("inserted")); });
+
+    auto transaction = context.document.engine()->beginTransaction();
+    context.document.setTransaction(&transaction);
+    QVERIFY(tracks->insertItem(0, track));
+    QCOMPARE(aboutToInsertApplySpy.count(), 1);
+    QCOMPARE(insertedApplySpy.count(), 1);
+    QCOMPARE(aboutToInsertCommitSpy.count(), 0);
+    QCOMPARE(insertedCommitSpy.count(), 0);
+    QCOMPARE(sizeCommitSpy.count(), 0);
+    QCOMPARE(itemsCommitSpy.count(), 0);
+
+    transaction.commit();
+    context.document.setTransaction(nullptr);
+
+    QCOMPARE(aboutToInsertCommitSpy.count(), 1);
+    QCOMPARE(insertedCommitSpy.count(), 1);
+    QCOMPARE(aboutToInsertCommitSpy.at(0).at(0).toInt(), 0);
+    QCOMPARE(qvariant_cast<Track *>(aboutToInsertCommitSpy.at(0).at(1)), track);
+    QCOMPARE(sizeCommitSpy.count(), 1);
+    QCOMPARE(sizeCommitSpy.at(0).at(0).toInt(), 1);
+    QCOMPARE(itemsCommitSpy.count(), 1);
+    QCOMPARE(commitOrder, QStringList({QStringLiteral("aboutToInsert"), QStringLiteral("inserted")}));
+}
+
+void OrmSignalsTest::destroyIsDeferredUntilAfterCommit() {
+    OrmTestContext context;
+    Track *track = nullptr;
+    context.withTransaction([&] {
+        track = context.model.createTrack();
+        context.verifyEntity(track);
+        QVERIFY(context.model.tracks()->insertItem(0, track));
+    });
+
+    QPointer<Track> guard(track);
+    QSignalSpy removedCommitSpy(context.model.tracks(), &TrackList::itemRemovedAfterCommit);
+    QSignalSpy destroyedSpy(track, &QObject::destroyed);
+    QVERIFY(removedCommitSpy.isValid());
+    QVERIFY(destroyedSpy.isValid());
+
+    auto transaction = context.document.engine()->beginTransaction();
+    context.document.setTransaction(&transaction);
+    QVERIFY(context.model.destroyItem(track));
+    QVERIFY(guard);
+    QCOMPARE(removedCommitSpy.count(), 0);
+    QCOMPARE(destroyedSpy.count(), 0);
+
+    transaction.commit();
+    context.document.setTransaction(nullptr);
+
+    QVERIFY(guard);
+    QCOMPARE(removedCommitSpy.count(), 1);
+    QCOMPARE(qvariant_cast<Track *>(removedCommitSpy.at(0).at(1)), track);
+    QCOMPARE(destroyedSpy.count(), 0);
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(!guard);
+    QCOMPARE(destroyedSpy.count(), 1);
+}
+
+void OrmSignalsTest::rollbackCancelsAfterCommitAndDestruction() {
+    OrmTestContext context;
+    Track *track = nullptr;
+    context.withTransaction([&] {
+        track = context.model.createTrack();
+        context.verifyEntity(track);
+        track->setName(QStringLiteral("Original"));
+        QVERIFY(context.model.tracks()->insertItem(0, track));
+    });
+
+    const auto handle = track->handle();
+    QPointer<Track> guard(track);
+    QSignalSpy nameCommitSpy(track, &Track::nameChangedAfterCommit);
+    QSignalSpy removedCommitSpy(context.model.tracks(), &TrackList::itemRemovedAfterCommit);
+    QSignalSpy destroyedSpy(track, &QObject::destroyed);
+
+    auto transaction = context.document.engine()->beginTransaction();
+    context.document.setTransaction(&transaction);
+    track->setName(QStringLiteral("Rolled Back"));
+    QVERIFY(context.model.destroyItem(track));
+    transaction.rollback();
+    context.document.setTransaction(nullptr);
+
+    QCOMPARE(nameCommitSpy.count(), 0);
+    QCOMPARE(removedCommitSpy.count(), 0);
+    QCOMPARE(destroyedSpy.count(), 0);
+    QVERIFY(guard);
+    QCOMPARE(context.model.find<Track>(handle), track);
+    QCOMPARE(track->name(), QStringLiteral("Original"));
+    QVERIFY(context.model.tracks()->contains(track));
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(guard);
+    QCOMPARE(destroyedSpy.count(), 0);
+}
+
+void OrmSignalsTest::propertyNotifyRemainsAfterApply() {
+    const auto propertyIndex = Model::staticMetaObject.indexOfProperty("projectName");
+    QVERIFY(propertyIndex >= 0);
+    const auto property = Model::staticMetaObject.property(propertyIndex);
+    QCOMPARE(property.notifySignal().methodIndex(), QMetaMethod::fromSignal(&Model::projectNameChanged).methodIndex());
+    QVERIFY(property.notifySignal().methodIndex() != QMetaMethod::fromSignal(&Model::projectNameChangedAfterCommit).methodIndex());
 }
 
 QTEST_GUILESS_MAIN(OrmSignalsTest)

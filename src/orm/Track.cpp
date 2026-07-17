@@ -23,15 +23,15 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Track>> &trackColumnBindings() {
             static const std::vector<orm::ColumnBinding<Track>> bindings {
-                orm::intFieldWithSignal<Track, TrackPrivate>(Schema::trackColorIdColumn(), &TrackPrivate::colorId, &Track::colorIdChanged),
-                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackHeightColumn(), &TrackPrivate::height, &Track::heightChanged),
-                orm::stringFieldWithSignal<Track, TrackPrivate>(Schema::trackNameColumn(), &TrackPrivate::name, &Track::nameChanged),
-                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackGainColumn(), &TrackPrivate::gain, &Track::gainChanged),
-                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackPanColumn(), &TrackPrivate::pan, &Track::panChanged),
-                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged),
-                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged),
-                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged),
-                orm::binaryField<Track, TrackPrivate>(Schema::trackWorkspaceColumn(), &TrackPrivate::workspaceData, nullptr),
+                orm::intFieldWithSignal<Track, TrackPrivate>(Schema::trackColorIdColumn(), &TrackPrivate::colorId, &Track::colorIdChanged, &Track::colorIdChangedAfterCommit),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackHeightColumn(), &TrackPrivate::height, &Track::heightChanged, &Track::heightChangedAfterCommit),
+                orm::stringFieldWithSignal<Track, TrackPrivate>(Schema::trackNameColumn(), &TrackPrivate::name, &Track::nameChanged, &Track::nameChangedAfterCommit),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackGainColumn(), &TrackPrivate::gain, &Track::gainChanged, &Track::gainChangedAfterCommit),
+                orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackPanColumn(), &TrackPrivate::pan, &Track::panChanged, &Track::panChangedAfterCommit),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged, &Track::muteChangedAfterCommit),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged, &Track::soloChangedAfterCommit),
+                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged, &Track::recordChangedAfterCommit),
+                orm::binaryField<Track, TrackPrivate>(Schema::trackWorkspaceColumn(), &TrackPrivate::workspaceData, nullptr, nullptr),
                 {Schema::trackParent().column(), [](Track *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TrackPrivate::get(q);
@@ -41,6 +41,8 @@ namespace dspx {
                      return changed;
                  }, [](Track *q) {
                      emit q->trackListChanged(TrackPrivate::get(q)->trackList);
+                 }, [](Track *q) {
+                     emit q->trackListChangedAfterCommit(TrackPrivate::get(q)->trackList);
                  }},
             };
             return bindings;

@@ -18,10 +18,10 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Label>> &labelColumnBindings() {
             static const std::vector<orm::ColumnBinding<Label>> bindings {
-                orm::intFieldWithSignal<Label, LabelPrivate>(Schema::labelPositionColumn(), &LabelPrivate::position, &Label::positionChanged),
-                orm::stringFieldWithSignal<Label, LabelPrivate>(Schema::labelTextColumn(), &LabelPrivate::text, &Label::textChanged),
-                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelPreviousItemColumn(), &LabelPrivate::previousHandle, &LabelPrivate::previous, &Label::previousItemChanged),
-                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelNextItemColumn(), &LabelPrivate::nextHandle, &LabelPrivate::next, &Label::nextItemChanged),
+                orm::intFieldWithSignal<Label, LabelPrivate>(Schema::labelPositionColumn(), &LabelPrivate::position, &Label::positionChanged, &Label::positionChangedAfterCommit),
+                orm::stringFieldWithSignal<Label, LabelPrivate>(Schema::labelTextColumn(), &LabelPrivate::text, &Label::textChanged, &Label::textChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelPreviousItemColumn(), &LabelPrivate::previousHandle, &LabelPrivate::previous, &Label::previousItemChanged, &Label::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Label, LabelPrivate>(Schema::labelNextItemColumn(), &LabelPrivate::nextHandle, &LabelPrivate::next, &Label::nextItemChanged, &Label::nextItemChangedAfterCommit),
                 {Schema::labelParent().column(), [](Label *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = LabelPrivate::get(q);
@@ -31,6 +31,8 @@ namespace dspx {
                      return changed;
                  }, [](Label *q) {
                      emit q->labelSequenceChanged(LabelPrivate::get(q)->sequence);
+                 }, [](Label *q) {
+                     emit q->labelSequenceChangedAfterCommit(LabelPrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -66,11 +68,23 @@ namespace dspx {
                     return model.labels;
                 },
                 .setOwner = [](Label *item, LabelSequence *owner, bool notify) { LabelPrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](Label *item, LabelSequence *owner) { emit item->labelSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](LabelSequence *owner, bool notify) { LabelSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](LabelSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemAboutToInsert(item); },
                 .itemInserted = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemInserted(item); },
                 .itemAboutToRemove = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemAboutToRemove(item); },
                 .itemRemoved = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemRemoved(item); },
+                .itemAboutToInsertAfterCommit = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemAboutToInsertAfterCommit(item); },
+                .itemInsertedAfterCommit = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemInsertedAfterCommit(item); },
+                .itemAboutToRemoveAfterCommit = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemAboutToRemoveAfterCommit(item); },
+                .itemRemovedAfterCommit = [](LabelSequence *owner, Label *item, LabelSequence *) { emit owner->itemRemovedAfterCommit(item); },
             });
             return binding;
         }

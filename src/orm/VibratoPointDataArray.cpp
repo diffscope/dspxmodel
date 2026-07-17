@@ -97,6 +97,10 @@ namespace dspx {
                 .refreshOwner = [](VibratoPointDataArray *owner, bool notify, bool itemsChanged) {
                     VibratoPointDataArrayPrivate::get(owner)->refresh(notify, itemsChanged);
                 },
+                .refreshOwnerAfterCommit = [](VibratoPointDataArray *owner, bool sizeChanged, bool itemsChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (itemsChanged) emit owner->itemsChangedAfterCommit();
+                },
                 .decodeItem = [](const dini::ItemSnapshot &snapshot) {
                     return pointFromSnapshot(snapshot);
                 },
@@ -114,6 +118,18 @@ namespace dspx {
                 },
                 .rotated = [](VibratoPointDataArray *owner, int left, int middle, int right) {
                     emit owner->rotated(left, middle, right);
+                },
+                .aboutToSpliceAfterCommit = [](VibratoPointDataArray *owner, int index, int length, const QList<QPointF> &values) {
+                    emit owner->aboutToSpliceAfterCommit(index, length, values);
+                },
+                .splicedAfterCommit = [](VibratoPointDataArray *owner, int index, int length, const QList<QPointF> &values) {
+                    emit owner->splicedAfterCommit(index, length, values);
+                },
+                .aboutToRotateAfterCommit = [](VibratoPointDataArray *owner, int left, int middle, int right) {
+                    emit owner->aboutToRotateAfterCommit(left, middle, right);
+                },
+                .rotatedAfterCommit = [](VibratoPointDataArray *owner, int left, int middle, int right) {
+                    emit owner->rotatedAfterCommit(left, middle, right);
                 },
             });
             return binding;

@@ -4,9 +4,11 @@
 #include <dspxmodelORM/Model.h>
 
 #include <utility>
+#include <functional>
 #include <vector>
 
 #include <QHash>
+#include <QPointer>
 
 #include <dini/types.h>
 #include <dini/event.h>
@@ -58,6 +60,8 @@ namespace dspx {
         bool applyModelColumn(const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void refreshContainers(bool notify);
         void handleEvent(const dini::EngineEvent &event);
+        void applyChangeSetEvent(const dini::EngineEvent &event);
+        void applyAfterCommitEvent(const dini::EngineEvent &event);
         void applyOperation(const dini::ChangeOperation &operation);
         void applyItemInserted(const dini::ItemInsertedChange &change);
         void applyItemRemoved(const dini::ItemSnapshot &snapshot, bool cascade);
@@ -66,6 +70,9 @@ namespace dspx {
         void applyColumnUpdated(const dini::ColumnUpdatedChange &change);
         void applyComputedColumnUpdated(const dini::ComputedColumnUpdatedChange &change);
         void applyListRotated(const dini::ListRotatedChange &change);
+        void deferObjectDestruction(QObject *object, std::function<void()> finalize);
+        void finalizeDeferredDestructions();
+        void clearDeferredDestructions();
         dini::ByteArray workspace() const;
         void setWorkspace(dini::ByteArray workspace);
 
@@ -369,6 +376,13 @@ namespace dspx {
         Handle modelHandle;
         dini::Subscription subscription;
         bool destroying = false;
+
+        struct DeferredDestruction {
+            QPointer<QObject> object;
+            std::function<void()> finalize;
+        };
+
+        std::vector<DeferredDestruction> deferredDestructions;
 
         LabelSequence *labels = nullptr;
         KeySignatureSequence *keySignatures = nullptr;

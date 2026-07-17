@@ -284,6 +284,24 @@ namespace dspx {
         void vibratoPhaseChanged(double vibratoPhase);
         void vibratoStartChanged(double vibratoStart);
         void noteSequenceChanged(NoteSequence *noteSequence);
+        void centShiftChangedAfterCommit(int centShift);
+        void keyNumberChangedAfterCommit(int keyNumber);
+        void languageChangedAfterCommit(const QString &language);
+        void lengthChangedAfterCommit(int length);
+        void lyricChangedAfterCommit(const QString &lyric);
+        void positionChangedAfterCommit(int position);
+        void originalPronunciationChangedAfterCommit(const QString &originalPronunciation);
+        void editedPronunciationChangedAfterCommit(const QString &editedPronunciation);
+        void overlappedChangedAfterCommit(bool overlapped);
+        void previousItemChangedAfterCommit(Note *previousItem);
+        void nextItemChangedAfterCommit(Note *nextItem);
+        void vibratoAmplitudeChangedAfterCommit(int vibratoAmplitude);
+        void vibratoEndChangedAfterCommit(double vibratoEnd);
+        void vibratoFrequencyChangedAfterCommit(double vibratoFrequency);
+        void vibratoOffsetChangedAfterCommit(int vibratoOffset);
+        void vibratoPhaseChangedAfterCommit(double vibratoPhase);
+        void vibratoStartChangedAfterCommit(double vibratoStart);
+        void noteSequenceChangedAfterCommit(NoteSequence *noteSequence);
 
     private:
         ~Note() override;

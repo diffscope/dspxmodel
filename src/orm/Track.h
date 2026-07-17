@@ -162,6 +162,15 @@ namespace dspx {
         void soloChanged(bool solo);
         void recordChanged(bool record);
         void trackListChanged(TrackList *trackList);
+        void colorIdChangedAfterCommit(int colorId);
+        void heightChangedAfterCommit(double height);
+        void nameChangedAfterCommit(const QString &name);
+        void gainChangedAfterCommit(double gain);
+        void panChangedAfterCommit(double pan);
+        void muteChangedAfterCommit(bool mute);
+        void soloChangedAfterCommit(bool solo);
+        void recordChangedAfterCommit(bool record);
+        void trackListChangedAfterCommit(TrackList *trackList);
 
     private:
         ~Track() override;

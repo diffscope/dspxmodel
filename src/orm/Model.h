@@ -349,6 +349,16 @@ namespace dspx {
         void loopEnabledChanged(bool loopEnabled);
         void loopStartChanged(int loopStart);
         void loopLengthChanged(int loopLength);
+        void projectNameChangedAfterCommit(const QString &projectName);
+        void projectAuthorChangedAfterCommit(const QString &projectAuthor);
+        void globalCentShiftChangedAfterCommit(int globalCentShift);
+        void multiChannelOutputChangedAfterCommit(bool multiChannelOutput);
+        void gainChangedAfterCommit(double gain);
+        void panChangedAfterCommit(double pan);
+        void muteChangedAfterCommit(bool mute);
+        void loopEnabledChangedAfterCommit(bool loopEnabled);
+        void loopStartChangedAfterCommit(int loopStart);
+        void loopLengthChangedAfterCommit(int loopLength);
 
     private:
         QScopedPointer<ModelPrivate> d_ptr;

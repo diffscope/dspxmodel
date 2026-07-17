@@ -109,6 +109,13 @@ namespace dspx {
         void itemInserted(Tempo *item);
         void itemAboutToRemove(Tempo *item);
         void itemRemoved(Tempo *item);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(Tempo *firstItem);
+        void lastItemChangedAfterCommit(Tempo *lastItem);
+        void itemAboutToInsertAfterCommit(Tempo *item);
+        void itemInsertedAfterCommit(Tempo *item);
+        void itemAboutToRemoveAfterCommit(Tempo *item);
+        void itemRemovedAfterCommit(Tempo *item);
 
     private:
         ~TempoSequence() override;

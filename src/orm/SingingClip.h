@@ -67,6 +67,7 @@ namespace dspx {
 
     signals:
         void sourcesChanged(Sources *sources);
+        void sourcesChangedAfterCommit(Sources *sources);
 
     private:
         ~SingingClip() override;

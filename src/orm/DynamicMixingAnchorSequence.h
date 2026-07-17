@@ -115,6 +115,13 @@ namespace dspx {
         void itemInserted(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceFromWhichMoved = nullptr);
         void itemAboutToRemove(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceToWhichMoved = nullptr);
         void itemRemoved(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(DynamicMixingAnchor *firstItem);
+        void lastItemChangedAfterCommit(DynamicMixingAnchor *lastItem);
+        void itemAboutToInsertAfterCommit(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(DynamicMixingAnchor *item, DynamicMixingAnchorSequence *sequenceToWhichMoved = nullptr);
 
     private:
         ~DynamicMixingAnchorSequence() override;

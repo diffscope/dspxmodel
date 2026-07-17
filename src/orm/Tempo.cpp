@@ -19,10 +19,10 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Tempo>> &tempoColumnBindings() {
             static const std::vector<orm::ColumnBinding<Tempo>> bindings {
-                orm::intFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPositionColumn(), &TempoPrivate::position, &Tempo::positionChanged),
-                orm::doubleFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoValueColumn(), &TempoPrivate::value, &Tempo::valueChanged),
-                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPreviousItemColumn(), &TempoPrivate::previousHandle, &TempoPrivate::previous, &Tempo::previousItemChanged),
-                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoNextItemColumn(), &TempoPrivate::nextHandle, &TempoPrivate::next, &Tempo::nextItemChanged),
+                orm::intFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPositionColumn(), &TempoPrivate::position, &Tempo::positionChanged, &Tempo::positionChangedAfterCommit),
+                orm::doubleFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoValueColumn(), &TempoPrivate::value, &Tempo::valueChanged, &Tempo::valueChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoPreviousItemColumn(), &TempoPrivate::previousHandle, &TempoPrivate::previous, &Tempo::previousItemChanged, &Tempo::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Tempo, TempoPrivate>(Schema::tempoNextItemColumn(), &TempoPrivate::nextHandle, &TempoPrivate::next, &Tempo::nextItemChanged, &Tempo::nextItemChangedAfterCommit),
                 {Schema::tempoParent().column(), [](Tempo *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TempoPrivate::get(q);
@@ -32,6 +32,8 @@ namespace dspx {
                      return changed;
                  }, [](Tempo *q) {
                      emit q->tempoSequenceChanged(TempoPrivate::get(q)->sequence);
+                 }, [](Tempo *q) {
+                     emit q->tempoSequenceChangedAfterCommit(TempoPrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -67,11 +69,23 @@ namespace dspx {
                     return model.tempos;
                 },
                 .setOwner = [](Tempo *item, TempoSequence *owner, bool notify) { TempoPrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](Tempo *item, TempoSequence *owner) { emit item->tempoSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](TempoSequence *owner, bool notify) { TempoSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](TempoSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemAboutToInsert(item); },
                 .itemInserted = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemInserted(item); },
                 .itemAboutToRemove = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemAboutToRemove(item); },
                 .itemRemoved = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemRemoved(item); },
+                .itemAboutToInsertAfterCommit = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemAboutToInsertAfterCommit(item); },
+                .itemInsertedAfterCommit = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemInsertedAfterCommit(item); },
+                .itemAboutToRemoveAfterCommit = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemAboutToRemoveAfterCommit(item); },
+                .itemRemovedAfterCommit = [](TempoSequence *owner, Tempo *item, TempoSequence *) { emit owner->itemRemovedAfterCommit(item); },
             });
             return binding;
         }

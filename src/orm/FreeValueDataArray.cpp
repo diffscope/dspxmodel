@@ -109,6 +109,10 @@ namespace dspx {
                 .refreshOwner = [](FreeValueDataArray *owner, bool notify, bool itemsChanged) {
                     FreeValueDataArrayPrivate::get(owner)->refresh(notify, itemsChanged);
                 },
+                .refreshOwnerAfterCommit = [](FreeValueDataArray *owner, bool sizeChanged, bool itemsChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (itemsChanged) emit owner->itemsChangedAfterCommit();
+                },
                 .decodeItem = [](const dini::ItemSnapshot &snapshot) {
                     return variantFromSnapshot(snapshot);
                 },
@@ -126,6 +130,18 @@ namespace dspx {
                 },
                 .rotated = [](FreeValueDataArray *owner, int left, int middle, int right) {
                     emit owner->rotated(left, middle, right);
+                },
+                .aboutToSpliceAfterCommit = [](FreeValueDataArray *owner, int index, int length, const QList<QVariant> &values) {
+                    emit owner->aboutToSpliceAfterCommit(index, length, values);
+                },
+                .splicedAfterCommit = [](FreeValueDataArray *owner, int index, int length, const QList<QVariant> &values) {
+                    emit owner->splicedAfterCommit(index, length, values);
+                },
+                .aboutToRotateAfterCommit = [](FreeValueDataArray *owner, int left, int middle, int right) {
+                    emit owner->aboutToRotateAfterCommit(left, middle, right);
+                },
+                .rotatedAfterCommit = [](FreeValueDataArray *owner, int left, int middle, int right) {
+                    emit owner->rotatedAfterCommit(left, middle, right);
                 },
             });
             return binding;

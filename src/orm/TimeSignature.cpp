@@ -19,11 +19,11 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<TimeSignature>> &timeSignatureColumnBindings() {
             static const std::vector<orm::ColumnBinding<TimeSignature>> bindings {
-                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureIndexColumn(), &TimeSignaturePrivate::index, &TimeSignature::indexChanged),
-                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNumeratorColumn(), &TimeSignaturePrivate::numerator, &TimeSignature::numeratorChanged),
-                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureDenominatorColumn(), &TimeSignaturePrivate::denominator, &TimeSignature::denominatorChanged),
-                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignaturePreviousItemColumn(), &TimeSignaturePrivate::previousHandle, &TimeSignaturePrivate::previous, &TimeSignature::previousItemChanged),
-                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNextItemColumn(), &TimeSignaturePrivate::nextHandle, &TimeSignaturePrivate::next, &TimeSignature::nextItemChanged),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureIndexColumn(), &TimeSignaturePrivate::index, &TimeSignature::indexChanged, &TimeSignature::indexChangedAfterCommit),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNumeratorColumn(), &TimeSignaturePrivate::numerator, &TimeSignature::numeratorChanged, &TimeSignature::numeratorChangedAfterCommit),
+                orm::intFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureDenominatorColumn(), &TimeSignaturePrivate::denominator, &TimeSignature::denominatorChanged, &TimeSignature::denominatorChangedAfterCommit),
+                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignaturePreviousItemColumn(), &TimeSignaturePrivate::previousHandle, &TimeSignaturePrivate::previous, &TimeSignature::previousItemChanged, &TimeSignature::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<TimeSignature, TimeSignaturePrivate>(Schema::timeSignatureNextItemColumn(), &TimeSignaturePrivate::nextHandle, &TimeSignaturePrivate::next, &TimeSignature::nextItemChanged, &TimeSignature::nextItemChangedAfterCommit),
                 {Schema::timeSignatureParent().column(), [](TimeSignature *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = TimeSignaturePrivate::get(q);
@@ -33,6 +33,8 @@ namespace dspx {
                      return changed;
                  }, [](TimeSignature *q) {
                      emit q->timeSignatureSequenceChanged(TimeSignaturePrivate::get(q)->sequence);
+                 }, [](TimeSignature *q) {
+                     emit q->timeSignatureSequenceChangedAfterCommit(TimeSignaturePrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -68,11 +70,23 @@ namespace dspx {
                     return model.timeSignatures;
                 },
                 .setOwner = [](TimeSignature *item, TimeSignatureSequence *owner, bool notify) { TimeSignaturePrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](TimeSignature *item, TimeSignatureSequence *owner) { emit item->timeSignatureSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](TimeSignatureSequence *owner, bool notify) { TimeSignatureSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](TimeSignatureSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemAboutToInsert(item); },
                 .itemInserted = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemInserted(item); },
                 .itemAboutToRemove = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemAboutToRemove(item); },
                 .itemRemoved = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemRemoved(item); },
+                .itemAboutToInsertAfterCommit = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemAboutToInsertAfterCommit(item); },
+                .itemInsertedAfterCommit = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemInsertedAfterCommit(item); },
+                .itemAboutToRemoveAfterCommit = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemAboutToRemoveAfterCommit(item); },
+                .itemRemovedAfterCommit = [](TimeSignatureSequence *owner, TimeSignature *item, TimeSignatureSequence *) { emit owner->itemRemovedAfterCommit(item); },
             });
             return binding;
         }

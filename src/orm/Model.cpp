@@ -57,17 +57,17 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Model>> &modelColumnBindings() {
             static const std::vector<orm::ColumnBinding<Model>> bindings {
-                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectNameColumn(), &ModelPrivate::projectName, &Model::projectNameChanged),
-                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectAuthorColumn(), &ModelPrivate::projectAuthor, &Model::projectAuthorChanged),
-                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelGlobalCentShiftColumn(), &ModelPrivate::globalCentShift, &Model::globalCentShiftChanged),
-                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMultiChannelOutputColumn(), &ModelPrivate::multiChannelOutput, &Model::multiChannelOutputChanged),
-                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelGainColumn(), &ModelPrivate::gain, &Model::gainChanged),
-                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelPanColumn(), &ModelPrivate::pan, &Model::panChanged),
-                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMuteColumn(), &ModelPrivate::mute, &Model::muteChanged),
-                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopEnabledColumn(), &ModelPrivate::loopEnabled, &Model::loopEnabledChanged),
-                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopStartColumn(), &ModelPrivate::loopStart, &Model::loopStartChanged),
-                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopLengthColumn(), &ModelPrivate::loopLength, &Model::loopLengthChanged),
-                orm::binaryField<Model, ModelPrivate>(Schema::modelWorkspaceColumn(), &ModelPrivate::workspaceData, nullptr),
+                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectNameColumn(), &ModelPrivate::projectName, &Model::projectNameChanged, &Model::projectNameChangedAfterCommit),
+                orm::stringFieldWithSignal<Model, ModelPrivate>(Schema::modelProjectAuthorColumn(), &ModelPrivate::projectAuthor, &Model::projectAuthorChanged, &Model::projectAuthorChangedAfterCommit),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelGlobalCentShiftColumn(), &ModelPrivate::globalCentShift, &Model::globalCentShiftChanged, &Model::globalCentShiftChangedAfterCommit),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMultiChannelOutputColumn(), &ModelPrivate::multiChannelOutput, &Model::multiChannelOutputChanged, &Model::multiChannelOutputChangedAfterCommit),
+                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelGainColumn(), &ModelPrivate::gain, &Model::gainChanged, &Model::gainChangedAfterCommit),
+                orm::doubleFieldWithSignal<Model, ModelPrivate>(Schema::modelPanColumn(), &ModelPrivate::pan, &Model::panChanged, &Model::panChangedAfterCommit),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelMuteColumn(), &ModelPrivate::mute, &Model::muteChanged, &Model::muteChangedAfterCommit),
+                orm::boolFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopEnabledColumn(), &ModelPrivate::loopEnabled, &Model::loopEnabledChanged, &Model::loopEnabledChangedAfterCommit),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopStartColumn(), &ModelPrivate::loopStart, &Model::loopStartChanged, &Model::loopStartChangedAfterCommit),
+                orm::intFieldWithSignal<Model, ModelPrivate>(Schema::modelLoopLengthColumn(), &ModelPrivate::loopLength, &Model::loopLengthChanged, &Model::loopLengthChangedAfterCommit),
+                orm::binaryField<Model, ModelPrivate>(Schema::modelWorkspaceColumn(), &ModelPrivate::workspaceData, nullptr, nullptr),
             };
             return bindings;
         }
@@ -195,10 +195,19 @@ namespace dspx {
             return it == model.eventSnapshotOverrides.cend() ? nullptr : &it.value();
         }
 
+        void deferObjectDestruction(ModelPrivate &model, QObject *object, std::function<void()> finalize) {
+            model.deferObjectDestruction(object, std::move(finalize));
+        }
+
         const TableBinding &modelTableBinding() {
             static const TableBinding binding {
                 .table = Schema::modelTable(),
                 .columnUpdated = [](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                    if (orm::handleFromId(change.itemId) == model.modelHandle) {
+                        model.applyModelColumn(change.column, change.newValue, true);
+                    }
+                },
+                .columnUpdatedAfterCommit = [](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     if (orm::handleFromId(change.itemId) == model.modelHandle) {
                         model.applyModelColumn(change.column, change.newValue, true);
                     }
@@ -215,6 +224,39 @@ namespace dspx {
 
     ModelPrivate::~ModelPrivate() {
         subscription.disconnect();
+    }
+
+    void ModelPrivate::deferObjectDestruction(QObject *object, std::function<void()> finalize) {
+        if (!object) {
+            if (finalize) {
+                finalize();
+            }
+            return;
+        }
+        const auto it = std::find_if(deferredDestructions.begin(), deferredDestructions.end(),
+                                     [object](const auto &pending) { return pending.object.data() == object; });
+        if (it != deferredDestructions.end()) {
+            it->finalize = std::move(finalize);
+            return;
+        }
+        deferredDestructions.push_back({object, std::move(finalize)});
+    }
+
+    void ModelPrivate::finalizeDeferredDestructions() {
+        auto pending = std::move(deferredDestructions);
+        deferredDestructions.clear();
+        for (auto &destruction : pending) {
+            if (destruction.finalize) {
+                destruction.finalize();
+            }
+            if (destruction.object) {
+                destruction.object->deleteLater();
+            }
+        }
+    }
+
+    void ModelPrivate::clearDeferredDestructions() {
+        deferredDestructions.clear();
     }
 
     void ModelPrivate::initialize() {
@@ -274,9 +316,37 @@ namespace dspx {
     }
 
     void ModelPrivate::handleEvent(const dini::EngineEvent &event) {
-        if (destroying || event.kind != dini::EventKind::AfterApply) {
+        if (destroying) {
             return;
         }
+        if (event.kind == dini::EventKind::AfterApply) {
+            applyChangeSetEvent(event);
+            return;
+        }
+        if (event.kind == dini::EventKind::AfterCommit) {
+            orm::currentNotificationStage = orm::NotificationStage::AfterCommit;
+            try {
+                applyAfterCommitEvent(event);
+                orm::currentNotificationStage = orm::NotificationStage::AfterApply;
+            } catch (...) {
+                orm::currentNotificationStage = orm::NotificationStage::AfterApply;
+                throw;
+            }
+            finalizeDeferredDestructions();
+            return;
+        }
+        if (event.kind == dini::EventKind::Rollback) {
+            clearDeferredDestructions();
+            try {
+                applyChangeSetEvent(event);
+                finalizeDeferredDestructions();
+            } catch (...) {
+                throw;
+            }
+        }
+    }
+
+    void ModelPrivate::applyChangeSetEvent(const dini::EngineEvent &event) {
         const auto snapshotsAfterOperations = buildEventSnapshotsAfterOperations(engine, event.changeSet);
         std::vector<dini::ColumnUpdatedChange> pendingColumnUpdates;
         std::vector<std::size_t> pendingColumnUpdateIndexes;
@@ -352,6 +422,62 @@ namespace dspx {
         }
         flushColumnUpdates();
         clearEventSnapshotOverrides();
+    }
+
+    void ModelPrivate::applyAfterCommitEvent(const dini::EngineEvent &event) {
+        for (const auto &operation : event.changeSet.operations()) {
+            std::visit(orm::Overloaded {
+                           [this](const dini::ItemInsertedChange &change) {
+                               if (change.item.containerKind == dini::ContainerKind::Table) {
+                                   if (const auto *binding = tableBinding(change.item.containerId); binding && binding->itemInsertedAfterCommit)
+                                       binding->itemInsertedAfterCommit(*this, change);
+                               } else if (const auto *binding = listBinding(change.item.containerId); binding && binding->itemInsertedAfterCommit) {
+                                   binding->itemInsertedAfterCommit(*this, change);
+                               }
+                           },
+                           [this](const dini::ItemRemovedChange &change) {
+                               if (change.item.containerKind == dini::ContainerKind::Table) {
+                                   if (const auto *binding = tableBinding(change.item.containerId); binding && binding->itemRemovedAfterCommit)
+                                       binding->itemRemovedAfterCommit(*this, change.item, change.cascade);
+                               } else if (const auto *binding = listBinding(change.item.containerId); binding && binding->itemRemovedAfterCommit) {
+                                   binding->itemRemovedAfterCommit(*this, change.item, change.cascade);
+                               }
+                           },
+                           [this](const dini::CascadeRemovedChange &change) {
+                               if (change.item.containerKind == dini::ContainerKind::Table) {
+                                   if (const auto *binding = tableBinding(change.item.containerId); binding && binding->itemRemovedAfterCommit)
+                                       binding->itemRemovedAfterCommit(*this, change.item, true);
+                               } else if (const auto *binding = listBinding(change.item.containerId); binding && binding->itemRemovedAfterCommit) {
+                                   binding->itemRemovedAfterCommit(*this, change.item, true);
+                               }
+                           },
+                           [this](const dini::ComputedColumnUpdatedChange &change) {
+                               if (const auto *binding = tableBinding(change.column.containerId()); binding && binding->computedColumnUpdatedAfterCommit)
+                                   binding->computedColumnUpdatedAfterCommit(*this, change);
+                               else if (const auto *binding = listBinding(change.column.containerId()); binding && binding->computedColumnUpdatedAfterCommit)
+                                   binding->computedColumnUpdatedAfterCommit(*this, change);
+                           },
+                           [this](const dini::ColumnUpdatedChange &change) {
+                               if (const auto *binding = tableBinding(change.column.containerId()); binding && binding->columnUpdatedAfterCommit)
+                                   binding->columnUpdatedAfterCommit(*this, change);
+                               else if (const auto *binding = listBinding(change.column.containerId()); binding && binding->columnUpdatedAfterCommit)
+                                   binding->columnUpdatedAfterCommit(*this, change);
+                           },
+                           [this](const dini::ListInsertedChange &change) {
+                               if (const auto *binding = listBinding(change.list.containerId()); binding && binding->listInsertedAfterCommit)
+                                   binding->listInsertedAfterCommit(*this, change);
+                           },
+                           [this](const dini::ListRemovedChange &change) {
+                               if (const auto *binding = listBinding(change.list.containerId()); binding && binding->listRemovedAfterCommit)
+                                   binding->listRemovedAfterCommit(*this, change);
+                           },
+                           [this](const dini::ListRotatedChange &change) {
+                               if (const auto *binding = listBinding(change.list.containerId()); binding && binding->listRotatedAfterCommit)
+                                   binding->listRotatedAfterCommit(*this, change);
+                           },
+                           [](const auto &) {},
+                       }, operation.payload());
+        }
     }
 
     const orm::TableBinding *ModelPrivate::tableBinding(dini::ContainerId containerId) const {

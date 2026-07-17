@@ -117,6 +117,14 @@ namespace dspx {
         void itemRemoved(int index, Singer *item, SingerList *listToWhichMoved = nullptr);
         void aboutToRotate(int leftIndex, int middleIndex, int rightIndex);
         void rotated(int leftIndex, int middleIndex, int rightIndex);
+        void sizeChangedAfterCommit(int size);
+        void itemsChangedAfterCommit();
+        void itemAboutToInsertAfterCommit(int index, Singer *item, SingerList *listFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(int index, Singer *item, SingerList *listFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(int index, Singer *item, SingerList *listToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(int index, Singer *item, SingerList *listToWhichMoved = nullptr);
+        void aboutToRotateAfterCommit(int leftIndex, int middleIndex, int rightIndex);
+        void rotatedAfterCommit(int leftIndex, int middleIndex, int rightIndex);
 
     private:
         ~SingerList() override;

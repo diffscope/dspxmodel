@@ -100,6 +100,12 @@ namespace dspx {
         void spliced(int index, int length, const QList<QVariant> &values);
         void aboutToRotate(int leftIndex, int middleIndex, int rightIndex);
         void rotated(int leftIndex, int middleIndex, int rightIndex);
+        void sizeChangedAfterCommit(int size);
+        void itemsChangedAfterCommit();
+        void aboutToSpliceAfterCommit(int index, int length, const QList<QVariant> &values);
+        void splicedAfterCommit(int index, int length, const QList<QVariant> &values);
+        void aboutToRotateAfterCommit(int leftIndex, int middleIndex, int rightIndex);
+        void rotatedAfterCommit(int leftIndex, int middleIndex, int rightIndex);
 
     private:
         ~FreeValueDataArray() override;

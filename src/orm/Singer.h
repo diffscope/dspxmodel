@@ -76,6 +76,8 @@ namespace dspx {
     signals:
         void extraChanged(const QJsonValue &extra);
         void singerListChanged(SingerList *singerList);
+        void extraChangedAfterCommit(const QJsonValue &extra);
+        void singerListChangedAfterCommit(SingerList *singerList);
 
     protected:
         ~Singer() override;

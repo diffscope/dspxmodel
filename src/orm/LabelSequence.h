@@ -108,6 +108,13 @@ namespace dspx {
         void itemInserted(Label *item);
         void itemAboutToRemove(Label *item);
         void itemRemoved(Label *item);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(Label *firstItem);
+        void lastItemChangedAfterCommit(Label *lastItem);
+        void itemAboutToInsertAfterCommit(Label *item);
+        void itemInsertedAfterCommit(Label *item);
+        void itemAboutToRemoveAfterCommit(Label *item);
+        void itemRemovedAfterCommit(Label *item);
 
     private:
         ~LabelSequence() override;

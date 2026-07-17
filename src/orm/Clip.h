@@ -207,6 +207,19 @@ namespace dspx {
         void nextItemChanged(Clip *nextItem);
         void overlappedChanged(bool overlapped);
         void clipSequenceChanged(ClipSequence *clipSequence);
+        void nameChangedAfterCommit(const QString &name);
+        void gainChangedAfterCommit(double gain);
+        void panChangedAfterCommit(double pan);
+        void muteChangedAfterCommit(bool mute);
+        void positionChangedAfterCommit(int position);
+        void lengthChangedAfterCommit(int length);
+        void clipStartChangedAfterCommit(int clipStart);
+        void clipLengthChangedAfterCommit(int clipLength);
+        void startChangedAfterCommit(int start);
+        void previousItemChangedAfterCommit(Clip *previousItem);
+        void nextItemChangedAfterCommit(Clip *nextItem);
+        void overlappedChangedAfterCommit(bool overlapped);
+        void clipSequenceChangedAfterCommit(ClipSequence *clipSequence);
 
     protected:
         ~Clip() override;

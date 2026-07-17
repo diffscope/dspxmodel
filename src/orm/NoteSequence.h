@@ -115,6 +115,13 @@ namespace dspx {
         void itemInserted(Note *item, NoteSequence *sequenceFromWhichMoved = nullptr);
         void itemAboutToRemove(Note *item, NoteSequence *sequenceToWhichMoved = nullptr);
         void itemRemoved(Note *item, NoteSequence *sequenceToWhichMoved = nullptr);
+        void sizeChangedAfterCommit(int size);
+        void firstItemChangedAfterCommit(Note *firstItem);
+        void lastItemChangedAfterCommit(Note *lastItem);
+        void itemAboutToInsertAfterCommit(Note *item, NoteSequence *sequenceFromWhichMoved = nullptr);
+        void itemInsertedAfterCommit(Note *item, NoteSequence *sequenceFromWhichMoved = nullptr);
+        void itemAboutToRemoveAfterCommit(Note *item, NoteSequence *sequenceToWhichMoved = nullptr);
+        void itemRemovedAfterCommit(Note *item, NoteSequence *sequenceToWhichMoved = nullptr);
 
     private:
         ~NoteSequence() override;

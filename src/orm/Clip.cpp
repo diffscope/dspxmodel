@@ -36,24 +36,30 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Clip>> &clipColumnBindings() {
             static const std::vector<orm::ColumnBinding<Clip>> bindings {
-                orm::stringFieldWithSignal<Clip, ClipPrivate>(Schema::clipNameColumn(), &ClipPrivate::name, &Clip::nameChanged),
-                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipGainColumn(), &ClipPrivate::gain, &Clip::gainChanged),
-                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipPanColumn(), &ClipPrivate::pan, &Clip::panChanged),
-                orm::boolFieldWithSignal<Clip, ClipPrivate>(Schema::clipMuteColumn(), &ClipPrivate::mute, &Clip::muteChanged),
+                orm::stringFieldWithSignal<Clip, ClipPrivate>(Schema::clipNameColumn(), &ClipPrivate::name, &Clip::nameChanged, &Clip::nameChangedAfterCommit),
+                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipGainColumn(), &ClipPrivate::gain, &Clip::gainChanged, &Clip::gainChangedAfterCommit),
+                orm::doubleFieldWithSignal<Clip, ClipPrivate>(Schema::clipPanColumn(), &ClipPrivate::pan, &Clip::panChanged, &Clip::panChangedAfterCommit),
+                orm::boolFieldWithSignal<Clip, ClipPrivate>(Schema::clipMuteColumn(), &ClipPrivate::mute, &Clip::muteChanged, &Clip::muteChangedAfterCommit),
                 orm::intField<Clip, ClipPrivate>(Schema::clipPositionColumn(), &ClipPrivate::position, [](Clip *q) {
                     auto *d = ClipPrivate::get(q);
                     emit q->positionChanged(d->position);
                     emit q->startChanged(q->start());
+                }, [](Clip *q) {
+                    emit q->positionChangedAfterCommit(ClipPrivate::get(q)->position);
+                    emit q->startChangedAfterCommit(q->start());
                 }),
-                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipLengthColumn(), &ClipPrivate::length, &Clip::lengthChanged),
+                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipLengthColumn(), &ClipPrivate::length, &Clip::lengthChanged, &Clip::lengthChangedAfterCommit),
                 orm::intField<Clip, ClipPrivate>(Schema::clipClipStartColumn(), &ClipPrivate::clipStart, [](Clip *q) {
                     auto *d = ClipPrivate::get(q);
                     emit q->clipStartChanged(d->clipStart);
                     emit q->startChanged(q->start());
+                }, [](Clip *q) {
+                    emit q->clipStartChangedAfterCommit(ClipPrivate::get(q)->clipStart);
+                    emit q->startChangedAfterCommit(q->start());
                 }),
-                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipClipLengthColumn(), &ClipPrivate::clipLength, &Clip::clipLengthChanged),
-                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipPreviousItemColumn(), &ClipPrivate::previousHandle, &ClipPrivate::previous, &Clip::previousItemChanged),
-                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipNextItemColumn(), &ClipPrivate::nextHandle, &ClipPrivate::next, &Clip::nextItemChanged),
+                orm::intFieldWithSignal<Clip, ClipPrivate>(Schema::clipClipLengthColumn(), &ClipPrivate::clipLength, &Clip::clipLengthChanged, &Clip::clipLengthChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipPreviousItemColumn(), &ClipPrivate::previousHandle, &ClipPrivate::previous, &Clip::previousItemChanged, &Clip::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Clip, ClipPrivate>(Schema::clipNextItemColumn(), &ClipPrivate::nextHandle, &ClipPrivate::next, &Clip::nextItemChanged, &Clip::nextItemChangedAfterCommit),
                 {Schema::clipOverlappedCountColumn(), [](Clip *q, const dini::Value &value) {
                      auto *d = ClipPrivate::get(q);
                      const auto oldOverlapped = d->overlappedCount > 0;
@@ -61,8 +67,10 @@ namespace dspx {
                      return oldOverlapped != (d->overlappedCount > 0);
                  }, [](Clip *q) {
                      emit q->overlappedChanged(q->overlapped());
+                 }, [](Clip *q) {
+                     emit q->overlappedChangedAfterCommit(q->overlapped());
                  }},
-                orm::binaryField<Clip, ClipPrivate>(Schema::clipWorkspaceColumn(), &ClipPrivate::workspaceData, nullptr),
+                orm::binaryField<Clip, ClipPrivate>(Schema::clipWorkspaceColumn(), &ClipPrivate::workspaceData, nullptr, nullptr),
                 {Schema::clipParent().column(), [](Clip *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
                      auto *d = ClipPrivate::get(q);
@@ -72,6 +80,8 @@ namespace dspx {
                      return changed;
                  }, [](Clip *q) {
                      emit q->clipSequenceChanged(ClipPrivate::get(q)->sequence);
+                 }, [](Clip *q) {
+                     emit q->clipSequenceChangedAfterCommit(ClipPrivate::get(q)->sequence);
                  }},
             };
             return bindings;
@@ -112,11 +122,23 @@ namespace dspx {
                     return clip ? clip->clipSequence() : nullptr;
                 },
                 .setOwner = [](Clip *item, ClipSequence *owner, bool notify) { ClipPrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](Clip *item, ClipSequence *owner) { emit item->clipSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](ClipSequence *owner, bool notify) { ClipSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](ClipSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](ClipSequence *owner, Clip *item, ClipSequence *movedFrom) { emit owner->itemAboutToInsert(item, movedFrom); },
                 .itemInserted = [](ClipSequence *owner, Clip *item, ClipSequence *movedFrom) { emit owner->itemInserted(item, movedFrom); },
                 .itemAboutToRemove = [](ClipSequence *owner, Clip *item, ClipSequence *movedTo) { emit owner->itemAboutToRemove(item, movedTo); },
                 .itemRemoved = [](ClipSequence *owner, Clip *item, ClipSequence *movedTo) { emit owner->itemRemoved(item, movedTo); },
+                .itemAboutToInsertAfterCommit = [](ClipSequence *owner, Clip *item, ClipSequence *movedFrom) { emit owner->itemAboutToInsertAfterCommit(item, movedFrom); },
+                .itemInsertedAfterCommit = [](ClipSequence *owner, Clip *item, ClipSequence *movedFrom) { emit owner->itemInsertedAfterCommit(item, movedFrom); },
+                .itemAboutToRemoveAfterCommit = [](ClipSequence *owner, Clip *item, ClipSequence *movedTo) { emit owner->itemAboutToRemoveAfterCommit(item, movedTo); },
+                .itemRemovedAfterCommit = [](ClipSequence *owner, Clip *item, ClipSequence *movedTo) { emit owner->itemRemovedAfterCommit(item, movedTo); },
             });
             return binding;
         }

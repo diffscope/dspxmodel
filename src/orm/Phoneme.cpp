@@ -55,12 +55,12 @@ namespace dspx {
 
         const std::vector<orm::ColumnBinding<Phoneme>> &phonemeColumnBindings() {
             static const std::vector<orm::ColumnBinding<Phoneme>> bindings {
-                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeLanguageColumn(), &PhonemePrivate::language, &Phoneme::languageChanged),
-                orm::intFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeStartColumn(), &PhonemePrivate::start, &Phoneme::startChanged),
-                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeTokenColumn(), &PhonemePrivate::token, &Phoneme::tokenChanged),
-                orm::boolFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeOnsetColumn(), &PhonemePrivate::onset, &Phoneme::onsetChanged),
-                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemePreviousItemColumn(), &PhonemePrivate::previousHandle, &PhonemePrivate::previous, &Phoneme::previousItemChanged),
-                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeNextItemColumn(), &PhonemePrivate::nextHandle, &PhonemePrivate::next, &Phoneme::nextItemChanged),
+                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeLanguageColumn(), &PhonemePrivate::language, &Phoneme::languageChanged, &Phoneme::languageChangedAfterCommit),
+                orm::intFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeStartColumn(), &PhonemePrivate::start, &Phoneme::startChanged, &Phoneme::startChangedAfterCommit),
+                orm::stringFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeTokenColumn(), &PhonemePrivate::token, &Phoneme::tokenChanged, &Phoneme::tokenChangedAfterCommit),
+                orm::boolFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeOnsetColumn(), &PhonemePrivate::onset, &Phoneme::onsetChanged, &Phoneme::onsetChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemePreviousItemColumn(), &PhonemePrivate::previousHandle, &PhonemePrivate::previous, &Phoneme::previousItemChanged, &Phoneme::previousItemChangedAfterCommit),
+                orm::previousNextFieldWithSignal<Phoneme, PhonemePrivate>(Schema::phonemeNextItemColumn(), &PhonemePrivate::nextHandle, &PhonemePrivate::next, &Phoneme::nextItemChanged, &Phoneme::nextItemChangedAfterCommit),
             };
             return bindings;
         }
@@ -89,11 +89,23 @@ namespace dspx {
                     return phonemeOwnerFromSnapshot(model, snapshot);
                 },
                 .setOwner = [](Phoneme *item, PhonemeSequence *owner, bool notify) { PhonemePrivate::get(item)->setSequence(owner, notify); },
+                .ownerChangedAfterCommit = [](Phoneme *item, PhonemeSequence *owner) { emit item->phonemeSequenceChangedAfterCommit(owner); },
                 .refreshOwner = [](PhonemeSequence *owner, bool notify) { PhonemeSequencePrivate::get(owner)->refresh(notify); },
+                .refreshOwnerAfterCommit = [](PhonemeSequence *owner, bool sizeChanged, bool orderChanged) {
+                    if (sizeChanged) emit owner->sizeChangedAfterCommit(owner->size());
+                    if (orderChanged) {
+                        emit owner->firstItemChangedAfterCommit(owner->firstItem());
+                        emit owner->lastItemChangedAfterCommit(owner->lastItem());
+                    }
+                },
                 .itemAboutToInsert = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedFrom) { emit owner->itemAboutToInsert(item, movedFrom); },
                 .itemInserted = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedFrom) { emit owner->itemInserted(item, movedFrom); },
                 .itemAboutToRemove = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedTo) { emit owner->itemAboutToRemove(item, movedTo); },
                 .itemRemoved = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedTo) { emit owner->itemRemoved(item, movedTo); },
+                .itemAboutToInsertAfterCommit = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedFrom) { emit owner->itemAboutToInsertAfterCommit(item, movedFrom); },
+                .itemInsertedAfterCommit = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedFrom) { emit owner->itemInsertedAfterCommit(item, movedFrom); },
+                .itemAboutToRemoveAfterCommit = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedTo) { emit owner->itemAboutToRemoveAfterCommit(item, movedTo); },
+                .itemRemovedAfterCommit = [](PhonemeSequence *owner, Phoneme *item, PhonemeSequence *movedTo) { emit owner->itemRemovedAfterCommit(item, movedTo); },
             });
             return binding;
         }
@@ -108,6 +120,10 @@ namespace dspx {
         bool applyPhonemeColumn(Phoneme *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
             auto *d = PhonemePrivate::get(item);
             if (column == Schema::phonemeParent().column()) {
+                if (currentNotificationStage == NotificationStage::AfterCommit) {
+                    emit item->phonemeSequenceChangedAfterCommit(d->sequence);
+                    return true;
+                }
                 d->setPlacement(orm::handleFromValue(value), notify);
                 return true;
             }
