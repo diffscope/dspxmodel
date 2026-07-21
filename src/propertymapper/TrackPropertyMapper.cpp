@@ -4,13 +4,16 @@
 #include <dspxmodelORM/Track.h>
 #include <dspxmodelORM/Clip.h>
 #include <dspxmodelORM/ClipSequence.h>
+#include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
 #include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/Parameter.h>
 #include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelSelectionModel/SelectionModel.h>
+#include <dspxmodelSelectionModel/DynamicMixingAnchorSelectionModel.h>
 
 namespace dspx {
 
@@ -201,6 +204,15 @@ namespace dspx {
             }
         }
 
+        if (selectionType == dspx::SelectionModel::ST_DynamicMixingAnchor) {
+            dynamicMixingAnchorSelectionModel = selectionModel->dynamicMixingAnchorSelectionModel();
+            if (dynamicMixingAnchorSelectionModel) {
+                QObject::connect(dynamicMixingAnchorSelectionModel,
+                                 &dspx::DynamicMixingAnchorSelectionModel::dynamicMixingAnchorSequenceWithSelectedItemsChanged,
+                                 q, [this] { rebuildFromSelection(); });
+            }
+        }
+
         rebuildFromSelection();
     }
 
@@ -221,11 +233,16 @@ namespace dspx {
             QObject::disconnect(anchorNodeSelectionModel, nullptr, q_ptr, nullptr);
             anchorNodeSelectionModel = nullptr;
         }
+        if (dynamicMixingAnchorSelectionModel) {
+            QObject::disconnect(dynamicMixingAnchorSelectionModel, nullptr, q_ptr, nullptr);
+            dynamicMixingAnchorSelectionModel = nullptr;
+        }
     }
 
     void TrackPropertyMapperPrivate::detachSelectionModel() {
         resetNoteWatchers();
         resetAnchorWatchers();
+        resetDynamicMixingWatchers();
 
         if (selectionModel) {
             QObject::disconnect(selectionModel, nullptr, q_ptr, nullptr);
@@ -243,6 +260,7 @@ namespace dspx {
         rebuildFromClipSelection();
         rebuildFromNoteSelection();
         rebuildFromAnchorSelection();
+        rebuildFromDynamicMixingSelection();
         refreshCache();
     }
 
@@ -325,6 +343,41 @@ namespace dspx {
         }
     }
 
+    dspx::Track *TrackPropertyMapperPrivate::trackFromDynamicMixingAnchorSequence(
+        dspx::DynamicMixingAnchorSequence *sequence) const {
+        if (!sequence || !sequence->sources())
+            return nullptr;
+        if (auto *singingClip = sequence->sources()->singingClip()) {
+            if (auto *clipSequence = singingClip->clipSequence())
+                return clipSequence->track();
+        }
+        return nullptr;
+    }
+
+    void TrackPropertyMapperPrivate::rebuildFromDynamicMixingSelection() {
+        resetDynamicMixingWatchers();
+        if (!dynamicMixingAnchorSelectionModel)
+            return;
+        dynamicMixingAnchorSequenceWithSelectedItems = dynamicMixingAnchorSelectionModel
+                                                           ->dynamicMixingAnchorSequenceWithSelectedItems();
+        if (!dynamicMixingAnchorSequenceWithSelectedItems)
+            return;
+        dynamicMixingSourcesWithSelectedItems = dynamicMixingAnchorSequenceWithSelectedItems->sources();
+        if (!dynamicMixingSourcesWithSelectedItems)
+            return;
+        dynamicMixingSingingClipWithSelectedItems = dynamicMixingSourcesWithSelectedItems->singingClip();
+        dynamicMixingSingingClipConnection = QObject::connect(
+            dynamicMixingSourcesWithSelectedItems, &dspx::Sources::singingClipChanged,
+            q_ptr, [this] { rebuildFromSelection(); });
+        if (dynamicMixingSingingClipWithSelectedItems) {
+            dynamicMixingClipSequenceConnection = QObject::connect(
+                dynamicMixingSingingClipWithSelectedItems, &dspx::Clip::clipSequenceChanged,
+                q_ptr, [this] { rebuildFromSelection(); });
+        }
+        if (auto *track = trackFromDynamicMixingAnchorSequence(dynamicMixingAnchorSequenceWithSelectedItems))
+            addItem(track);
+    }
+
     void TrackPropertyMapperPrivate::setNoteSequenceWatcher(dspx::NoteSequence *noteSequence) {
         if (!noteSequence) {
             return;
@@ -394,6 +447,18 @@ namespace dspx {
         parameterWithSelectedItems = nullptr;
         parameterMapWithSelectedItems = nullptr;
         anchorSingingClipWithSelectedItems = nullptr;
+    }
+
+    void TrackPropertyMapperPrivate::resetDynamicMixingWatchers() {
+        if (dynamicMixingSingingClipConnection)
+            QObject::disconnect(dynamicMixingSingingClipConnection);
+        if (dynamicMixingClipSequenceConnection)
+            QObject::disconnect(dynamicMixingClipSequenceConnection);
+        dynamicMixingSingingClipConnection = {};
+        dynamicMixingClipSequenceConnection = {};
+        dynamicMixingAnchorSequenceWithSelectedItems = nullptr;
+        dynamicMixingSourcesWithSelectedItems = nullptr;
+        dynamicMixingSingingClipWithSelectedItems = nullptr;
     }
 }
 

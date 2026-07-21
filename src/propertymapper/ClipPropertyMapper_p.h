@@ -8,6 +8,7 @@
 #include <dspxmodelORM/Clip.h>
 #include <dspxmodelSelectionModel/ClipSelectionModel.h>
 #include <dspxmodelORM/ClipSequence.h>
+#include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelSelectionModel/NoteSelectionModel.h>
 #include <dspxmodelORM/NoteSequence.h>
@@ -15,6 +16,8 @@
 #include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/Sources.h>
+#include <dspxmodelSelectionModel/DynamicMixingAnchorSelectionModel.h>
 #include <dspxmodelORM/Track.h>
 
 #include "PropertyMapperData_p.h"
@@ -59,6 +62,7 @@ namespace dspx {
         dspx::ClipSelectionModel *clipSelectionModel = nullptr;
         dspx::NoteSelectionModel *noteSelectionModel = nullptr;
         dspx::AnchorNodeSelectionModel *anchorNodeSelectionModel = nullptr;
+        dspx::DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel = nullptr;
 
         dspx::NoteSequence *noteSequenceWithSelectedItems = nullptr;
         dspx::AnchorNodeSequence *anchorNodeSequenceWithSelectedItems = nullptr;
@@ -66,9 +70,13 @@ namespace dspx {
         dspx::ParameterMap *parameterMapWithSelectedItems = nullptr;
         dspx::SingingClip *noteSingingClipWithSelectedItems = nullptr;
         dspx::SingingClip *anchorSingingClipWithSelectedItems = nullptr;
+        dspx::DynamicMixingAnchorSequence *dynamicMixingAnchorSequenceWithSelectedItems = nullptr;
+        dspx::Sources *dynamicMixingSourcesWithSelectedItems = nullptr;
+        dspx::SingingClip *dynamicMixingSingingClipWithSelectedItems = nullptr;
 
         QMetaObject::Connection noteClipSequenceConnection;
         QMetaObject::Connection anchorParameterMapConnection;
+        QMetaObject::Connection dynamicMixingSingingClipConnection;
 
         void setSelectionModel(dspx::SelectionModel *selectionModel_);
         void attachSelectionModel();
@@ -80,6 +88,7 @@ namespace dspx {
         void rebuildFromClipSelection();
         void rebuildFromNoteSelection();
         void rebuildFromAnchorSelection();
+        void rebuildFromDynamicMixingSelection();
 
         void setNoteSequenceWatcher(dspx::NoteSequence *noteSequence);
         void resetNoteWatchers();
@@ -89,9 +98,11 @@ namespace dspx {
         void setAnchorParameterMapWatcher(dspx::ParameterMap *parameterMap);
         void setAnchorSingingClipWatcher(dspx::SingingClip *singingClip);
         void resetAnchorWatchers();
+        void resetDynamicMixingWatchers();
 
         dspx::Clip *clipFromNoteSequence(dspx::NoteSequence *noteSequence) const;
         dspx::Clip *clipFromAnchorNodeSequence(dspx::AnchorNodeSequence *anchorNodeSequence) const;
+        dspx::Clip *clipFromDynamicMixingAnchorSequence(dspx::DynamicMixingAnchorSequence *sequence) const;
 
         enum {
             NameProperty = 0,

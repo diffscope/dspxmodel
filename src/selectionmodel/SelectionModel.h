@@ -13,6 +13,7 @@ namespace dspx {
 
     class AnchorNodeSelectionModel;
     class ClipSelectionModel;
+    class DynamicMixingAnchorSelectionModel;
     class KeySignatureSelectionModel;
     class LabelSelectionModel;
     class NoteSelectionModel;
@@ -33,7 +34,7 @@ namespace dspx {
      * currentItem() is a focus item and does not have to be part of the selected
      * item set.
      *
-     * @see AnchorNodeSelectionModel, ClipSelectionModel, KeySignatureSelectionModel, LabelSelectionModel, NoteSelectionModel, TempoSelectionModel, TrackSelectionModel
+     * @see AnchorNodeSelectionModel, ClipSelectionModel, DynamicMixingAnchorSelectionModel, KeySignatureSelectionModel, LabelSelectionModel, NoteSelectionModel, TempoSelectionModel, TrackSelectionModel
      */
     class DSPXMODEL_SELECTIONMODEL_EXPORT SelectionModel : public QObject {
         Q_OBJECT
@@ -44,6 +45,7 @@ namespace dspx {
         Q_PROPERTY(SelectionType selectionType READ selectionType NOTIFY selectionTypeChanged)
         Q_PROPERTY(AnchorNodeSelectionModel *anchorNodeSelectionModel READ anchorNodeSelectionModel CONSTANT)
         Q_PROPERTY(ClipSelectionModel *clipSelectionModel READ clipSelectionModel CONSTANT)
+        Q_PROPERTY(DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel READ dynamicMixingAnchorSelectionModel CONSTANT)
         Q_PROPERTY(KeySignatureSelectionModel *keySignatureSelectionModel READ keySignatureSelectionModel CONSTANT)
         Q_PROPERTY(LabelSelectionModel *labelSelectionModel READ labelSelectionModel CONSTANT)
         Q_PROPERTY(NoteSelectionModel *noteSelectionModel READ noteSelectionModel CONSTANT)
@@ -65,7 +67,8 @@ namespace dspx {
             ST_Note,
             ST_Tempo,
             ST_Track,
-            ST_KeySignature
+            ST_KeySignature,
+            ST_DynamicMixingAnchor
         };
         Q_ENUM(SelectionType)
 
@@ -88,6 +91,7 @@ namespace dspx {
          */
         AnchorNodeSelectionModel *anchorNodeSelectionModel() const;
         ClipSelectionModel *clipSelectionModel() const;
+        DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel() const;
         KeySignatureSelectionModel *keySignatureSelectionModel() const;
         LabelSelectionModel *labelSelectionModel() const;
         NoteSelectionModel *noteSelectionModel() const;
@@ -143,8 +147,9 @@ namespace dspx {
          * does not map to a supported type, the command is treated as targeting
          * ST_None.
          *
-         * For anchor node and note selection, containerItemHint may be an
-         * AnchorNodeSequence or NoteSequence used as the empty selection context.
+         * For anchor node, dynamic mixing anchor, and note selection,
+         * containerItemHint may be the corresponding sequence used as the empty
+         * selection context.
          * Invalid hints are ignored.
          */
         Q_INVOKABLE void select(QObject *item, SelectionCommand command, SelectionType emptySelectionType = {}, QObject *containerItemHint = {});
