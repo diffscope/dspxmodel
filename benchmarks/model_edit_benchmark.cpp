@@ -12,9 +12,11 @@
 
 #include <dspxmodelCore/Document.h>
 #include <dspxmodelORM/ClipSequence.h>
+#include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
+#include <dspxmodelORM/Parameter.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Track.h>
 #include <dspxmodelORM/TrackList.h>
@@ -369,5 +371,102 @@ void BM_RemoveAllTempos(benchmark::State &state) {
 }
 
 BENCHMARK(BM_RemoveAllTempos)->Apply(removeTempoCounts);
+
+constexpr std::uint32_t freeValueSeed = 0x46564152;
+
+struct GeneratedFreeValueSplice {
+    QList<QVariant> initialValues;
+    QList<QVariant> insertedValues;
+    int index = 0;
+};
+
+QList<QVariant> generateFreeValues(int valueCount, std::mt19937 &rng) {
+    std::uniform_int_distribution<int> valueDistribution(-1000, 1000);
+
+    QList<QVariant> values;
+    values.reserve(valueCount);
+    for (int i = 0; i < valueCount; ++i) {
+        values.append(QVariant(valueDistribution(rng)));
+    }
+    return values;
+}
+
+GeneratedFreeValueSplice generateFreeValueSplice(int dataSize) {
+    std::mt19937 rng(freeValueSeed + static_cast<std::uint32_t>(dataSize));
+    std::uniform_int_distribution<int> indexDistribution(0, dataSize * 8);
+
+    return {
+        .initialValues = generateFreeValues(dataSize * 10, rng),
+        .insertedValues = generateFreeValues(dataSize, rng),
+        .index = indexDistribution(rng),
+    };
+}
+
+FreeValueDataArray *createFreeValueDataArray(Document &document, Model &model, const QList<QVariant> &values) {
+    FreeValueDataArray *array = nullptr;
+    withTransaction(document, [&] {
+        auto *parameter = model.createParameter();
+        array = parameter->original();
+        array->splice(0, 0, values);
+    });
+    document.engine()->clearUndoHistory();
+    return array;
+}
+
+void spliceFreeValueDataArray(Document &document,
+                              FreeValueDataArray *array,
+                              int index,
+                              int removedValueCount,
+                              const QList<QVariant> &insertedValues) {
+    withTransaction(document, [&] {
+        array->splice(index, removedValueCount, insertedValues);
+    });
+}
+
+void addFreeValueDataSizes(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(100)->Arg(500)->Arg(1000)->Arg(5000)->Arg(10000)->Arg(50000);
+}
+
+void BM_SpliceFreeValueDataArray(benchmark::State &state) {
+    const auto dataSize = static_cast<int>(state.range(0));
+    const auto generatedSplice = generateFreeValueSplice(dataSize);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *array = createFreeValueDataArray(document, model, generatedSplice.initialValues);
+        state.ResumeTiming();
+
+        spliceFreeValueDataArray(document, array, generatedSplice.index, dataSize * 2, generatedSplice.insertedValues);
+
+        benchmark::DoNotOptimize(array->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * dataSize);
+}
+
+BENCHMARK(BM_SpliceFreeValueDataArray)->Apply(addFreeValueDataSizes);
+
+void BM_SpliceFreeValueDataArrayWithUndoRedo(benchmark::State &state) {
+    const auto dataSize = static_cast<int>(state.range(0));
+    const auto generatedSplice = generateFreeValueSplice(dataSize);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *array = createFreeValueDataArray(document, model, generatedSplice.initialValues);
+        state.ResumeTiming();
+
+        spliceFreeValueDataArray(document, array, generatedSplice.index, dataSize * 2, generatedSplice.insertedValues);
+        document.engine()->undo();
+        document.engine()->redo();
+
+        benchmark::DoNotOptimize(array->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * dataSize);
+}
+
+BENCHMARK(BM_SpliceFreeValueDataArrayWithUndoRedo)->Apply(addFreeValueDataSizes);
 
 } // namespace

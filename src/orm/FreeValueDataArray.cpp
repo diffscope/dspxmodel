@@ -224,14 +224,39 @@ namespace dspx {
         emit aboutToSplice(index, length, values);
         d->suppressNotifications = true;
         try {
+            const auto list = Schema::freeValueList();
+            const auto oldSize = static_cast<std::size_t>(d->size);
+            const auto spliceIndex = static_cast<std::size_t>(index);
+            const auto removedCount = static_cast<std::size_t>(length);
+            const auto insertedCount = static_cast<std::size_t>(values.size());
+            const auto suffixCount = oldSize - spliceIndex - removedCount;
+
+            if (removedCount > 0 && suffixCount > 0) {
+                transaction->rotate(list,
+                                    associationValue,
+                                    dini::ListRotation {
+                                        .startIndex = spliceIndex,
+                                        .count = removedCount + suffixCount,
+                                        .offset = static_cast<std::ptrdiff_t>(removedCount),
+                                    });
+            }
             for (int i = 0; i < length; ++i) {
-                transaction->removeAt(Schema::freeValueList(), associationValue, static_cast<std::size_t>(index));
+                transaction->removeAt(list, associationValue, oldSize - static_cast<std::size_t>(i) - 1);
             }
             for (int i = 0; i < values.size(); ++i) {
-                transaction->insert(Schema::freeValueList(),
+                transaction->insert(list,
                                     associationValue,
-                                    static_cast<std::size_t>(index + i),
+                                    oldSize - removedCount + static_cast<std::size_t>(i),
                                     freeValueValues(values.at(i)));
+            }
+            if (insertedCount > 0 && suffixCount > 0) {
+                transaction->rotate(list,
+                                    associationValue,
+                                    dini::ListRotation {
+                                        .startIndex = spliceIndex,
+                                        .count = suffixCount + insertedCount,
+                                        .offset = static_cast<std::ptrdiff_t>(suffixCount),
+                                    });
             }
         } catch (...) {
             d->suppressNotifications = false;
