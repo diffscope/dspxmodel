@@ -1,8 +1,11 @@
 #include "VibratoPointDataArray.h"
 #include "VibratoPointDataArray_p.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <variant>
 #include <vector>
 
 #include <dini/engine.h>
@@ -54,6 +57,50 @@ namespace dspx {
                 dini::ColumnValue {.column = Schema::vibratoPointXColumn(), .value = dini::Value(point.x())},
                 dini::ColumnValue {.column = Schema::vibratoPointYColumn(), .value = dini::Value(point.y())},
             };
+        }
+
+        struct DataArrayChangeGroup {
+            dini::Value associationValue;
+            std::vector<std::size_t> operationIndexes;
+            bool hasSplice = false;
+        };
+
+        void reverseRotation(std::vector<dini::ItemSnapshot> &items, const dini::ListRotation &rotation) {
+            if (rotation.count == 0 || rotation.startIndex + rotation.count > items.size()) {
+                return;
+            }
+            const auto count = static_cast<std::ptrdiff_t>(rotation.count);
+            const auto normalized = ((rotation.offset % count) + count) % count;
+            const auto inverse = normalized == 0 ? 0 : count - normalized;
+            auto first = items.begin() + static_cast<std::ptrdiff_t>(rotation.startIndex);
+            std::rotate(first, first + inverse, first + count);
+        }
+
+        void reverseDataArrayChanges(std::vector<dini::ItemSnapshot> &items,
+                                     const dini::ChangeSet &changeSet,
+                                     const DataArrayChangeGroup &group) {
+            const auto &operations = changeSet.operations();
+            for (auto it = group.operationIndexes.rbegin(); it != group.operationIndexes.rend(); ++it) {
+                const auto &payload = operations[*it].payload();
+                if (const auto *change = std::get_if<dini::ListInsertedChange>(&payload)) {
+                    auto item = items.end();
+                    if (change->index < items.size() && items[change->index].id == change->item.id) {
+                        item = items.begin() + static_cast<std::ptrdiff_t>(change->index);
+                    } else {
+                        item = std::find_if(items.begin(), items.end(), [change](const dini::ItemSnapshot &snapshot) {
+                            return snapshot.id == change->item.id;
+                        });
+                    }
+                    if (item != items.end()) {
+                        items.erase(item);
+                    }
+                } else if (const auto *change = std::get_if<dini::ListRemovedChange>(&payload)) {
+                    const auto index = std::min(change->index, items.size());
+                    items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), change->item);
+                } else if (const auto *change = std::get_if<dini::ListRotatedChange>(&payload)) {
+                    reverseRotation(items, change->rotation);
+                }
+            }
         }
 
         VibratoPointDataArray *vibratoPointOwnerFromAssociationValue(ModelPrivate &model, const dini::Value &value) {
@@ -118,6 +165,94 @@ namespace dspx {
                 },
             });
             return binding;
+        }
+
+        void collectVibratoPointDataArrayChanges(ModelPrivate &model,
+                                                 const dini::ChangeSet &changeSet,
+                                                 std::vector<bool> &handledOperations,
+                                                 std::vector<std::function<void()>> &notifications) {
+            const auto list = Schema::vibratoPointList();
+            const auto &operations = changeSet.operations();
+            std::vector<DataArrayChangeGroup> groups;
+            auto appendOperation = [&groups](const dini::Value &associationValue, std::size_t index, bool isSplice) {
+                auto group = std::find_if(groups.begin(), groups.end(), [&associationValue](const DataArrayChangeGroup &candidate) {
+                    return candidate.associationValue == associationValue;
+                });
+                if (group == groups.end()) {
+                    groups.push_back(DataArrayChangeGroup {
+                        .associationValue = associationValue,
+                        .operationIndexes = {index},
+                        .hasSplice = isSplice,
+                    });
+                    return;
+                }
+                group->operationIndexes.push_back(index);
+                group->hasSplice = group->hasSplice || isSplice;
+            };
+
+            for (std::size_t i = 0; i < operations.size(); ++i) {
+                const auto &payload = operations[i].payload();
+                if (const auto *change = std::get_if<dini::ListInsertedChange>(&payload);
+                    change && change->list == list) {
+                    appendOperation(change->associationValue, i, true);
+                } else if (const auto *change = std::get_if<dini::ListRemovedChange>(&payload);
+                           change && change->list == list) {
+                    appendOperation(change->associationValue, i, true);
+                } else if (const auto *change = std::get_if<dini::ListRotatedChange>(&payload);
+                           change && change->list == list) {
+                    appendOperation(change->associationValue, i, false);
+                }
+            }
+
+            for (const auto &group : groups) {
+                if (!group.hasSplice) {
+                    continue;
+                }
+                for (const auto operationIndex : group.operationIndexes) {
+                    handledOperations[operationIndex] = true;
+                }
+
+                auto *owner = vibratoPointOwnerFromAssociationValue(model, group.associationValue);
+                if (!owner) {
+                    continue;
+                }
+                auto newItems = model.engine->query(list, vibratoPointQuery(orm::handleFromValue(group.associationValue))).toVector();
+                auto oldItems = newItems;
+                reverseDataArrayChanges(oldItems, changeSet, group);
+
+                std::size_t prefix = 0;
+                while (prefix < oldItems.size() && prefix < newItems.size() &&
+                       oldItems[prefix].id == newItems[prefix].id) {
+                    ++prefix;
+                }
+                std::size_t suffix = 0;
+                while (suffix < oldItems.size() - prefix && suffix < newItems.size() - prefix &&
+                       oldItems[oldItems.size() - suffix - 1].id == newItems[newItems.size() - suffix - 1].id) {
+                    ++suffix;
+                }
+
+                const auto removedCount = oldItems.size() - prefix - suffix;
+                QList<QPointF> insertedValues;
+                const auto insertedEnd = newItems.size() - suffix;
+                for (auto i = prefix; i < insertedEnd; ++i) {
+                    insertedValues.append(pointFromSnapshot(newItems[i]));
+                }
+                if (removedCount == 0 && insertedValues.isEmpty()) {
+                    continue;
+                }
+
+                const auto signalIndex = static_cast<int>(prefix);
+                const auto signalLength = static_cast<int>(removedCount);
+                notifications[group.operationIndexes.front()] = [owner, signalIndex, signalLength, insertedValues] {
+                    auto *ownerData = VibratoPointDataArrayPrivate::get(owner);
+                    if (ownerData->suppressNotifications) {
+                        return;
+                    }
+                    emit owner->aboutToSplice(signalIndex, signalLength, insertedValues);
+                    ownerData->refresh(true, true);
+                    emit owner->spliced(signalIndex, signalLength, insertedValues);
+                };
+            }
         }
 
     }

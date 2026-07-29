@@ -42,6 +42,19 @@
 
 namespace dspx {
 
+    namespace orm {
+
+        void collectFreeValueDataArrayChanges(ModelPrivate &model,
+                                              const dini::ChangeSet &changeSet,
+                                              std::vector<bool> &handledOperations,
+                                              std::vector<std::function<void()>> &notifications);
+        void collectVibratoPointDataArrayChanges(ModelPrivate &model,
+                                                 const dini::ChangeSet &changeSet,
+                                                 std::vector<bool> &handledOperations,
+                                                 std::vector<std::function<void()>> &notifications);
+
+    }
+
     namespace {
 
         Handle modelHandleFromDocument(Document *document) {
@@ -277,7 +290,20 @@ namespace dspx {
         if (destroying || event.kind != dini::EventKind::AfterApply) {
             return;
         }
+        const auto &operations = event.changeSet.operations();
         const auto snapshotsAfterOperations = buildEventSnapshotsAfterOperations(engine, event.changeSet);
+        std::vector<bool> handledDataArrayOperations(operations.size(), false);
+        std::vector<std::function<void()>> dataArrayNotifications(operations.size());
+        if (event.origin == dini::EventOrigin::Undo || event.origin == dini::EventOrigin::Redo) {
+            orm::collectFreeValueDataArrayChanges(*this,
+                                                  event.changeSet,
+                                                  handledDataArrayOperations,
+                                                  dataArrayNotifications);
+            orm::collectVibratoPointDataArrayChanges(*this,
+                                                     event.changeSet,
+                                                     handledDataArrayOperations,
+                                                     dataArrayNotifications);
+        }
         std::vector<dini::ColumnUpdatedChange> pendingColumnUpdates;
         std::vector<std::size_t> pendingColumnUpdateIndexes;
         auto setEventSnapshotOverrides = [this](QHash<dini::ItemId, dini::ItemSnapshot> snapshots) {
@@ -333,7 +359,6 @@ namespace dspx {
             clearEventSnapshotOverrides();
         };
 
-        const auto &operations = event.changeSet.operations();
         for (std::size_t operationIndex = 0; operationIndex < operations.size(); ++operationIndex) {
             const auto &operation = operations[operationIndex];
             if (operation.kind() == dini::ChangeOperationKind::ColumnUpdated) {
@@ -342,6 +367,12 @@ namespace dspx {
                 continue;
             }
             flushColumnUpdates();
+            if (handledDataArrayOperations[operationIndex]) {
+                if (dataArrayNotifications[operationIndex]) {
+                    dataArrayNotifications[operationIndex]();
+                }
+                continue;
+            }
             if (operationIndex < snapshotsAfterOperations.size()) {
                 setEventSnapshotOverrides(snapshotsAfterOperations[operationIndex]);
             } else {

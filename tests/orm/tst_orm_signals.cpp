@@ -3,12 +3,15 @@
 #include "orm_test_context.h"
 
 #include <dspxmodelORM/ClipSequence.h>
+#include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
+#include <dspxmodelORM/Parameter.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Track.h>
 #include <dspxmodelORM/TrackList.h>
+#include <dspxmodelORM/VibratoPointDataArray.h>
 
 using namespace dspx;
 
@@ -22,6 +25,7 @@ private slots:
     void trackListSignals();
     void noteSequenceSignals();
     void undoInsertedNoteDoesNotReadRemovedItem();
+    void undoDataArraySpliceEmitsSingleSignal();
 };
 
 void OrmSignalsTest::initTestCase() {
@@ -199,6 +203,60 @@ void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem() {
 
     QCOMPARE(clip->notes()->size(), 0);
     QVERIFY(!context.document.engine()->contains(static_cast<dini::ItemId>(note->handle().d)));
+}
+
+void OrmSignalsTest::undoDataArraySpliceEmitsSingleSignal() {
+    OrmTestContext context;
+    Parameter *parameter = nullptr;
+    Note *note = nullptr;
+
+    context.withTransaction([&] {
+        parameter = context.model.createParameter();
+        note = context.model.createNote();
+        context.verifyEntity(parameter);
+        context.verifyEntity(note);
+    });
+
+    auto *freeValues = parameter->original();
+    auto *vibratoPoints = note->vibratoAmplitudeControlPoints();
+    context.withTransaction([&] {
+        QVERIFY(freeValues->splice(0, 0, QList<QVariant> {10, 20}));
+        QVERIFY(vibratoPoints->splice(0, 0, QList<QPointF> {
+                                                    QPointF(0.0, 0.1),
+                                                    QPointF(1.0, 0.1),
+                                                }));
+    });
+    context.withTransaction([&] {
+        QVERIFY(freeValues->splice(1, 0, QList<QVariant> {1, 2, 3}));
+        QVERIFY(vibratoPoints->splice(1, 0, QList<QPointF> {
+                                                    QPointF(0.0, 0.2),
+                                                    QPointF(0.5, 0.7),
+                                                    QPointF(1.0, 0.4),
+                                                }));
+    });
+
+    QSignalSpy freeValuesSpy(freeValues, &FreeValueDataArray::spliced);
+    QSignalSpy vibratoPointsSpy(vibratoPoints, &VibratoPointDataArray::spliced);
+    QVERIFY(freeValuesSpy.isValid());
+    QVERIFY(vibratoPointsSpy.isValid());
+
+    context.document.engine()->undo();
+
+    QCOMPARE(freeValues->items(), QList<QVariant>({10, 20}));
+    QCOMPARE(vibratoPoints->items(), QList<QPointF>({
+                                        QPointF(0.0, 0.1),
+                                        QPointF(1.0, 0.1),
+                                    }));
+
+    QCOMPARE(freeValuesSpy.count(), 1);
+    QCOMPARE(freeValuesSpy.at(0).at(0).toInt(), 1);
+    QCOMPARE(freeValuesSpy.at(0).at(1).toInt(), 3);
+    QCOMPARE(freeValuesSpy.at(0).at(2).value<QList<QVariant>>(), QList<QVariant>());
+
+    QCOMPARE(vibratoPointsSpy.count(), 1);
+    QCOMPARE(vibratoPointsSpy.at(0).at(0).toInt(), 1);
+    QCOMPARE(vibratoPointsSpy.at(0).at(1).toInt(), 3);
+    QCOMPARE(vibratoPointsSpy.at(0).at(2).value<QList<QPointF>>(), QList<QPointF>());
 }
 
 QTEST_GUILESS_MAIN(OrmSignalsTest)
