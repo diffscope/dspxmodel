@@ -151,6 +151,8 @@ namespace dspx {
         d->editedPhonemes = PhonemeSequencePrivate::create(this, PhonemeSequence::Edited);
         d->vibratoAmplitudeControlPoints = VibratoPointDataArrayPrivate::create(this, VibratoPointDataArray::Amplitude);
         d->vibratoFrequencyControlPoints = VibratoPointDataArrayPrivate::create(this, VibratoPointDataArray::Frequency);
+        PhonemeSequencePrivate::get(d->originalPhonemes)->refresh(false);
+        PhonemeSequencePrivate::get(d->editedPhonemes)->refresh(false);
         VibratoPointDataArrayPrivate::get(d->vibratoAmplitudeControlPoints)->refresh(false, false);
         VibratoPointDataArrayPrivate::get(d->vibratoFrequencyControlPoints)->refresh(false, false);
     }
