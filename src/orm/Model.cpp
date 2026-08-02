@@ -130,13 +130,33 @@ namespace dspx {
             dini::DocumentEngine *engine,
             const dini::ChangeSet &changeSet) {
             const auto &operations = changeSet.operations();
-            std::vector<QHash<dini::ItemId, dini::ItemSnapshot>> result(operations.size());
             QHash<dini::ItemId, bool> affectedItems;
             for (const auto &operation : operations) {
-                if (const auto itemId = operationItemId(operation)) {
-                    affectedItems.insert(*itemId, true);
-                }
+                std::visit(orm::Overloaded {
+                               [&affectedItems](const dini::ItemInsertedChange &change) {
+                                   affectedItems.insert(change.item.id, true);
+                               },
+                               [](const dini::ItemRemovedChange &) {},
+                               [](const dini::CascadeRemovedChange &) {},
+                               [&affectedItems](const dini::ColumnUpdatedChange &change) {
+                                   affectedItems.insert(change.itemId, true);
+                               },
+                               [&affectedItems](const dini::ComputedColumnUpdatedChange &change) {
+                                   affectedItems.insert(change.itemId, true);
+                               },
+                               [&affectedItems](const dini::ListInsertedChange &change) {
+                                   affectedItems.insert(change.item.id, true);
+                               },
+                               [](const dini::ListRemovedChange &) {},
+                               [](const dini::ListRotatedChange &) {},
+                           },
+                           operation.payload());
             }
+            if (affectedItems.isEmpty()) {
+                return {};
+            }
+
+            std::vector<QHash<dini::ItemId, dini::ItemSnapshot>> result(operations.size());
 
             QHash<dini::ItemId, dini::ItemSnapshot> state;
             for (auto it = affectedItems.cbegin(); it != affectedItems.cend(); ++it) {
@@ -157,11 +177,15 @@ namespace dspx {
                                [&state](const dini::ItemInsertedChange &change) {
                                    state.remove(change.item.id);
                                },
-                               [&state](const dini::ItemRemovedChange &change) {
-                                   state.insert(change.item.id, change.item);
+                               [&state, &affectedItems](const dini::ItemRemovedChange &change) {
+                                   if (affectedItems.contains(change.item.id)) {
+                                       state.insert(change.item.id, change.item);
+                                   }
                                },
-                               [&state](const dini::CascadeRemovedChange &change) {
-                                   state.insert(change.item.id, change.item);
+                               [&state, &affectedItems](const dini::CascadeRemovedChange &change) {
+                                   if (affectedItems.contains(change.item.id)) {
+                                       state.insert(change.item.id, change.item);
+                                   }
                                },
                                [&state](const dini::ColumnUpdatedChange &change) {
                                    auto it = state.find(change.itemId);
@@ -182,8 +206,10 @@ namespace dspx {
                                [&state](const dini::ListInsertedChange &change) {
                                    state.remove(change.item.id);
                                },
-                               [&state](const dini::ListRemovedChange &change) {
-                                   state.insert(change.item.id, change.item);
+                               [&state, &affectedItems](const dini::ListRemovedChange &change) {
+                                   if (affectedItems.contains(change.item.id)) {
+                                       state.insert(change.item.id, change.item);
+                                   }
                                },
                                [](const dini::ListRotatedChange &) {},
                            },
@@ -292,9 +318,11 @@ namespace dspx {
         }
         const auto &operations = event.changeSet.operations();
         const auto snapshotsAfterOperations = buildEventSnapshotsAfterOperations(engine, event.changeSet);
-        std::vector<bool> handledDataArrayOperations(operations.size(), false);
-        std::vector<std::function<void()>> dataArrayNotifications(operations.size());
+        std::vector<bool> handledDataArrayOperations;
+        std::vector<std::function<void()>> dataArrayNotifications;
         if (event.origin == dini::EventOrigin::Undo || event.origin == dini::EventOrigin::Redo) {
+            handledDataArrayOperations.resize(operations.size(), false);
+            dataArrayNotifications.resize(operations.size());
             orm::collectFreeValueDataArrayChanges(*this,
                                                   event.changeSet,
                                                   handledDataArrayOperations,
@@ -367,7 +395,7 @@ namespace dspx {
                 continue;
             }
             flushColumnUpdates();
-            if (handledDataArrayOperations[operationIndex]) {
+            if (!handledDataArrayOperations.empty() && handledDataArrayOperations[operationIndex]) {
                 if (dataArrayNotifications[operationIndex]) {
                     dataArrayNotifications[operationIndex]();
                 }

@@ -17,6 +17,7 @@
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
 #include <dspxmodelORM/Parameter.h>
+#include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Track.h>
 #include <dspxmodelORM/TrackList.h>
@@ -468,5 +469,62 @@ void BM_SpliceFreeValueDataArrayWithUndoRedo(benchmark::State &state) {
 }
 
 BENCHMARK(BM_SpliceFreeValueDataArrayWithUndoRedo)->Apply(addFreeValueDataSizes);
+
+struct SingingClipWithTrack {
+    Track *track = nullptr;
+    SingingClip *clip = nullptr;
+};
+
+SingingClipWithTrack createSingingClipWithFreeEditedPitchValues(Document &document,
+                                                                Model &model,
+                                                                const QList<QVariant> &values) {
+    SingingClipWithTrack result;
+    withTransaction(document, [&] {
+        result.track = model.createTrack();
+        model.tracks()->insertItem(0, result.track);
+
+        result.clip = model.createSingingClip();
+        result.track->clips()->insertItem(result.clip);
+
+        auto *pitch = model.createParameter();
+        result.clip->parameters()->insertItem(QStringLiteral("pitch"), pitch);
+        pitch->freeEdited()->splice(0, 0, values);
+    });
+    document.engine()->clearUndoHistory();
+    return result;
+}
+
+void removeAndDestroySingingClip(Document &document, Model &model, Track *track, SingingClip *clip) {
+    withTransaction(document, [&] {
+        track->clips()->removeItem(clip);
+        model.destroyItem(clip);
+    });
+}
+
+void addFreeEditedPitchValueCounts(benchmark::internal::Benchmark *benchmark) {
+    benchmark->Arg(1000)->Arg(5000)->Arg(10000)->Arg(50000)->Arg(100000)->Arg(500000);
+}
+
+void BM_RemoveAndDestroySingingClipWithFreeEditedPitchValues(benchmark::State &state) {
+    const auto valueCount = static_cast<int>(state.range(0));
+    std::mt19937 rng(freeValueSeed + static_cast<std::uint32_t>(valueCount));
+    const auto values = generateFreeValues(valueCount, rng);
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        const auto fixture = createSingingClipWithFreeEditedPitchValues(document, model, values);
+        state.ResumeTiming();
+
+        removeAndDestroySingingClip(document, model, fixture.track, fixture.clip);
+
+        benchmark::DoNotOptimize(fixture.track->clips()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * valueCount);
+}
+
+BENCHMARK(BM_RemoveAndDestroySingingClipWithFreeEditedPitchValues)->Apply(addFreeEditedPitchValueCounts);
 
 } // namespace
