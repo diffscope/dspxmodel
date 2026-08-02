@@ -527,4 +527,28 @@ void BM_RemoveAndDestroySingingClipWithFreeEditedPitchValues(benchmark::State &s
 
 BENCHMARK(BM_RemoveAndDestroySingingClipWithFreeEditedPitchValues)->Apply(addFreeEditedPitchValueCounts);
 
+void BM_RemoveAndDestroySingingClipWithFreeEditedPitchValuesWithUndoRedo(benchmark::State &state) {
+    const auto valueCount = static_cast<int>(state.range(0));
+    std::mt19937 rng(freeValueSeed + static_cast<std::uint32_t>(valueCount));
+    const auto values = generateFreeValues(valueCount, rng);
+
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        const auto fixture = createSingingClipWithFreeEditedPitchValues(document, model, values);
+        state.ResumeTiming();
+
+        removeAndDestroySingingClip(document, model, fixture.track, fixture.clip);
+        document.engine()->undo();
+        document.engine()->redo();
+
+        benchmark::DoNotOptimize(fixture.track->clips()->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * valueCount);
+}
+
+BENCHMARK(BM_RemoveAndDestroySingingClipWithFreeEditedPitchValuesWithUndoRedo)->Apply(addFreeEditedPitchValueCounts);
+
 } // namespace

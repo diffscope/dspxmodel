@@ -133,9 +133,7 @@ namespace dspx {
             QHash<dini::ItemId, bool> affectedItems;
             for (const auto &operation : operations) {
                 std::visit(orm::Overloaded {
-                               [&affectedItems](const dini::ItemInsertedChange &change) {
-                                   affectedItems.insert(change.item.id, true);
-                               },
+                               [](const dini::ItemInsertedChange &) {},
                                [](const dini::ItemRemovedChange &) {},
                                [](const dini::CascadeRemovedChange &) {},
                                [&affectedItems](const dini::ColumnUpdatedChange &change) {
@@ -144,9 +142,7 @@ namespace dspx {
                                [&affectedItems](const dini::ComputedColumnUpdatedChange &change) {
                                    affectedItems.insert(change.itemId, true);
                                },
-                               [&affectedItems](const dini::ListInsertedChange &change) {
-                                   affectedItems.insert(change.item.id, true);
-                               },
+                               [](const dini::ListInsertedChange &) {},
                                [](const dini::ListRemovedChange &) {},
                                [](const dini::ListRotatedChange &) {},
                            },
