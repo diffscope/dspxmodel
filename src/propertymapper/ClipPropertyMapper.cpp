@@ -133,6 +133,16 @@ namespace dspx {
         d->setValue<ClipPropertyMapperPrivate::LengthProperty>(length);
     }
 
+    QVariant ClipPropertyMapper::lengthFixed() const {
+        Q_D(const ClipPropertyMapper);
+        return d->value<ClipPropertyMapperPrivate::LengthFixedProperty>();
+    }
+
+    void ClipPropertyMapper::setLengthFixed(const QVariant &lengthFixed) {
+        Q_D(ClipPropertyMapper);
+        d->setValue<ClipPropertyMapperPrivate::LengthFixedProperty>(lengthFixed);
+    }
+
     void ClipPropertyMapperPrivate::setSelectionModel(dspx::SelectionModel *selectionModel_) {
         if (selectionModel == selectionModel_) {
             return;

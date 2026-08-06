@@ -41,7 +41,12 @@ namespace dspx {
         PropertyMetadata<dspx::Clip, &dspx::Clip::position, &dspx::Clip::setPosition, decltype(&dspx::Clip::positionChanged)>,
         PropertyMetadata<dspx::Clip, &dspx::Clip::clipStart, &dspx::Clip::setClipStart, decltype(&dspx::Clip::clipStartChanged)>,
         PropertyMetadata<dspx::Clip, &dspx::Clip::clipLength, &dspx::Clip::setClipLength, decltype(&dspx::Clip::clipLengthChanged)>,
-        PropertyMetadata<dspx::Clip, &dspx::Clip::length, &dspx::Clip::setLength, decltype(&dspx::Clip::lengthChanged)>
+        PropertyMetadata<dspx::Clip, &dspx::Clip::length, &dspx::Clip::setLength, decltype(&dspx::Clip::lengthChanged)>,
+        PropertyMetadata<dspx::Clip,
+            [](const dspx::Clip *clip) { return clip->length() != 0; },
+            [](dspx::Clip *clip, bool fixed) { clip->setLength(fixed ? clip->clipStart() + clip->clipLength() : 0); },
+            decltype(&dspx::Clip::lengthChanged)
+        >
     > {
         Q_DECLARE_PUBLIC(ClipPropertyMapper)
     public:
@@ -55,6 +60,7 @@ namespace dspx {
             {&dspx::Clip::positionChanged},
             {&dspx::Clip::clipStartChanged},
             {&dspx::Clip::clipLengthChanged},
+            {&dspx::Clip::lengthChanged},
             {&dspx::Clip::lengthChanged}
         ) {}
 
@@ -114,7 +120,8 @@ namespace dspx {
             PositionProperty = 6,
             ClipStartProperty = 7,
             ClipLengthProperty = 8,
-            LengthProperty = 9
+            LengthProperty = 9,
+            LengthFixedProperty = 10
         };
 
         template<int i>
@@ -140,6 +147,8 @@ namespace dspx {
                 q->clipLengthChanged();
             } else if constexpr (i == LengthProperty) {
                 q->lengthChanged();
+            } else if constexpr (i == LengthFixedProperty) {
+                q->lengthFixedChanged();
             }
         }
     };
