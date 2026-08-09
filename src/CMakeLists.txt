@@ -111,6 +111,7 @@ endmacro()
 # ----------------------------------
 add_subdirectory(core)
 add_subdirectory(orm)
+add_subdirectory(piece)
 add_subdirectory(selectionmodel)
 add_subdirectory(propertymapper)
 
