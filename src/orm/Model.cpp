@@ -309,7 +309,7 @@ namespace dspx {
     }
 
     void ModelPrivate::handleEvent(const dini::EngineEvent &event) {
-        if (destroying || event.kind != dini::EventKind::AfterApply) {
+        if (destroying || (event.kind != dini::EventKind::AfterApply && event.kind != dini::EventKind::Rollback)) {
             return;
         }
         const auto &operations = event.changeSet.operations();
