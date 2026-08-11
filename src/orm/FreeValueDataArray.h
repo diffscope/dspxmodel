@@ -68,7 +68,7 @@ namespace dspx {
         Q_INVOKABLE QList<QVariant> slice(int index, int length) const;
         /**
          * @brief Splices items.
-         * @pre parameter()->model()->document()->transaction() != nullptr && parameter()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || parameter()->model()->document()->transaction() is active.
          * @pre index >= 0.
          * @pre length >= 0.
          * @pre values[i] is either QVariant::Invalid or QVariant::Int.
@@ -77,7 +77,7 @@ namespace dspx {
         Q_INVOKABLE bool splice(int index, int length, const QList<QVariant> &values);
         /**
          * @brief Rotates items.
-         * @pre parameter()->model()->document()->transaction() != nullptr && parameter()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || parameter()->model()->document()->transaction() is active.
          * @pre leftIndex >= 0.
          * @pre middleIndex >= leftIndex.
          * @pre rightIndex >= middleIndex.

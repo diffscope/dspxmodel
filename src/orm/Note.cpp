@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <utility>
 
-#include <dini/transaction.h>
 #include <opendspx/note.h>
 
 #include <dspxmodelCore/Schema.h>
@@ -39,7 +38,6 @@ namespace dspx {
                 orm::intFieldWithSignal<Note, NotePrivate>(Schema::noteLengthColumn(), &NotePrivate::length, &Note::lengthChanged),
                 orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteLyricColumn(), &NotePrivate::lyric, &Note::lyricChanged),
                 orm::intFieldWithSignal<Note, NotePrivate>(Schema::notePositionColumn(), &NotePrivate::position, &Note::positionChanged),
-                orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteOriginalPronunciationColumn(), &NotePrivate::originalPronunciation, &Note::originalPronunciationChanged),
                 orm::stringFieldWithSignal<Note, NotePrivate>(Schema::noteEditedPronunciationColumn(), &NotePrivate::editedPronunciation, &Note::editedPronunciationChanged),
                 orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::notePreviousItemColumn(), &NotePrivate::previousHandle, &NotePrivate::previous, &Note::previousItemChanged),
                 orm::previousNextFieldWithSignal<Note, NotePrivate>(Schema::noteNextItemColumn(), &NotePrivate::nextHandle, &NotePrivate::next, &Note::nextItemChanged),
@@ -219,7 +217,12 @@ namespace dspx {
     }
 
     void Note::setOriginalPronunciation(const QString &originalPronunciation) {
-        ModelPrivate::get(model())->update(handle(), Schema::noteOriginalPronunciationColumn(), orm::valueFromString(originalPronunciation));
+        Q_D(Note);
+        if (d->originalPronunciation == originalPronunciation) {
+            return;
+        }
+        d->originalPronunciation = originalPronunciation;
+        emit originalPronunciationChanged(originalPronunciation);
     }
 
     QString Note::editedPronunciation() const {

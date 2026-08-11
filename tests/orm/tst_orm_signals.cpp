@@ -217,7 +217,7 @@ void OrmSignalsTest::undoDataArraySpliceEmitsSingleSignal() {
         context.verifyEntity(note);
     });
 
-    auto *freeValues = parameter->original();
+    auto *freeValues = parameter->freeTransform();
     auto *vibratoPoints = note->vibratoAmplitudeControlPoints();
     context.withTransaction([&] {
         QVERIFY(freeValues->splice(0, 0, QList<QVariant> {10, 20}));

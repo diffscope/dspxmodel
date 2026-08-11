@@ -393,12 +393,14 @@ namespace dspx {
                                  dini::TableHandle relationTable,
                                  dini::RelationHandle parentRelation,
                                  dini::ColumnHandle roleColumn,
-                                 int roleCount)
+                                 int roleCount,
+                                 int firstRole = 0)
                 : parentTable(std::move(parentTable)),
                   relationTable(std::move(relationTable)),
                   parentRelation(std::move(parentRelation)),
                   roleColumn(std::move(roleColumn)),
-                  roleCount(roleCount) {
+                  roleCount(roleCount),
+                  firstRole(firstRole) {
             }
 
             void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
@@ -491,10 +493,11 @@ namespace dspx {
                 std::vector<bool> seen(static_cast<std::size_t>(roleCount), false);
                 for (const auto &row : rows) {
                     const auto role = static_cast<int>(itemValue(row, roleColumn).asInt64());
-                    if (role < 0 || role >= roleCount || seen[static_cast<std::size_t>(role)]) {
+                    const auto roleIndex = role - firstRole;
+                    if (roleIndex < 0 || roleIndex >= roleCount || seen[static_cast<std::size_t>(roleIndex)]) {
                         throw dini::ConstraintError("role relation rows are invalid");
                     }
-                    seen[static_cast<std::size_t>(role)] = true;
+                    seen[static_cast<std::size_t>(roleIndex)] = true;
                 }
             }
 
@@ -503,6 +506,7 @@ namespace dspx {
             dini::RelationHandle parentRelation;
             dini::ColumnHandle roleColumn;
             int roleCount = 0;
+            int firstRole = 0;
         };
 
         struct VirtualCascadeDeleteHook {
@@ -1950,12 +1954,6 @@ namespace dspx {
                     .dependsOn = {notePositionColumn, noteLengthColumn},
                     .compute = intervalEndValue,
                 });
-                noteOriginalPronunciationColumn = noteTableBuilder.addColumn({
-                    .debugName = "originalPronunciation",
-                    .type = dini::ValueType::String,
-                    .defaultValue = "",
-                    .nullable = false,
-                });
                 noteEditedPronunciationColumn = noteTableBuilder.addColumn({
                     .debugName = "editedPronunciation",
                     .type = dini::ValueType::String,
@@ -2210,18 +2208,20 @@ namespace dspx {
                     .type = dini::ValueType::Int64,
                     .index = dini::IndexKind::Unique,
                     .nullable = false,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 3; }
+                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v > 0 && v < 3; }
                 });
                 addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(parameterTable,
                                                                                parameterFreeValueRelation,
                                                                                freeValueRelationParent,
                                                                                freeValueRelationRoleColumn,
-                                                                               3));
+                                                                               2,
+                                                                               1));
                 addBeforeCommitHook(parameterTableBuilder, RequiredRoleRowsHook(parameterTable,
                                                                                parameterFreeValueRelation,
                                                                                freeValueRelationParent,
                                                                                freeValueRelationRoleColumn,
-                                                                               3));
+                                                                               2,
+                                                                               1));
             }
 
             void buildParameterAnchorNodeRelation(dini::TableBuilder &parameterTableBuilder) {
@@ -2413,7 +2413,6 @@ namespace dspx {
             dini::ColumnHandle noteLengthColumn;
             dini::ColumnHandle noteLyricColumn;
             dini::ColumnHandle notePositionColumn;
-            dini::ColumnHandle noteOriginalPronunciationColumn;
             dini::ColumnHandle noteEditedPronunciationColumn;
             dini::ColumnHandle noteVibratoAmplitudeColumn;
             dini::ColumnHandle noteVibratoEndColumn;
@@ -2869,10 +2868,6 @@ namespace dspx {
 
     dini::ColumnHandle Schema::notePositionColumn() {
         return g.notePositionColumn;
-    }
-
-    dini::ColumnHandle Schema::noteOriginalPronunciationColumn() {
-        return g.noteOriginalPronunciationColumn;
     }
 
     dini::ColumnHandle Schema::noteEditedPronunciationColumn() {

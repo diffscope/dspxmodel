@@ -126,7 +126,6 @@ namespace dspx {
         static dini::ColumnHandle noteLengthColumn();
         static dini::ColumnHandle noteLyricColumn();
         static dini::ColumnHandle notePositionColumn();
-        static dini::ColumnHandle noteOriginalPronunciationColumn();
         static dini::ColumnHandle noteEditedPronunciationColumn();
         static dini::ColumnHandle noteVibratoAmplitudeColumn();
         static dini::ColumnHandle noteVibratoEndColumn();

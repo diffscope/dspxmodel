@@ -130,9 +130,6 @@ namespace dspx {
                 return nullptr;
             }
             const auto role = static_cast<FreeValueDataArray::FreeValueRole>(roleValue.asInt64());
-            if (role == FreeValueDataArray::Original) {
-                return parameter->original();
-            }
             if (role == FreeValueDataArray::Transform) {
                 return parameter->freeTransform();
             }
@@ -273,6 +270,9 @@ namespace dspx {
     }
 
     Handle FreeValueDataArrayPrivate::relationHandle() const {
+        if (role == FreeValueDataArray::Original) {
+            return {};
+        }
         auto *modelData = ModelPrivate::get(parameter->model());
         if (auto relation = orm::firstSnapshot(modelData->engine->query(Schema::parameterFreeValueRelation(),
                                                                         freeValueRelationQuery(parameter->handle(), role)))) {
@@ -287,9 +287,14 @@ namespace dspx {
 
     void FreeValueDataArrayPrivate::refresh(bool notify, bool itemsChanged) {
         Q_Q(FreeValueDataArray);
-        const auto relation = relationHandle();
-        auto *modelData = ModelPrivate::get(parameter->model());
-        const auto newSize = relation ? static_cast<int>(modelData->engine->listLength(Schema::freeValueList(), orm::valueFromHandle(relation))) : 0;
+        int newSize = 0;
+        if (role == FreeValueDataArray::Original) {
+            newSize = static_cast<int>(originalItems.size());
+        } else {
+            const auto relation = relationHandle();
+            auto *modelData = ModelPrivate::get(parameter->model());
+            newSize = relation ? static_cast<int>(modelData->engine->listLength(Schema::freeValueList(), orm::valueFromHandle(relation))) : 0;
+        }
         const bool sizeChanged = size != newSize;
         size = newSize;
 
@@ -317,6 +322,9 @@ namespace dspx {
 
     QList<QVariant> FreeValueDataArray::items() const {
         Q_D(const FreeValueDataArray);
+        if (d->role == Original) {
+            return d->originalItems;
+        }
         const auto relation = d->relationHandle();
         if (!relation) {
             return {};
@@ -330,6 +338,9 @@ namespace dspx {
             return {};
         }
         Q_D(const FreeValueDataArray);
+        if (d->role == Original) {
+            return d->originalItems.mid(index, length);
+        }
         const auto relation = d->relationHandle();
         if (!relation) {
             return {};
@@ -349,6 +360,18 @@ namespace dspx {
             if (!isValidFreeValue(value)) {
                 return false;
             }
+        }
+        if (d->role == Original) {
+            emit aboutToSplice(index, length, values);
+            for (int i = 0; i < length; ++i) {
+                d->originalItems.removeAt(index);
+            }
+            for (int i = 0; i < values.size(); ++i) {
+                d->originalItems.insert(index + i, values.at(i));
+            }
+            d->refresh(true, true);
+            emit spliced(index, length, values);
+            return true;
         }
         const auto associationValue = d->associationValue();
         if (associationValue.isNull()) {
@@ -407,6 +430,15 @@ namespace dspx {
         Q_D(FreeValueDataArray);
         if (leftIndex < 0 || middleIndex < leftIndex || rightIndex < middleIndex || rightIndex > d->size) {
             return false;
+        }
+        if (d->role == Original) {
+            emit aboutToRotate(leftIndex, middleIndex, rightIndex);
+            std::rotate(d->originalItems.begin() + leftIndex,
+                        d->originalItems.begin() + middleIndex,
+                        d->originalItems.begin() + rightIndex);
+            emit itemsChanged();
+            emit rotated(leftIndex, middleIndex, rightIndex);
+            return true;
         }
         const auto associationValue = d->associationValue();
         if (associationValue.isNull()) {

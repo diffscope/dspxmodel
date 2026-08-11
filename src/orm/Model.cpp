@@ -17,6 +17,7 @@
 #include <dspxmodelCore/Document.h>
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
+#include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/PhonemeSequence.h>
 #include <dspxmodelORM/VibratoPointDataArray.h>
@@ -812,7 +813,7 @@ namespace dspx {
             dini::ColumnValue {.column = Schema::parameterKeyColumn(), .value = dini::Value::null()},
         });
         const auto parameterValue = dini::Value(static_cast<std::uint64_t>(id));
-        for (int role = 0; role < 3; ++role) {
+        for (int role = FreeValueDataArray::Transform; role <= FreeValueDataArray::Edited; ++role) {
             transaction->insert(Schema::parameterFreeValueRelation(), {
                 dini::ColumnValue {.column = Schema::freeValueRelationParent().column(), .value = parameterValue},
                 dini::ColumnValue {.column = Schema::freeValueRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(role))},

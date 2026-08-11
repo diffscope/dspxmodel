@@ -26,6 +26,7 @@ namespace dspx {
         FreeValueDataArray *q_ptr = nullptr;
         Parameter *parameter = nullptr;
         FreeValueDataArray::FreeValueRole role = FreeValueDataArray::Original;
+        QList<QVariant> originalItems;
         int size = 0;
         bool suppressNotifications = false;
 

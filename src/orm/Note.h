@@ -135,7 +135,6 @@ namespace dspx {
         QString originalPronunciation() const;
         /**
          * @brief Sets original pronunciation.
-         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post originalPronunciation() == originalPronunciation.
          */
         void setOriginalPronunciation(const QString &originalPronunciation);
