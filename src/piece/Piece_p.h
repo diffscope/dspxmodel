@@ -14,8 +14,6 @@ namespace dspx {
 
         double position = 0.0;
         double length = 0.0;
-        double startMilliseconds = 0.0;
-        double endMilliseconds = 0.0;
         int firstNotePosition = 0;
         int lastNotePosition = 0;
         QList<quint64> noteIds;

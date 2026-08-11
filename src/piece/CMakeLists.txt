@@ -7,11 +7,9 @@ qm_import(Qml)
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
-find_package(opendspx CONFIG REQUIRED)
-
 dspxmodel_add_library(${PROJECT_NAME} AUTOGEN
     SOURCES ${_src}
-    LINKS dspxmodelORM dspxmodelCore opendspx::interpolator
+    LINKS dspxmodelORM dspxmodelCore
     QT_LINKS Core Qml
     QT_INCLUDE_PRIVATE Core Qml
     INCLUDE_PRIVATE *

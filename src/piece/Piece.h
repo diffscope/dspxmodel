@@ -6,7 +6,6 @@
 #include <qqmlintegration.h>
 
 #include <dspxmodelPiece/DSPXModelPieceGlobal.h>
-#include <dspxmodelPiece/PieceChange.h>
 
 namespace dspx {
 
@@ -26,7 +25,8 @@ namespace dspx {
      * Piece objects have stable QObject identity while PieceDivider can preserve
      * their musical content through a rebuild. They have no persistent index;
      * their current order is represented solely by PieceDivider::pieces().
-     * Content notifications are emitted after transaction-committed rebuilding.
+     * Piece objects only describe division boundaries. Content changes are
+     * observed separately by ClipWatcher.
      */
     class DSPXMODEL_PIECE_EXPORT Piece : public QObject {
         Q_OBJECT
@@ -60,15 +60,6 @@ namespace dspx {
          * @param length New duration in ticks.
          */
         void lengthChanged(double length);
-
-        /**
-         * @brief Reports all committed content changes affecting this piece.
-         *
-         * This signal is emitted after all piece boundary and list notifications
-         * for the transaction have completed, at most once per transaction.
-         * @param change Aggregated committed change categories.
-         */
-        void updated(const PieceChange &change);
 
     private:
         explicit Piece(PieceDivider *divider);

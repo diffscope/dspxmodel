@@ -29,21 +29,16 @@ namespace dspx {
      * and right padding `paddingBase`; a strictly matched rest lyric receives no
      * padding. paddingGap is also the minimum unpadded body gap at a legal cut.
      *
-     * ORM signals are observed while a transaction is being applied, but piece
-     * rebuilding and Piece::updated() delivery occur at the dini commit boundary.
-     * Local note edits rebuild only the affected consecutive portion when
+     * The divider observes all model signals which can change the partition, but
+     * only records them. Pieces are synchronized when update() is called; neither
+     * ORM transactions nor their commit/rollback events are observed. Local note
+     * and tempo edits rebuild only the affected consecutive portion when
      * possible. Existing Piece objects are reused in content order before objects
      * are removed or inserted, minimizing observable list changes.
-     * Divider configuration setters rebuild synchronously, including while an
-     * ORM transaction is active; a later rollback resynchronizes against the
-     * rolled-back engine state without producing content updates. Parameter
-     * notifications cover only edited and transform layers, account for free
-     * linear interpolation and anchor None/Linear/Hermite neighborhoods, and
-     * include all affected ParameterMap names.
      *
      * Any non-null SingingClip is divided using singingClip()->model(); membership
      * in a Track or TrackList is not required. Setting singingClip to null clears
-     * all pieces.
+     * all pieces on the next update().
      */
     class DSPXMODEL_PIECE_EXPORT PieceDivider : public QObject {
         Q_OBJECT
@@ -73,63 +68,73 @@ namespace dspx {
         SingingClip *singingClip() const;
 
         /**
-         * @brief Binds a clip and immediately rebuilds its pieces.
-         * @param singingClip Clip to divide, or nullptr to clear the divider.
+         * @brief Selects the clip to divide on the next update().
+         * @param singingClip Clip to divide, or nullptr to clear on update().
          */
         void setSingingClip(SingingClip *singingClip);
 
         /**
-         * @brief Gets the non-rest base padding in milliseconds.
+         * @brief Gets the latest requested non-rest base padding in milliseconds.
          */
         double paddingBase() const;
 
         /**
-         * @brief Sets the non-rest base padding in milliseconds.
+         * @brief Sets the requested non-rest base padding for the next update().
          * @param paddingBase Finite non-negative padding; invalid values are ignored.
          */
         void setPaddingBase(double paddingBase);
 
         /**
-         * @brief Gets the additional left padding per leading non-onset phoneme, in milliseconds.
+         * @brief Gets the latest requested per-phoneme left padding, in milliseconds.
          */
         double paddingAdditional() const;
 
         /**
-         * @brief Sets the additional left padding per leading non-onset phoneme.
+         * @brief Sets the requested additional left padding for the next update().
          * @param paddingAdditional Finite non-negative padding; invalid values are ignored.
          */
         void setPaddingAdditional(double paddingAdditional);
 
         /**
-         * @brief Gets the minimum body gap and maximum left-padding cap, in milliseconds.
+         * @brief Gets the latest requested body gap/left-padding cap, in milliseconds.
          */
         double paddingGap() const;
 
         /**
-         * @brief Sets the minimum body gap and maximum left-padding cap.
+         * @brief Sets the requested body gap and left-padding cap for the next update().
          * @param paddingGap Finite non-negative value; invalid values are ignored.
          */
         void setPaddingGap(double paddingGap);
 
         /**
-         * @brief Gets lyrics that identify rest notes by strict string equality.
+         * @brief Gets the latest requested strict-equality rest lyrics.
          */
         QStringList restLyrics() const;
 
         /**
-         * @brief Sets lyrics that identify rest notes and immediately rebuilds pieces.
+         * @brief Sets lyrics that identify rest notes on the next update().
          */
         void setRestLyrics(const QStringList &restLyrics);
 
         /**
-         * @brief Gets all current pieces in ascending start-time order.
+         * @brief Gets the last explicitly updated pieces in ascending start-time order.
          *
          * The list position is derived state and has no persistent index semantics.
          */
         QList<Piece *> pieces() const;
 
+        /**
+         * @brief Applies every recorded model and configuration change.
+         *
+         * The method is independent of the document transaction state. Multiple
+         * changes are coalesced, and unchanged final state produces no Piece
+         * notifications. Until this method is called, pieces() continues to
+         * describe the last applied state.
+         */
+        Q_INVOKABLE void update();
+
     signals:
-        /** @brief Emitted after the bound clip changes and its piece list has been synchronized. */
+        /** @brief Emitted after the requested bound clip changes. */
         void singingClipChanged(SingingClip *singingClip);
 
         /** @brief Emitted after the base padding accepts a new value. */

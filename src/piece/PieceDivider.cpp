@@ -4,25 +4,14 @@
 #include "Piece_p.h"
 #include "PieceDivider_p.h"
 
-#include <dini/engine.h>
-#include <dini/transaction.h>
-
-#include <dspxmodelCore/Document.h>
-#include <dspxmodelCore/Schema.h>
-#include <dspxmodelORM/AnchorNode.h>
-#include <dspxmodelORM/AnchorNodeSequence.h>
-#include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
-#include <dspxmodelORM/Parameter.h>
-#include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/Phoneme.h>
 #include <dspxmodelORM/PhonemeSequence.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Tempo.h>
 #include <dspxmodelORM/TempoSequence.h>
-#include <dspxmodelORM/VibratoPointDataArray.h>
 
 #include <QPointer>
 
@@ -30,24 +19,11 @@
 #include <cmath>
 #include <functional>
 #include <limits>
-#include <type_traits>
 #include <utility>
 
 namespace dspx {
 
     namespace {
-
-        constexpr double ticksPerBeat = 480.0;
-        constexpr double defaultTempo = 120.0;
-
-        double millisecondsPerTick(double bpm) {
-            return 60000.0 / (ticksPerBeat * bpm);
-        }
-
-        template <class T>
-        bool listsEqual(const QList<T> &left, const QList<T> &right) {
-            return left == right;
-        }
 
         int sharedNoteCount(const QList<quint64> &left, const QList<quint64> &right) {
             int result = 0;
@@ -72,69 +48,6 @@ namespace dspx {
             return ids;
         }
 
-        dini::ContainerId operationContainerId(const dini::ChangeOperation &operation) {
-            return std::visit([](const auto &change) -> dini::ContainerId {
-                using Change = std::decay_t<decltype(change)>;
-                if constexpr (std::is_same_v<Change, dini::ItemInsertedChange> ||
-                              std::is_same_v<Change, dini::ItemRemovedChange> ||
-                              std::is_same_v<Change, dini::CascadeRemovedChange>) {
-                    return change.item.containerId;
-                } else if constexpr (std::is_same_v<Change, dini::ColumnUpdatedChange> ||
-                                     std::is_same_v<Change, dini::ComputedColumnUpdatedChange>) {
-                    return change.column.containerId();
-                } else {
-                    return change.list.containerId();
-                }
-            }, operation.payload());
-        }
-
-        bool hasCommittedParameterOperation(const dini::ChangeSet &changeSet) {
-            const dini::ContainerId parameterTable = Schema::parameterTable().containerId();
-            const dini::ContainerId anchorTable = Schema::anchorNodeTable().containerId();
-            const dini::ContainerId anchorRelationTable = Schema::parameterAnchorNodeRelationTable().containerId();
-            const dini::ContainerId freeList = Schema::freeValueList().containerId();
-            return std::any_of(changeSet.operations().cbegin(), changeSet.operations().cend(),
-                               [=](const dini::ChangeOperation &operation) {
-                                   const auto container = operationContainerId(operation);
-                                   return container == parameterTable || container == anchorTable ||
-                                          container == anchorRelationTable || container == freeList;
-                               });
-        }
-
-    }
-
-    double PieceTimeMap::tickToMilliseconds(double tick) const {
-        if (segments.isEmpty()) {
-            return tick * millisecondsPerTick(defaultTempo);
-        }
-        if (tick < 0.0) {
-            return tick * millisecondsPerTick(segments.constFirst().bpm);
-        }
-        const auto it = std::upper_bound(segments.cbegin(), segments.cend(), tick,
-                                         [](double value, const Segment &segment) { return value < segment.tick; });
-        const auto &segment = it == segments.cbegin() ? segments.constFirst() : *std::prev(it);
-        return segment.milliseconds + (tick - segment.tick) * millisecondsPerTick(segment.bpm);
-    }
-
-    double PieceTimeMap::millisecondsToTick(double milliseconds) const {
-        if (segments.isEmpty()) {
-            return milliseconds / millisecondsPerTick(defaultTempo);
-        }
-        if (milliseconds < 0.0) {
-            return milliseconds / millisecondsPerTick(segments.constFirst().bpm);
-        }
-        const auto it = std::upper_bound(segments.cbegin(), segments.cend(), milliseconds,
-                                         [](double value, const Segment &segment) { return value < segment.milliseconds; });
-        const auto &segment = it == segments.cbegin() ? segments.constFirst() : *std::prev(it);
-        return segment.tick + (milliseconds - segment.milliseconds) / millisecondsPerTick(segment.bpm);
-    }
-
-    bool PieceNoteState::vibratoEquals(const PieceNoteState &other) const {
-        return vibratoAmplitude == other.vibratoAmplitude && vibratoEnd == other.vibratoEnd &&
-               vibratoFrequency == other.vibratoFrequency && vibratoOffset == other.vibratoOffset &&
-               vibratoPhase == other.vibratoPhase && vibratoStart == other.vibratoStart &&
-               vibratoAmplitudePoints == other.vibratoAmplitudePoints &&
-               vibratoFrequencyPoints == other.vibratoFrequencyPoints;
     }
 
     PieceDividerPrivate::PieceDividerPrivate(PieceDivider *q)
@@ -142,60 +55,10 @@ namespace dspx {
     }
 
     PieceDividerPrivate::~PieceDividerPrivate() {
-        subscription.disconnect();
         delete watchContext;
         for (Piece *piece : std::as_const(pieces)) {
             delete piece;
         }
-    }
-
-    PieceTimeMap PieceDividerPrivate::captureTimeMap() const {
-        PieceTimeMap result;
-        if (!singingClip) {
-            result.segments.append({0.0, 0.0, defaultTempo});
-            return result;
-        }
-
-        struct TempoPoint {
-            int position;
-            double bpm;
-        };
-        QVector<TempoPoint> points;
-        for (Tempo *tempo : singingClip->model()->tempos()->asRange()) {
-            points.append({tempo->position(), tempo->value()});
-        }
-        std::sort(points.begin(), points.end(), [](const TempoPoint &left, const TempoPoint &right) {
-            return left.position < right.position;
-        });
-
-        double tempoAtZero = defaultTempo;
-        for (const auto &point : points) {
-            if (point.position > 0) {
-                break;
-            }
-            tempoAtZero = point.bpm;
-        }
-        result.segments.append({0.0, 0.0, tempoAtZero});
-
-        double previousTick = 0.0;
-        double previousMilliseconds = 0.0;
-        double previousTempo = tempoAtZero;
-        for (const auto &point : points) {
-            if (point.position <= 0) {
-                continue;
-            }
-            const double millisecondsAtPoint = previousMilliseconds +
-                                               (static_cast<double>(point.position) - previousTick) *
-                                                   millisecondsPerTick(previousTempo);
-            if (point.bpm == previousTempo) {
-                continue;
-            }
-            result.segments.append({static_cast<double>(point.position), millisecondsAtPoint, point.bpm});
-            previousTick = static_cast<double>(point.position);
-            previousMilliseconds = millisecondsAtPoint;
-            previousTempo = point.bpm;
-        }
-        return result;
     }
 
     QList<PiecePhonemeState> PieceDividerPrivate::capturePhonemes(PhonemeSequence *sequence) const {
@@ -205,7 +68,7 @@ namespace dspx {
         }
         result.reserve(sequence->size());
         for (Phoneme *phoneme : sequence->asRange()) {
-            result.append({phoneme->handle().d, phoneme->language(), phoneme->token(), phoneme->start(), phoneme->onset()});
+            result.append({phoneme->handle().d, phoneme->start(), phoneme->onset()});
         }
         std::sort(result.begin(), result.end(), [](const PiecePhonemeState &left, const PiecePhonemeState &right) {
             if (left.start != right.start) {
@@ -219,34 +82,19 @@ namespace dspx {
         return result;
     }
 
-    PieceNoteState PieceDividerPrivate::captureNote(Note *note, const PieceTimeMap &map, int absoluteClipStart) const {
+    PieceNoteState PieceDividerPrivate::captureNote(Note *note) const {
         PieceNoteState result;
         result.id = note->handle().d;
         result.position = note->position();
         result.length = note->length();
-        result.keyNumber = note->keyNumber();
-        result.centShift = note->centShift();
         result.lyric = note->lyric();
-        result.language = note->language();
-        result.editedPronunciation = note->editedPronunciation();
-        result.vibratoAmplitude = note->vibratoAmplitude();
-        result.vibratoEnd = note->vibratoEnd();
-        result.vibratoFrequency = note->vibratoFrequency();
-        result.vibratoOffset = note->vibratoOffset();
-        result.vibratoPhase = note->vibratoPhase();
-        result.vibratoStart = note->vibratoStart();
-        result.vibratoAmplitudePoints = note->vibratoAmplitudeControlPoints()->items();
-        result.vibratoFrequencyPoints = note->vibratoFrequencyControlPoints()->items();
-        result.originalPhonemes = capturePhonemes(note->originalPhonemes());
-        result.editedPhonemes = capturePhonemes(note->editedPhonemes());
-        for (const auto &phoneme : std::as_const(result.originalPhonemes)) {
+        const auto originalPhonemes = capturePhonemes(note->originalPhonemes());
+        for (const auto &phoneme : originalPhonemes) {
             if (phoneme.onset) {
                 break;
             }
             ++result.leadingNonOnsetPhonemes;
         }
-        result.startMilliseconds = map.tickToMilliseconds(static_cast<double>(absoluteClipStart) + result.position);
-        result.endMilliseconds = map.tickToMilliseconds(static_cast<double>(absoluteClipStart) + result.position + result.length);
         return result;
     }
 
@@ -254,47 +102,6 @@ namespace dspx {
         if (id) {
             pendingNoteIds.insert(id);
         }
-    }
-
-    QString PieceDividerPrivate::parameterName(Parameter *parameter) const {
-        const auto it = parameterNames.constFind(parameter);
-        if (it != parameterNames.cend()) {
-            return *it;
-        }
-        if (parameter && parameter->parameterMap() == singingClip->parameters()) {
-            for (const QString &key : singingClip->parameters()->keys()) {
-                if (singingClip->parameters()->item(key) == parameter) {
-                    return key;
-                }
-            }
-        }
-        return {};
-    }
-
-    void PieceDividerPrivate::markParameter(Parameter *parameter, double firstTick, double lastTick, bool throughEnd) {
-        const QString name = parameterName(parameter);
-        if (name.isEmpty()) {
-            return;
-        }
-        if (lastTick < firstTick) {
-            std::swap(firstTick, lastTick);
-        }
-        pendingParameterImpacts.append({name, firstTick, lastTick, throughEnd, false});
-    }
-
-    void PieceDividerPrivate::markParameterWhole(Parameter *parameter, const QString &name) {
-        const QString resolvedName = name.isEmpty() ? parameterName(parameter) : name;
-        if (!resolvedName.isEmpty()) {
-            pendingParameterImpacts.append({resolvedName, 0.0, 0.0, false, true});
-        }
-    }
-
-    bool PieceDividerPrivate::transactionIsActive() const {
-        if (!singingClip) {
-            return false;
-        }
-        const auto *transaction = singingClip->model()->document()->transaction();
-        return transaction && transaction->state() == dini::TransactionState::Active;
     }
 
     bool PieceDividerPrivate::beginWatching(QObject *object) {
@@ -307,21 +114,23 @@ namespace dspx {
         return true;
     }
 
-    void PieceDividerPrivate::installPhonemeWatcher(Phoneme *phoneme, quint64 noteId, bool) {
+    void PieceDividerPrivate::installPhonemeWatcher(Phoneme *phoneme, quint64 noteId) {
         if (!phoneme || !watchContext) {
             return;
         }
+        const quint64 id = phoneme->handle().d;
+        phonemeOwners.insert(id, noteId);
         if (!beginWatching(phoneme)) {
             return;
         }
-        auto changed = [this, noteId] { markNote(noteId); };
-        QObject::connect(phoneme, &Phoneme::languageChanged, watchContext, changed);
+        auto changed = [this, id] { markNote(phonemeOwners.value(id)); };
         QObject::connect(phoneme, &Phoneme::startChanged, watchContext, changed);
-        QObject::connect(phoneme, &Phoneme::tokenChanged, watchContext, changed);
         QObject::connect(phoneme, &Phoneme::onsetChanged, watchContext, changed);
+        QObject::connect(phoneme, &QObject::destroyed, watchContext,
+                         [this, id] { markNote(phonemeOwners.value(id)); });
     }
 
-    void PieceDividerPrivate::installPhonemeWatcher(PhonemeSequence *sequence, quint64 noteId, bool original) {
+    void PieceDividerPrivate::installPhonemeWatcher(PhonemeSequence *sequence, quint64 noteId) {
         if (!sequence || !watchContext) {
             return;
         }
@@ -329,13 +138,13 @@ namespace dspx {
             return;
         }
         for (Phoneme *phoneme : sequence->asRange()) {
-            installPhonemeWatcher(phoneme, noteId, original);
+            installPhonemeWatcher(phoneme, noteId);
         }
         QObject::connect(sequence, &PhonemeSequence::itemAboutToRemove, watchContext,
                          [this, noteId](Phoneme *, PhonemeSequence *) { markNote(noteId); });
         QObject::connect(sequence, &PhonemeSequence::itemInserted, watchContext,
-                         [this, noteId, original](Phoneme *phoneme, PhonemeSequence *) {
-                             installPhonemeWatcher(phoneme, noteId, original);
+                         [this, noteId](Phoneme *phoneme, PhonemeSequence *) {
+                             installPhonemeWatcher(phoneme, noteId);
                              markNote(noteId);
                          });
     }
@@ -350,29 +159,12 @@ namespace dspx {
             return;
         }
         auto changed = [this, id] { markNote(id); };
-        QObject::connect(note, &Note::centShiftChanged, watchContext, changed);
-        QObject::connect(note, &Note::keyNumberChanged, watchContext, changed);
-        QObject::connect(note, &Note::languageChanged, watchContext, changed);
         QObject::connect(note, &Note::lengthChanged, watchContext, changed);
         QObject::connect(note, &Note::lyricChanged, watchContext, changed);
         QObject::connect(note, &Note::positionChanged, watchContext, changed);
-        QObject::connect(note, &Note::editedPronunciationChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoAmplitudeChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoEndChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoFrequencyChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoOffsetChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoPhaseChanged, watchContext, changed);
-        QObject::connect(note, &Note::vibratoStartChanged, watchContext, changed);
-        installPhonemeWatcher(note->originalPhonemes(), id, true);
-        installPhonemeWatcher(note->editedPhonemes(), id, false);
-        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::spliced,
-                         watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
-        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::rotated,
-                         watchContext, [changed](int, int, int) { changed(); });
-        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::spliced,
-                         watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
-        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::rotated,
-                         watchContext, [changed](int, int, int) { changed(); });
+        QObject::connect(note, &QObject::destroyed, watchContext,
+                         [this, id] { markNote(id); });
+        installPhonemeWatcher(note->originalPhonemes(), id);
     }
 
     void PieceDividerPrivate::installTempoWatcher(Tempo *tempo) {
@@ -382,140 +174,19 @@ namespace dspx {
         if (!beginWatching(tempo)) {
             return;
         }
-        auto changed = [this] { tempoDirty = true; };
+        const quint64 id = tempo->handle().d;
+        auto changed = [this, id] { pendingTempoIds.insert(id); };
         QObject::connect(tempo, &Tempo::positionChanged, watchContext, changed);
         QObject::connect(tempo, &Tempo::valueChanged, watchContext, changed);
-    }
-
-    void PieceDividerPrivate::installFreeWatcher(FreeValueDataArray *array, Parameter *parameter) {
-        if (!array || !watchContext) {
-            return;
-        }
-        if (!beginWatching(array)) {
-            return;
-        }
-        QObject::connect(array, &FreeValueDataArray::spliced, watchContext,
-                         [this, parameter](int index, int removed, const QList<QVariant> &values) {
-                             const int first = std::max(0, index - 1);
-                             const int inserted = static_cast<int>(values.size());
-                             if (removed != inserted) {
-                                 markParameter(parameter, first * FreeValueDataArray::step(), 0.0, true);
-                             } else {
-                                 const int last = index + std::max(removed, inserted) + 1;
-                                 markParameter(parameter, first * FreeValueDataArray::step(), last * FreeValueDataArray::step());
-                             }
-                         });
-        QObject::connect(array, &FreeValueDataArray::rotated, watchContext,
-                         [this, parameter](int left, int, int right) {
-                             markParameter(parameter,
-                                           std::max(0, left - 1) * FreeValueDataArray::step(),
-                                           (right + 1) * FreeValueDataArray::step());
-                         });
-    }
-
-    void PieceDividerPrivate::installAnchorWatcher(AnchorNode *node, Parameter *parameter) {
-        if (!node || !watchContext) {
-            return;
-        }
-        if (!beginWatching(node)) {
-            return;
-        }
-        anchorPositions.insert(node->handle().d, node->x());
-        const quint64 nodeId = node->handle().d;
-        QObject::connect(node, &QObject::destroyed, watchContext,
-                         [this, nodeId] { anchorPositions.remove(nodeId); });
-        auto influenceRange = [node](int extraX) {
-            int first = std::min(node->x(), extraX);
-            int last = std::max(node->x(), extraX);
-            AnchorNode *cursor = node;
-            for (int i = 0; i < 2 && cursor->previousItem(); ++i) {
-                cursor = cursor->previousItem();
-                first = std::min(first, cursor->x());
-            }
-            cursor = node;
-            for (int i = 0; i < 2 && cursor->nextItem(); ++i) {
-                cursor = cursor->nextItem();
-                last = std::max(last, cursor->x());
-            }
-            return std::pair(first, last);
-        };
-        QObject::connect(node, &AnchorNode::xChanged, watchContext,
-                         [this, node, parameter, influenceRange](int x) {
-                             const int oldX = anchorPositions.value(node->handle().d, x);
-                             anchorPositions.insert(node->handle().d, x);
-                             const auto range = influenceRange(oldX);
-                             markParameter(parameter, range.first, range.second);
-                         });
-        auto valueChanged = [this, node, parameter, influenceRange] {
-            const auto range = influenceRange(node->x());
-            markParameter(parameter, range.first, range.second);
-        };
-        QObject::connect(node, &AnchorNode::yChanged, watchContext, valueChanged);
-        QObject::connect(node, &AnchorNode::interpolationModeChanged, watchContext, valueChanged);
-    }
-
-    void PieceDividerPrivate::installAnchorWatcher(AnchorNodeSequence *sequence, Parameter *parameter) {
-        if (!sequence || !watchContext) {
-            return;
-        }
-        if (!beginWatching(sequence)) {
-            return;
-        }
-        for (AnchorNode *node : sequence->asRange()) {
-            installAnchorWatcher(node, parameter);
-        }
-        QObject::connect(sequence, &AnchorNodeSequence::itemAboutToRemove, watchContext,
-                         [this, parameter](AnchorNode *node, AnchorNodeSequence *) {
-                             int first = node->x();
-                             int last = node->x();
-                             AnchorNode *cursor = node;
-                             for (int i = 0; i < 2 && cursor->previousItem(); ++i) {
-                                 cursor = cursor->previousItem();
-                                 first = cursor->x();
-                             }
-                             cursor = node;
-                             for (int i = 0; i < 2 && cursor->nextItem(); ++i) {
-                                 cursor = cursor->nextItem();
-                                 last = cursor->x();
-                             }
-                             markParameter(parameter, first, last);
-                         });
-        QObject::connect(sequence, &AnchorNodeSequence::itemInserted, watchContext,
-                         [this, parameter](AnchorNode *node, AnchorNodeSequence *) {
-                             installAnchorWatcher(node, parameter);
-                             int first = node->previousItem() && node->previousItem()->previousItem()
-                                             ? node->previousItem()->previousItem()->x()
-                                             : (node->previousItem() ? node->previousItem()->x() : node->x());
-                             int last = node->nextItem() && node->nextItem()->nextItem()
-                                            ? node->nextItem()->nextItem()->x()
-                                            : (node->nextItem() ? node->nextItem()->x() : node->x());
-                             markParameter(parameter, first, last);
-                         });
-    }
-
-    void PieceDividerPrivate::installParameterWatcher(const QString &name, Parameter *parameter) {
-        if (!parameter || !watchContext) {
-            return;
-        }
-        parameterNames.insert(parameter, name);
-        if (!beginWatching(parameter)) {
-            return;
-        }
-        QObject::connect(parameter, &QObject::destroyed, watchContext,
-                         [this, parameter] { parameterNames.remove(parameter); });
-        installFreeWatcher(parameter->freeEdited(), parameter);
-        installFreeWatcher(parameter->freeTransform(), parameter);
-        installAnchorWatcher(parameter->anchorEdited(), parameter);
-        installAnchorWatcher(parameter->anchorTransform(), parameter);
+        QObject::connect(tempo, &QObject::destroyed, watchContext,
+                         [this, id] { pendingTempoIds.insert(id); });
     }
 
     void PieceDividerPrivate::installWatchers() {
         delete watchContext;
         watchContext = nullptr;
-        subscription.disconnect();
         notePointers.clear();
-        parameterNames.clear();
-        anchorPositions.clear();
+        phonemeOwners.clear();
         watchedObjects.clear();
         if (!singingClip) {
             return;
@@ -523,9 +194,9 @@ namespace dspx {
 
         watchContext = new QObject(q_ptr);
         QObject::connect(singingClip, &QObject::destroyed, watchContext, [this] {
-            subscription.disconnect();
             singingClip = nullptr;
-            initializeCommittedState(true);
+            bindingDirty = true;
+            discardPending();
             emit q_ptr->singingClipChanged(nullptr);
         });
         QObject::connect(singingClip, &SingingClip::startChanged, watchContext,
@@ -548,116 +219,72 @@ namespace dspx {
             installTempoWatcher(tempo);
         }
         QObject::connect(tempos, &TempoSequence::itemAboutToRemove, watchContext,
-                         [this](Tempo *) { tempoDirty = true; });
+                         [this](Tempo *tempo) { pendingTempoIds.insert(tempo->handle().d); });
         QObject::connect(tempos, &TempoSequence::itemInserted, watchContext,
                          [this](Tempo *tempo) {
                              installTempoWatcher(tempo);
-                             tempoDirty = true;
+                             pendingTempoIds.insert(tempo->handle().d);
                          });
 
-        ParameterMap *parameters = singingClip->parameters();
-        for (const QString &key : parameters->keys()) {
-            installParameterWatcher(key, parameters->item(key));
-        }
-        QObject::connect(parameters, &ParameterMap::itemAboutToRemove, watchContext,
-                         [this](const QString &key, Parameter *parameter, ParameterMap *) {
-                             parameterNames.insert(parameter, key);
-                             markParameterWhole(parameter, key);
-                         });
-        QObject::connect(parameters, &ParameterMap::itemInserted, watchContext,
-                         [this](const QString &key, Parameter *parameter, ParameterMap *) {
-                             installParameterWatcher(key, parameter);
-                             markParameterWhole(parameter, key);
-                         });
-
-        subscription = singingClip->model()->document()->engine()->subscribe(
-            [this](const dini::EngineEvent &event) { handleEngineEvent(event); });
     }
 
     void PieceDividerPrivate::discardPending() {
         pendingNoteIds.clear();
-        pendingParameterImpacts.clear();
-        tempoDirty = false;
+        pendingTempoIds.clear();
         clipStartDirty = false;
-        configurationChangedInTransaction = false;
-    }
-
-    void PieceDividerPrivate::handleEngineEvent(const dini::EngineEvent &event) {
-        if (event.kind == dini::EventKind::AfterCommit) {
-            if (event.changeSet.empty()) {
-                discardPending();
-            } else {
-                if (!pendingParameterImpacts.isEmpty() && !hasCommittedParameterOperation(event.changeSet)) {
-                    pendingParameterImpacts.clear();
-                }
-                commitPending();
-            }
-        } else if (event.kind == dini::EventKind::Rollback) {
-            const bool mustRestore = configurationChangedInTransaction;
-            discardPending();
-            if (mustRestore) {
-                initializeCommittedState(true);
-            }
-        }
     }
 
     void PieceDividerPrivate::bind(SingingClip *clip) {
+        discardPending();
         singingClip = clip;
         installWatchers();
-        initializeCommittedState(true);
-        if (transactionIsActive()) {
-            configurationChangedInTransaction = true;
-        }
+        bindingDirty = true;
     }
 
-    void PieceDividerPrivate::initializeCommittedState(bool notify) {
+    bool PieceDividerPrivate::configurationDiffers() const {
+        return paddingBase != appliedPaddingBase || paddingAdditional != appliedPaddingAdditional ||
+               paddingGap != appliedPaddingGap || restLyrics != appliedRestLyrics;
+    }
+
+    void PieceDividerPrivate::initializeAppliedState() {
         committedNotes.clear();
         orderedNotes.clear();
-        if (!singingClip) {
-            if (notify) {
-                reconcile({});
-            } else {
-                for (Piece *piece : std::as_const(pieces)) {
-                    delete piece;
-                }
-                pieces.clear();
-                committedNoteOwners.clear();
-            }
-            discardPending();
-            return;
-        }
-
-        committedTimeMap = captureTimeMap();
-        committedClipStart = singingClip->start();
-        for (Note *note : singingClip->notes()->asRange()) {
-            const auto state = captureNote(note, committedTimeMap, committedClipStart);
-            committedNotes.insert(state.id, state);
-            orderedNotes.emplace(PieceNoteOrder {state.position, state.id}, state.id);
-            notePointers.insert(state.id, note);
-        }
-        const auto blueprints = buildAllBlueprints();
-        if (notify) {
-            reconcile(blueprints);
-        }
-        discardPending();
-    }
-
-    void PieceDividerPrivate::rebuildForConfigurationChange() {
+        committedNoteOwners.clear();
         if (!singingClip) {
             reconcile({});
-            return;
+            timeMapCache.reset(nullptr);
+            committedTimeMap = timeMapCache.timeMap();
+            committedClipStart = 0;
+        } else {
+            timeMapCache.reset(singingClip->model()->tempos());
+            committedTimeMap = timeMapCache.timeMap();
+            committedClipStart = singingClip->start();
+            for (Note *note : singingClip->notes()->asRange()) {
+                const auto state = captureNote(note);
+                committedNotes.insert(state.id, state);
+                orderedNotes.emplace(PieceNoteOrder {state.position, state.id}, state.id);
+                notePointers.insert(state.id, note);
+            }
+            reconcile(buildAllBlueprints());
+            committedNoteOwners.clear();
+            for (Piece *piece : std::as_const(pieces)) {
+                for (quint64 id : PiecePrivate::get(piece)->noteIds) {
+                    committedNoteOwners.insert(id, piece);
+                }
+            }
         }
-        reconcile(buildAllBlueprints());
-        if (transactionIsActive()) {
-            configurationChangedInTransaction = true;
-        }
+        appliedSingingClip = singingClip;
+        appliedPaddingBase = paddingBase;
+        appliedPaddingAdditional = paddingAdditional;
+        appliedPaddingGap = paddingGap;
+        appliedRestLyrics = restLyrics;
+        bindingDirty = false;
+        discardPending();
     }
 
     PieceBlueprint PieceDividerPrivate::blueprintFromPiece(Piece *piece) const {
         const auto *d = PiecePrivate::get(piece);
-        return {d->startMilliseconds,
-                d->endMilliseconds,
-                d->position,
+        return {d->position,
                 d->length,
                 d->firstNotePosition,
                 d->lastNotePosition,
@@ -667,8 +294,7 @@ namespace dspx {
 
     bool PieceDividerPrivate::blueprintExactlyEqualsPiece(const PieceBlueprint &blueprint, Piece *piece) const {
         const auto *d = PiecePrivate::get(piece);
-        return d->startMilliseconds == blueprint.startMilliseconds &&
-               d->endMilliseconds == blueprint.endMilliseconds && d->position == blueprint.position &&
+        return d->position == blueprint.position &&
                d->length == blueprint.length && d->noteIds == blueprint.noteIds;
     }
 
@@ -706,7 +332,11 @@ namespace dspx {
                 const auto noteIt = committedNotes.constFind(it->second);
                 if (noteIt != committedNotes.cend()) {
                     const auto &note = *noteIt;
-                    group.startMilliseconds = note.startMilliseconds;
+                    const double noteStartMilliseconds = committedTimeMap.tickToMilliseconds(
+                        static_cast<double>(committedClipStart) + note.position);
+                    const double noteEndMilliseconds = committedTimeMap.tickToMilliseconds(
+                        static_cast<double>(committedClipStart) + note.position + note.length);
+                    group.startMilliseconds = noteStartMilliseconds;
                     const bool rest = restLyrics.contains(note.lyric, Qt::CaseSensitive);
                     const double leftPadding = rest
                                                    ? 0.0
@@ -714,15 +344,15 @@ namespace dspx {
                                                               paddingGap);
                     const double rightPadding = rest ? 0.0 : paddingBase;
                     group.lambda = std::min(group.lambda, leftPadding);
-                    if (note.endMilliseconds > group.bodyEndMilliseconds) {
-                        group.bodyEndMilliseconds = note.endMilliseconds;
-                        rhoStart = note.startMilliseconds;
+                    if (noteEndMilliseconds > group.bodyEndMilliseconds) {
+                        group.bodyEndMilliseconds = noteEndMilliseconds;
+                        rhoStart = noteStartMilliseconds;
                         group.rho = rightPadding;
-                    } else if (note.endMilliseconds == group.bodyEndMilliseconds) {
-                        if (note.startMilliseconds > rhoStart) {
-                            rhoStart = note.startMilliseconds;
+                    } else if (noteEndMilliseconds == group.bodyEndMilliseconds) {
+                        if (noteStartMilliseconds > rhoStart) {
+                            rhoStart = noteStartMilliseconds;
                             group.rho = rightPadding;
-                        } else if (note.startMilliseconds == rhoStart) {
+                        } else if (noteStartMilliseconds == rhoStart) {
                             group.rho = std::min(group.rho, rightPadding);
                         }
                     }
@@ -748,10 +378,8 @@ namespace dspx {
         auto appendPiece = [this, &result, &bodyStart, &bodyEnd, &lambda, &rho, &firstPosition, &lastPosition, &ids,
                             stopAfterPosition, oldSearchStart, matchedOldIndex]() {
             PieceBlueprint blueprint;
-            blueprint.startMilliseconds = bodyStart - lambda;
-            blueprint.endMilliseconds = bodyEnd + rho;
-            const double startTick = committedTimeMap.millisecondsToTick(blueprint.startMilliseconds);
-            const double endTick = committedTimeMap.millisecondsToTick(blueprint.endMilliseconds);
+            const double startTick = committedTimeMap.millisecondsToTick(bodyStart - lambda);
+            const double endTick = committedTimeMap.millisecondsToTick(bodyEnd + rho);
             blueprint.position = startTick - committedClipStart;
             blueprint.length = endTick - startTick;
             blueprint.firstNotePosition = firstPosition;
@@ -931,8 +559,8 @@ namespace dspx {
                             for (int candidate = newCursor; candidate <= maximumNew; ++candidate) {
                                 const int overlap = sharedNoteCount(oldData->noteIds, blueprints.at(candidate).noteIds);
                                 const long double distance =
-                                    std::abs(oldData->startMilliseconds - blueprints.at(candidate).startMilliseconds) +
-                                    std::abs(oldData->endMilliseconds - blueprints.at(candidate).endMilliseconds);
+                                    std::abs(oldData->position - blueprints.at(candidate).position) +
+                                    std::abs(oldData->length - blueprints.at(candidate).length);
                                 if (overlap > bestOverlap || (overlap == bestOverlap && distance < bestDistance)) {
                                     bestNew = candidate;
                                     bestOverlap = overlap;
@@ -952,8 +580,8 @@ namespace dspx {
                                 const int overlap = sharedNoteCount(oldData->noteIds,
                                                                     blueprints.at(newCursor).noteIds);
                                 const long double distance =
-                                    std::abs(oldData->startMilliseconds - blueprints.at(newCursor).startMilliseconds) +
-                                    std::abs(oldData->endMilliseconds - blueprints.at(newCursor).endMilliseconds);
+                                    std::abs(oldData->position - blueprints.at(newCursor).position) +
+                                    std::abs(oldData->length - blueprints.at(newCursor).length);
                                 if (overlap > bestOverlap || (overlap == bestOverlap && distance < bestDistance)) {
                                     bestOld = candidate;
                                     bestOverlap = overlap;
@@ -1030,8 +658,8 @@ namespace dspx {
                 Score match = previous[j - 1];
                 ++match.matches;
                 match.overlap += sharedNoteCount(oldData->noteIds, blueprints.at(j - 1).noteIds);
-                match.boundaryDistance += std::abs(oldData->startMilliseconds - blueprints.at(j - 1).startMilliseconds) +
-                                          std::abs(oldData->endMilliseconds - blueprints.at(j - 1).endMilliseconds);
+                match.boundaryDistance += std::abs(oldData->position - blueprints.at(j - 1).position) +
+                                          std::abs(oldData->length - blueprints.at(j - 1).length);
                 if (better(match, best) || (!better(best, match) && !better(match, best))) {
                     best = match;
                     decision = 3;
@@ -1059,9 +687,7 @@ namespace dspx {
         return result;
     }
 
-    void PieceDividerPrivate::reconcile(const QList<PieceBlueprint> &blueprints,
-                                         QHash<Piece *, PieceChange::ChangeTypes> changes,
-                                         QHash<Piece *, QSet<QString>> names) {
+    void PieceDividerPrivate::reconcile(const QList<PieceBlueprint> &blueprints) {
         Q_Q(PieceDivider);
         const QList<Piece *> oldPieces = pieces;
         QList<Piece *> reusable = chooseReusablePieces(oldPieces, blueprints);
@@ -1091,8 +717,6 @@ namespace dspx {
             }
             data->position = blueprint.position;
             data->length = blueprint.length;
-            data->startMilliseconds = blueprint.startMilliseconds;
-            data->endMilliseconds = blueprint.endMilliseconds;
             data->firstNotePosition = blueprint.firstNotePosition;
             data->lastNotePosition = blueprint.lastNotePosition;
             data->noteIds = blueprint.noteIds;
@@ -1135,8 +759,6 @@ namespace dspx {
             const auto &blueprint = blueprints.at(i);
             data->position = blueprint.position;
             data->length = blueprint.length;
-            data->startMilliseconds = blueprint.startMilliseconds;
-            data->endMilliseconds = blueprint.endMilliseconds;
             data->firstNotePosition = blueprint.firstNotePosition;
             data->lastNotePosition = blueprint.lastNotePosition;
             data->noteIds = blueprint.noteIds;
@@ -1154,384 +776,155 @@ namespace dspx {
             emit q->piecesChanged();
         }
 
-        QList<Piece *> changedPieces = changes.keys();
-        std::sort(changedPieces.begin(), changedPieces.end(), [](Piece *left, Piece *right) {
-            const double leftStart = PiecePrivate::get(left)->startMilliseconds;
-            const double rightStart = PiecePrivate::get(right)->startMilliseconds;
-            return leftStart < rightStart ||
-                   (leftStart == rightStart && std::less<Piece *> {}(left, right));
-        });
-        for (Piece *piece : std::as_const(changedPieces)) {
-            const auto types = changes.value(piece);
-            if (!types) {
-                continue;
-            }
-            const QSet<QString> nameSet = names.value(piece);
-            QStringList parameterNameList(nameSet.cbegin(), nameSet.cend());
-            emit piece->updated(PieceChange(types, std::move(parameterNameList)));
-        }
     }
 
-    void PieceDividerPrivate::addParameterChanges(
-        QHash<Piece *, PieceChange::ChangeTypes> &changes,
-        QHash<Piece *, QSet<QString>> &names,
-        const QList<Piece *> &oldPieces,
-        const QHash<Piece *, PieceBlueprint> &oldSnapshots,
-        const PieceTimeMap &oldMap,
-        int oldClipStart,
-        const PieceTimeMap &newMap,
-        int newClipStart,
-        bool globalTimeChange) const {
-        const bool membershipMayHaveChanged = !oldSnapshots.isEmpty();
-        const QSet<Piece *> finalPieces = membershipMayHaveChanged
-                                             ? QSet<Piece *>(pieces.cbegin(), pieces.cend())
-                                             : QSet<Piece *> {};
-        auto add = [&changes, &names, &finalPieces, membershipMayHaveChanged](Piece *piece, const QString &name) {
-            if (!piece || (membershipMayHaveChanged && !finalPieces.contains(piece)) || name.isEmpty()) {
-                return;
-            }
-            changes[piece] |= PieceChange::Parameter;
-            names[piece].insert(name);
-        };
-
-        QList<PieceParameterImpact> impacts = pendingParameterImpacts;
-        std::sort(impacts.begin(), impacts.end(), [](const PieceParameterImpact &left,
-                                                      const PieceParameterImpact &right) {
-            if (left.name != right.name) {
-                return left.name < right.name;
-            }
-            if (left.wholeDomain != right.wholeDomain) {
-                return left.wholeDomain;
-            }
-            return left.firstTick < right.firstTick;
-        });
-        QList<PieceParameterImpact> mergedImpacts;
-        for (const auto &impact : std::as_const(impacts)) {
-            if (!mergedImpacts.isEmpty() && mergedImpacts.constLast().name == impact.name) {
-                auto &last = mergedImpacts.last();
-                if (last.wholeDomain || impact.wholeDomain) {
-                    last.wholeDomain = true;
-                    last.firstTick = 0.0;
-                    last.lastTick = 0.0;
-                    last.throughEnd = false;
-                    continue;
-                }
-                if (last.throughEnd || impact.firstTick <= last.lastTick) {
-                    last.lastTick = std::max(last.lastTick, impact.lastTick);
-                    last.throughEnd = last.throughEnd || impact.throughEnd;
-                    continue;
-                }
-            }
-            mergedImpacts.append(impact);
+    std::pair<int, int> PieceDividerPrivate::timeMapAffectedPositions(
+        const PieceTimeMap &oldMap, int oldClipStart,
+        const PieceTimeMap &newMap, int newClipStart) const {
+        const int noneFirst = std::numeric_limits<int>::max();
+        const int noneLast = std::numeric_limits<int>::min();
+        if (pieces.isEmpty()) {
+            return {noneFirst, noneLast};
         }
 
-        auto addOldIntersections = [this, &oldPieces, &oldSnapshots, &add](double start, double end,
-                                                                           const QString &name) {
-            auto snapshot = [this, &oldSnapshots](Piece *piece) {
-                const auto it = oldSnapshots.constFind(piece);
-                return it == oldSnapshots.cend() ? blueprintFromPiece(piece) : *it;
-            };
-            const auto first = std::lower_bound(oldPieces.cbegin(), oldPieces.cend(), start,
-                                                [&snapshot](Piece *piece, double value) {
-                                                    return snapshot(piece).endMilliseconds < value;
-                                                });
-            for (auto it = first; it != oldPieces.cend(); ++it) {
-                const auto pieceSnapshot = snapshot(*it);
-                if (pieceSnapshot.startMilliseconds > end) {
-                    break;
+        const auto *firstPiece = PiecePrivate::get(pieces.constFirst());
+        const auto *lastPiece = PiecePrivate::get(pieces.constLast());
+        const double domainStart = firstPiece->position;
+        const double domainEnd = lastPiece->position + lastPiece->length;
+        QVector<double> breakpoints {domainStart, domainEnd};
+        auto appendBreakpoints = [&breakpoints, domainStart, domainEnd](const PieceTimeMap &map, int clipStart) {
+            for (const auto &segment : map.segments) {
+                const double relative = segment.tick - clipStart;
+                if (relative > domainStart && relative < domainEnd) {
+                    breakpoints.append(relative);
                 }
-                add(*it, name);
             }
         };
-        auto addNewIntersections = [this, &add](double start, double end, const QString &name) {
-            const auto first = std::lower_bound(pieces.cbegin(), pieces.cend(), start,
-                                                [](Piece *piece, double value) {
-                                                    return PiecePrivate::get(piece)->endMilliseconds < value;
-                                                });
-            for (auto it = first; it != pieces.cend(); ++it) {
-                const auto *data = PiecePrivate::get(*it);
-                if (data->startMilliseconds > end) {
-                    break;
-                }
-                add(*it, name);
-            }
-        };
+        appendBreakpoints(oldMap, oldClipStart);
+        appendBreakpoints(newMap, newClipStart);
+        std::sort(breakpoints.begin(), breakpoints.end());
+        breakpoints.erase(std::unique(breakpoints.begin(), breakpoints.end()), breakpoints.end());
 
-        if (globalTimeChange) {
-            ParameterMap *map = singingClip->parameters();
-            for (const QString &name : map->keys()) {
-                Parameter *parameter = map->item(name);
-                if (!parameter) {
-                    continue;
-                }
-                bool hasDomain = false;
-                double firstTick = std::numeric_limits<double>::infinity();
-                double lastTick = -std::numeric_limits<double>::infinity();
-                auto includeFree = [&hasDomain, &firstTick, &lastTick](FreeValueDataArray *array) {
-                    if (array->size() <= 0) {
-                        return;
-                    }
-                    hasDomain = true;
-                    firstTick = std::min(firstTick, 0.0);
-                    lastTick = std::max(lastTick,
-                                        static_cast<double>(array->size() - 1) * FreeValueDataArray::step());
-                };
-                auto includeAnchors = [&hasDomain, &firstTick, &lastTick](AnchorNodeSequence *sequence) {
-                    if (!sequence->firstItem()) {
-                        return;
-                    }
-                    hasDomain = true;
-                    firstTick = std::min(firstTick, static_cast<double>(sequence->firstItem()->x()));
-                    lastTick = std::max(lastTick, static_cast<double>(sequence->lastItem()->x()));
-                };
-                includeFree(parameter->freeEdited());
-                includeFree(parameter->freeTransform());
-                includeAnchors(parameter->anchorEdited());
-                includeAnchors(parameter->anchorTransform());
-                if (!hasDomain) {
-                    continue;
-                }
-                const double oldStart = oldMap.tickToMilliseconds(static_cast<double>(oldClipStart) + firstTick);
-                const double oldEnd = oldMap.tickToMilliseconds(static_cast<double>(oldClipStart) + lastTick);
-                const double newStart = newMap.tickToMilliseconds(static_cast<double>(newClipStart) + firstTick);
-                const double newEnd = newMap.tickToMilliseconds(static_cast<double>(newClipStart) + lastTick);
-                addOldIntersections(oldStart, oldEnd, name);
-                addNewIntersections(newStart, newEnd, name);
+        double affectedStart = std::numeric_limits<double>::infinity();
+        double affectedEnd = -std::numeric_limits<double>::infinity();
+        for (int i = 0; i + 1 < breakpoints.size(); ++i) {
+            const double left = breakpoints.at(i);
+            const double right = breakpoints.at(i + 1);
+            const double probe = left + (right - left) * 0.5;
+            if (oldMap.bpmAtTick(oldClipStart + probe) != newMap.bpmAtTick(newClipStart + probe)) {
+                affectedStart = std::min(affectedStart, left);
+                affectedEnd = std::max(affectedEnd, right);
             }
         }
-
-        for (const auto &impact : std::as_const(mergedImpacts)) {
-            if (impact.wholeDomain) {
-                for (Piece *piece : oldPieces) {
-                    add(piece, impact.name);
-                }
-                for (Piece *piece : pieces) {
-                    add(piece, impact.name);
-                }
-                continue;
-            }
-
-            const double oldStart = oldMap.tickToMilliseconds(static_cast<double>(oldClipStart) + impact.firstTick);
-            const double newStart = newMap.tickToMilliseconds(static_cast<double>(newClipStart) + impact.firstTick);
-            const double oldEnd = impact.throughEnd
-                                      ? std::numeric_limits<double>::infinity()
-                                      : oldMap.tickToMilliseconds(static_cast<double>(oldClipStart) + impact.lastTick);
-            const double newEnd = impact.throughEnd
-                                      ? std::numeric_limits<double>::infinity()
-                                      : newMap.tickToMilliseconds(static_cast<double>(newClipStart) + impact.lastTick);
-
-            addOldIntersections(oldStart, oldEnd, impact.name);
-            addNewIntersections(newStart, newEnd, impact.name);
+        if (!std::isfinite(affectedStart)) {
+            return {noneFirst, noneLast};
         }
+
+        const auto firstAffectedPiece = std::lower_bound(
+            pieces.cbegin(), pieces.cend(), affectedStart,
+            [](Piece *piece, double position) {
+                const auto *data = PiecePrivate::get(piece);
+                return data->position + data->length < position;
+            });
+        int firstIndex = static_cast<int>(std::distance(pieces.cbegin(), firstAffectedPiece));
+        const int pieceCount = static_cast<int>(pieces.size());
+        firstIndex = std::clamp(firstIndex - 1, 0, pieceCount - 1);
+        int lastIndex = firstIndex;
+        while (lastIndex + 1 < pieces.size() &&
+               PiecePrivate::get(pieces.at(lastIndex + 1))->position <= affectedEnd) {
+            ++lastIndex;
+        }
+        lastIndex = std::min(lastIndex + 1, pieceCount - 1);
+        return {PiecePrivate::get(pieces.at(firstIndex))->firstNotePosition,
+                PiecePrivate::get(pieces.at(lastIndex))->lastNotePosition};
     }
 
-    void PieceDividerPrivate::commitPending() {
-        if (!singingClip) {
+    void PieceDividerPrivate::updatePending() {
+        if (bindingDirty || appliedSingingClip != singingClip || configurationDiffers()) {
+            initializeAppliedState();
+            return;
+        }
+        if (!singingClip ||
+            (pendingNoteIds.isEmpty() && pendingTempoIds.isEmpty() && !clipStartDirty)) {
             discardPending();
             return;
         }
-        if (pendingNoteIds.isEmpty() && pendingParameterImpacts.isEmpty() && !tempoDirty && !clipStartDirty &&
-            !configurationChangedInTransaction) {
-            return;
-        }
 
-        const QList<Piece *> oldPieces = pieces;
-        QHash<Piece *, PieceBlueprint> oldPieceSnapshots;
         const PieceTimeMap oldTimeMap = committedTimeMap;
         const int oldClipStart = committedClipStart;
-        QHash<quint64, PieceNoteState> oldAffectedStates;
-
-        const PieceTimeMap newTimeMap = tempoDirty ? captureTimeMap() : committedTimeMap;
+        if (!pendingTempoIds.isEmpty()) {
+            timeMapCache.update(singingClip->model()->tempos(), pendingTempoIds);
+        }
+        const PieceTimeMap newTimeMap = timeMapCache.timeMap();
         const int newClipStart = singingClip->start();
-        const bool globalTimeChange = newClipStart != oldClipStart || newTimeMap.segments != oldTimeMap.segments;
-        QSet<quint64> affectedIds = pendingNoteIds;
-        int firstAffectedPosition = std::numeric_limits<int>::max();
-        int lastAffectedPosition = std::numeric_limits<int>::min();
+        const bool timeMapChanged = newClipStart != oldClipStart || newTimeMap.segments != oldTimeMap.segments;
+        const auto timePositions = timeMapChanged
+                                       ? timeMapAffectedPositions(oldTimeMap, oldClipStart, newTimeMap, newClipStart)
+                                       : std::pair<int, int> {std::numeric_limits<int>::max(),
+                                                             std::numeric_limits<int>::min()};
 
-        if (globalTimeChange) {
-            oldAffectedStates = committedNotes;
-            for (auto it = committedNotes.cbegin(); it != committedNotes.cend(); ++it) {
-                affectedIds.insert(it.key());
+        QHash<quint64, PieceNoteState> oldAffectedStates;
+        int firstAffectedPosition = timePositions.first;
+        int lastAffectedPosition = timePositions.second;
+        for (quint64 id : std::as_const(pendingNoteIds)) {
+            const auto oldIt = committedNotes.constFind(id);
+            if (oldIt != committedNotes.cend()) {
+                oldAffectedStates.insert(id, *oldIt);
+                firstAffectedPosition = std::min(firstAffectedPosition, oldIt->position);
+                lastAffectedPosition = std::max(lastAffectedPosition, oldIt->position);
+                orderedNotes.erase(PieceNoteOrder {oldIt->position, id});
+                committedNotes.remove(id);
             }
-            committedNotes.clear();
-            orderedNotes.clear();
-            notePointers.clear();
-            for (Note *note : singingClip->notes()->asRange()) {
-                const auto state = captureNote(note, newTimeMap, newClipStart);
-                committedNotes.insert(state.id, state);
-                orderedNotes.emplace(PieceNoteOrder {state.position, state.id}, state.id);
-                notePointers.insert(state.id, note);
-                affectedIds.insert(state.id);
-            }
-        } else {
-            for (quint64 id : std::as_const(affectedIds)) {
-                const auto oldIt = committedNotes.constFind(id);
-                if (oldIt != committedNotes.cend()) {
-                    oldAffectedStates.insert(id, *oldIt);
-                    firstAffectedPosition = std::min(firstAffectedPosition, oldIt->position);
-                    lastAffectedPosition = std::max(lastAffectedPosition, oldIt->position);
-                    orderedNotes.erase(PieceNoteOrder {oldIt->position, id});
-                    committedNotes.remove(id);
-                }
 
-                Note *note = notePointers.value(id);
-                if (!note) {
-                    note = singingClip->model()->find<Note>(Handle {id});
-                }
-                if (note && note->noteSequence() == singingClip->notes()) {
-                    const auto state = captureNote(note, newTimeMap, newClipStart);
-                    committedNotes.insert(id, state);
-                    orderedNotes.emplace(PieceNoteOrder {state.position, id}, id);
-                    notePointers.insert(id, note);
-                    firstAffectedPosition = std::min(firstAffectedPosition, state.position);
-                    lastAffectedPosition = std::max(lastAffectedPosition, state.position);
-                } else {
-                    notePointers.remove(id);
-                }
+            Note *note = notePointers.value(id);
+            if (!note) {
+                note = singingClip->model()->find<Note>(Handle {id});
+            }
+            if (note && note->noteSequence() == singingClip->notes()) {
+                const auto state = captureNote(note);
+                committedNotes.insert(id, state);
+                orderedNotes.emplace(PieceNoteOrder {state.position, id}, id);
+                notePointers.insert(id, note);
+                firstAffectedPosition = std::min(firstAffectedPosition, state.position);
+                lastAffectedPosition = std::max(lastAffectedPosition, state.position);
+            } else {
+                notePointers.remove(id);
+            }
+        }
+
+        bool partitionDirty = timePositions.first != std::numeric_limits<int>::max();
+        for (quint64 id : std::as_const(pendingNoteIds)) {
+            const auto oldIt = oldAffectedStates.constFind(id);
+            const auto newIt = committedNotes.constFind(id);
+            if ((oldIt == oldAffectedStates.cend()) != (newIt == committedNotes.cend())) {
+                partitionDirty = true;
+                continue;
+            }
+            if (oldIt == oldAffectedStates.cend()) {
+                continue;
+            }
+            const bool oldRest = restLyrics.contains(oldIt->lyric, Qt::CaseSensitive);
+            const bool newRest = restLyrics.contains(newIt->lyric, Qt::CaseSensitive);
+            if (oldIt->position != newIt->position || oldIt->length != newIt->length ||
+                oldIt->leadingNonOnsetPhonemes != newIt->leadingNonOnsetPhonemes || oldRest != newRest) {
+                partitionDirty = true;
             }
         }
 
         committedTimeMap = newTimeMap;
         committedClipStart = newClipStart;
-
-        bool partitionDirty = globalTimeChange;
-        if (!partitionDirty) {
-            for (quint64 id : std::as_const(affectedIds)) {
-                const auto oldIt = oldAffectedStates.constFind(id);
-                const auto newIt = committedNotes.constFind(id);
-                if ((oldIt == oldAffectedStates.cend()) != (newIt == committedNotes.cend())) {
-                    partitionDirty = true;
-                    break;
-                }
-                if (oldIt == oldAffectedStates.cend()) {
-                    continue;
-                }
-                const bool oldRest = restLyrics.contains(oldIt->lyric, Qt::CaseSensitive);
-                const bool newRest = restLyrics.contains(newIt->lyric, Qt::CaseSensitive);
-                if (oldIt->position != newIt->position || oldIt->length != newIt->length ||
-                    oldIt->leadingNonOnsetPhonemes != newIt->leadingNonOnsetPhonemes || oldRest != newRest) {
-                    partitionDirty = true;
-                    break;
-                }
-            }
-        }
-        if (globalTimeChange || (partitionDirty && !pendingParameterImpacts.isEmpty())) {
-            oldPieceSnapshots.reserve(oldPieces.size());
-            for (Piece *piece : oldPieces) {
-                oldPieceSnapshots.insert(piece, blueprintFromPiece(piece));
-            }
-        }
-
-        QHash<quint64, Piece *> oldOwners;
-        oldOwners.reserve(affectedIds.size());
-        for (quint64 id : std::as_const(affectedIds)) {
-            if (Piece *piece = committedNoteOwners.value(id)) {
-                oldOwners.insert(id, piece);
-            }
-        }
-
         if (partitionDirty) {
-            QList<PieceBlueprint> blueprints;
-            if (globalTimeChange) {
-                blueprints = buildAllBlueprints();
-            } else if (!affectedIds.isEmpty()) {
-                if (firstAffectedPosition == std::numeric_limits<int>::max()) {
-                    blueprints = buildAllBlueprints();
-                } else {
-                    blueprints = buildLocalBlueprints(firstAffectedPosition, lastAffectedPosition);
-                }
+            if (pieces.isEmpty() || firstAffectedPosition == std::numeric_limits<int>::max()) {
+                reconcile(buildAllBlueprints());
             } else {
-                blueprints.reserve(pieces.size());
-                for (Piece *piece : std::as_const(pieces)) {
-                    blueprints.append(blueprintFromPiece(piece));
-                }
+                reconcile(buildLocalBlueprints(firstAffectedPosition, lastAffectedPosition));
             }
-            reconcile(blueprints);
-        }
-        const auto &newOwners = committedNoteOwners;
-        QHash<Piece *, PieceChange::ChangeTypes> changes;
-        QHash<Piece *, QSet<QString>> changedParameterNames;
-        const QSet<Piece *> finalPieceSet = partitionDirty
-                                                ? QSet<Piece *>(pieces.cbegin(), pieces.cend())
-                                                : QSet<Piece *> {};
-
-        auto addType = [&changes, &finalPieceSet, partitionDirty](Piece *piece, PieceChange::ChangeType type) {
-            if (piece && (!partitionDirty || finalPieceSet.contains(piece))) {
-                changes[piece] |= type;
-            }
-        };
-
-        for (quint64 id : std::as_const(affectedIds)) {
-            const auto oldIt = oldAffectedStates.constFind(id);
-            const auto newIt = committedNotes.constFind(id);
-            const bool hadOld = oldIt != oldAffectedStates.cend();
-            const bool hasNew = newIt != committedNotes.cend();
-            PieceChange::ChangeTypes types;
-            if (hadOld != hasNew) {
-                types |= PieceChange::Score;
-            } else if (hadOld) {
-                if (oldIt->lyric != newIt->lyric || oldIt->language != newIt->language) {
-                    types |= PieceChange::Lyric;
-                }
-                if (oldIt->editedPronunciation != newIt->editedPronunciation) {
-                    types |= PieceChange::Pronunciation;
-                }
-                if (oldIt->keyNumber != newIt->keyNumber || oldIt->centShift != newIt->centShift ||
-                    oldIt->startMilliseconds != newIt->startMilliseconds ||
-                    oldIt->endMilliseconds != newIt->endMilliseconds) {
-                    types |= PieceChange::Note;
-                }
-                if (!listsEqual(oldIt->editedPhonemes, newIt->editedPhonemes)) {
-                    types |= PieceChange::Phoneme;
-                }
-                if (!oldIt->vibratoEquals(*newIt)) {
-                    types |= PieceChange::Vibrato;
-                }
-            }
-            if (!types) {
-                continue;
-            }
-            Piece *oldPiece = oldOwners.value(id);
-            Piece *newPiece = newOwners.value(id);
-            for (int bit = PieceChange::Score; bit <= PieceChange::Parameter; bit <<= 1) {
-                const auto type = static_cast<PieceChange::ChangeType>(bit);
-                if (types.testFlag(type)) {
-                    addType(oldPiece, type);
-                    addType(newPiece, type);
-                }
-            }
-        }
-
-        addParameterChanges(changes, changedParameterNames, oldPieces, oldPieceSnapshots,
-                            oldTimeMap, oldClipStart, newTimeMap, newClipStart, globalTimeChange);
-
-        QList<Piece *> changedPieces = changes.keys();
-        std::sort(changedPieces.begin(), changedPieces.end(), [](Piece *left, Piece *right) {
-            const double leftStart = PiecePrivate::get(left)->startMilliseconds;
-            const double rightStart = PiecePrivate::get(right)->startMilliseconds;
-            return leftStart < rightStart ||
-                   (leftStart == rightStart && std::less<Piece *> {}(left, right));
-        });
-        for (Piece *piece : std::as_const(changedPieces)) {
-            const auto types = changes.value(piece);
-            if (!types) {
-                continue;
-            }
-            const QSet<QString> nameSet = changedParameterNames.value(piece);
-            QStringList names(nameSet.cbegin(), nameSet.cend());
-            emit piece->updated(PieceChange(types, std::move(names)));
-        }
-
-        ParameterMap *map = singingClip->parameters();
-        for (const QString &key : map->keys()) {
-            parameterNames.insert(map->item(key), key);
         }
         discardPending();
     }
 
     PieceDivider::PieceDivider(QObject *parent)
         : QObject(parent), d_ptr(new PieceDividerPrivate(this)) {
-        qRegisterMetaType<PieceChange>();
     }
 
     PieceDivider::~PieceDivider() = default;
@@ -1562,7 +955,6 @@ namespace dspx {
         }
         d->paddingBase = paddingBase;
         emit paddingBaseChanged(paddingBase);
-        d->rebuildForConfigurationChange();
     }
 
     double PieceDivider::paddingAdditional() const {
@@ -1577,7 +969,6 @@ namespace dspx {
         }
         d->paddingAdditional = paddingAdditional;
         emit paddingAdditionalChanged(paddingAdditional);
-        d->rebuildForConfigurationChange();
     }
 
     double PieceDivider::paddingGap() const {
@@ -1592,7 +983,6 @@ namespace dspx {
         }
         d->paddingGap = paddingGap;
         emit paddingGapChanged(paddingGap);
-        d->rebuildForConfigurationChange();
     }
 
     QStringList PieceDivider::restLyrics() const {
@@ -1607,12 +997,16 @@ namespace dspx {
         }
         d->restLyrics = restLyrics;
         emit restLyricsChanged(restLyrics);
-        d->rebuildForConfigurationChange();
     }
 
     QList<Piece *> PieceDivider::pieces() const {
         Q_D(const PieceDivider);
         return d->pieces;
+    }
+
+    void PieceDivider::update() {
+        Q_D(PieceDivider);
+        d->updatePending();
     }
 
 }

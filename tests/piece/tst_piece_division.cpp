@@ -438,6 +438,7 @@ public:
             std::invoke(std::forward<Func>(func));
             transaction.commit();
             document.setTransaction(nullptr);
+            divider.update();
         } catch (...) {
             if (transaction.state() == dini::TransactionState::Active
                 || transaction.state() == dini::TransactionState::Failed) {
@@ -455,6 +456,7 @@ public:
         std::invoke(std::forward<Func>(func));
         transaction.rollback();
         document.setTransaction(nullptr);
+        divider.update();
     }
 
     Note *addNote(SingingClip *target, const NoteSpec &spec) {
@@ -515,6 +517,7 @@ public:
         divider.setPaddingGap(input.paddingGap);
         divider.setRestLyrics(input.restLyrics);
         divider.setSingingClip(clip);
+        divider.update();
         document.engine()->clearUndoHistory();
     }
 };
@@ -828,6 +831,7 @@ void PieceDivisionTest::noteRebuildOperations() {
     fixture.divider.setPaddingGap(180);
     fixture.divider.setRestLyrics({QStringLiteral("R")});
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
@@ -931,6 +935,7 @@ void PieceDivisionTest::originalPhonemeRebuildOperations() {
     fixture.divider.setPaddingAdditional(55);
     fixture.divider.setPaddingGap(220);
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
@@ -1016,6 +1021,7 @@ void PieceDivisionTest::tempoRebuildOperations() {
     fixture.divider.setPaddingAdditional(30);
     fixture.divider.setPaddingGap(210);
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
@@ -1068,11 +1074,42 @@ void PieceDivisionTest::dividerConfigurationChanges() {
                           {QStringLiteral("R")}));
 
     const auto check = [&] {
+        fixture.divider.update();
         verifyDivision(fixture.divider);
     };
     check();
 
+    const auto beforeRestoredConfiguration = actualPieces(fixture.divider);
+    int pieceSignalCount = 0;
+    for (Piece *piece : fixture.divider.pieces()) {
+        connect(piece, &Piece::positionChanged, this, [&pieceSignalCount] { ++pieceSignalCount; });
+        connect(piece, &Piece::lengthChanged, this, [&pieceSignalCount] { ++pieceSignalCount; });
+    }
+    connect(&fixture.divider, &PieceDivider::pieceAboutToInsert, this,
+            [&pieceSignalCount] { ++pieceSignalCount; });
+    connect(&fixture.divider, &PieceDivider::pieceInserted, this,
+            [&pieceSignalCount] { ++pieceSignalCount; });
+    connect(&fixture.divider, &PieceDivider::pieceAboutToRemove, this,
+            [&pieceSignalCount] { ++pieceSignalCount; });
+    connect(&fixture.divider, &PieceDivider::pieceRemoved, this,
+            [&pieceSignalCount] { ++pieceSignalCount; });
+    connect(&fixture.divider, &PieceDivider::piecesChanged, this,
+            [&pieceSignalCount] { ++pieceSignalCount; });
+    fixture.divider.setPaddingBase(999);
+    fixture.divider.setPaddingAdditional(998);
+    fixture.divider.setPaddingGap(997);
+    fixture.divider.setRestLyrics({QStringLiteral("temporary")});
+    fixture.divider.setPaddingBase(10);
+    fixture.divider.setPaddingAdditional(5);
+    fixture.divider.setPaddingGap(50);
+    fixture.divider.setRestLyrics({QStringLiteral("R")});
+    fixture.divider.update();
+    comparePieceLists(actualPieces(fixture.divider), beforeRestoredConfiguration);
+    QCOMPARE(pieceSignalCount, 0);
+
+    const auto beforeDeferredConfiguration = actualPieces(fixture.divider);
     fixture.divider.setPaddingBase(120);
+    comparePieceLists(actualPieces(fixture.divider), beforeDeferredConfiguration);
     check();
     fixture.divider.setPaddingAdditional(45);
     check();
@@ -1124,6 +1161,8 @@ void PieceDivisionTest::commitAndRollbackTransactions() {
     comparePieceLists(actualPieces(fixture.divider), committedBeforeEdit);
     transaction.commit();
     fixture.document.setTransaction(nullptr);
+    comparePieceLists(actualPieces(fixture.divider), committedBeforeEdit);
+    fixture.divider.update();
     verifyDivision(fixture.divider);
 
     const auto beforeRollback = actualPieces(fixture.divider);
@@ -1137,7 +1176,26 @@ void PieceDivisionTest::commitAndRollbackTransactions() {
     comparePieceLists(actualPieces(fixture.divider), beforeRollback);
     verifyDivision(fixture.divider);
 
-    // Divider configuration is synchronous and is not part of the ORM rollback.
+    // If a transaction is explicitly refreshed, rollback is another recorded
+    // model edit and remains deferred until the following update().
+    const auto beforeRefreshedRollback = actualPieces(fixture.divider);
+    auto refreshedTransaction = fixture.document.engine()->beginTransaction();
+    fixture.document.setTransaction(&refreshedTransaction);
+    first->setPosition(2600);
+    first->setLength(3200);
+    last->setPosition(0);
+    fixture.divider.update();
+    verifyDivision(fixture.divider);
+    const auto refreshedInsideTransaction = actualPieces(fixture.divider);
+    refreshedTransaction.rollback();
+    fixture.document.setTransaction(nullptr);
+    comparePieceLists(actualPieces(fixture.divider), refreshedInsideTransaction);
+    fixture.divider.update();
+    comparePieceLists(actualPieces(fixture.divider), beforeRefreshedRollback);
+    verifyDivision(fixture.divider);
+
+    // Divider configuration is independent of the ORM rollback and is applied
+    // only by the explicit update performed by the fixture.
     fixture.rollBack([&] {
         first->setPosition(2500);
         first->setLength(1);
@@ -1149,7 +1207,7 @@ void PieceDivisionTest::commitAndRollbackTransactions() {
     verifyDivision(fixture.divider);
 
     // Committing edits while changing every configuration field exercises the
-    // committed-cache/synchronous-configuration interaction documented by PieceDivider.
+    // desired/applied configuration boundary documented by PieceDivider.
     fixture.commit([&] {
         first->setPosition(720);
         first->setLength(840);
@@ -1184,6 +1242,7 @@ void PieceDivisionTest::undoAndRedo() {
     fixture.divider.setPaddingGap(200);
     fixture.divider.setRestLyrics({QStringLiteral("R")});
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
 
     const auto beforeEdit = actualPieces(fixture.divider);
@@ -1202,11 +1261,13 @@ void PieceDivisionTest::undoAndRedo() {
 
     QVERIFY(fixture.document.engine()->canUndo());
     fixture.document.engine()->undo();
+    fixture.divider.update();
     comparePieceLists(actualPieces(fixture.divider), beforeEdit);
     verifyDivision(fixture.divider);
 
     QVERIFY(fixture.document.engine()->canRedo());
     fixture.document.engine()->redo();
+    fixture.divider.update();
     comparePieceLists(actualPieces(fixture.divider), afterEdit);
     verifyDivision(fixture.divider);
 
@@ -1219,8 +1280,10 @@ void PieceDivisionTest::undoAndRedo() {
     verifyDivision(fixture.divider);
 
     fixture.document.engine()->undo();
+    fixture.divider.update();
     verifyDivision(fixture.divider);
     fixture.document.engine()->redo();
+    fixture.divider.update();
     comparePieceLists(actualPieces(fixture.divider), afterMembershipChange);
     verifyDivision(fixture.divider);
 
@@ -1235,12 +1298,16 @@ void PieceDivisionTest::undoAndRedo() {
     });
     verifyDivision(fixture.divider);
     fixture.document.engine()->undo();
+    fixture.divider.update();
     verifyDivision(fixture.divider);
     fixture.document.engine()->undo();
+    fixture.divider.update();
     verifyDivision(fixture.divider);
     fixture.document.engine()->redo();
+    fixture.divider.update();
     verifyDivision(fixture.divider);
     fixture.document.engine()->redo();
+    fixture.divider.update();
     verifyDivision(fixture.divider);
 }
 
@@ -1267,6 +1334,7 @@ void PieceDivisionTest::sequentialTransactionsAndCombinedEdges() {
     fixture.divider.setPaddingGap(150);
     fixture.divider.setRestLyrics({QStringLiteral("R")});
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
@@ -1343,6 +1411,7 @@ void PieceDivisionTest::clipTimingAndBindingChanges() {
     fixture.divider.setPaddingAdditional(35);
     fixture.divider.setPaddingGap(200);
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
@@ -1373,11 +1442,16 @@ void PieceDivisionTest::clipTimingAndBindingChanges() {
     });
     verifyDivision(fixture.divider);
 
+    const int piecesBeforeUnbind = fixture.divider.pieces().size();
     fixture.divider.setSingingClip(nullptr);
+    QCOMPARE(fixture.divider.pieces().size(), piecesBeforeUnbind);
+    fixture.divider.update();
     QCOMPARE(fixture.divider.pieces().size(), 0);
     fixture.divider.setSingingClip(otherClip);
+    fixture.divider.update();
     verifyDivision(fixture.divider);
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     verifyDivision(fixture.divider);
 }
 
@@ -1420,6 +1494,7 @@ void PieceDivisionTest::deterministicLargeBatch() {
     fixture.divider.setPaddingGap(190.75);
     fixture.divider.setRestLyrics({QStringLiteral("R")});
     fixture.divider.setSingingClip(fixture.clip);
+    fixture.divider.update();
     fixture.document.engine()->clearUndoHistory();
     verifyDivision(fixture.divider);
 
