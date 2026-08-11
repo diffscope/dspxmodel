@@ -46,6 +46,7 @@ namespace dspx {
         InterpolationMode interpolationMode() const;
         /**
          * @brief Sets interpolation mode.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post interpolationMode() == interpolationMode.
          */
         void setInterpolationMode(InterpolationMode interpolationMode);
@@ -57,6 +58,7 @@ namespace dspx {
         int x() const;
         /**
          * @brief Sets x.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre x >= 0.
          * @pre If anchorNodeSequence() != nullptr, no other item in anchorNodeSequence() has x.
          * @post x() == x.
@@ -69,6 +71,7 @@ namespace dspx {
         int y() const;
         /**
          * @brief Sets y.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post y() == y.
          */
         void setY(int y);

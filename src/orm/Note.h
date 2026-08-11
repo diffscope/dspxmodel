@@ -56,6 +56,7 @@ namespace dspx {
         int centShift() const;
         /**
          * @brief Sets cent shift.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre centShift >= -50 && centShift <= 50.
          * @post centShift() == centShift.
          */
@@ -68,6 +69,7 @@ namespace dspx {
         int keyNumber() const;
         /**
          * @brief Sets key number.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre keyNumber >= 0 && keyNumber < 128.
          * @post keyNumber() == keyNumber.
          */
@@ -79,6 +81,7 @@ namespace dspx {
         QString language() const;
         /**
          * @brief Sets language.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post language() == language.
          */
         void setLanguage(const QString &language);
@@ -93,6 +96,7 @@ namespace dspx {
         int length() const;
         /**
          * @brief Sets length.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre length >= 0.
          * @post length() == length.
          */
@@ -104,6 +108,7 @@ namespace dspx {
         QString lyric() const;
         /**
          * @brief Sets lyric.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post lyric() == lyric.
          */
         void setLyric(const QString &lyric);
@@ -118,6 +123,7 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
          * @post position() == position.
          */
@@ -129,6 +135,7 @@ namespace dspx {
         QString originalPronunciation() const;
         /**
          * @brief Sets original pronunciation.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post originalPronunciation() == originalPronunciation.
          */
         void setOriginalPronunciation(const QString &originalPronunciation);
@@ -139,6 +146,7 @@ namespace dspx {
         QString editedPronunciation() const;
         /**
          * @brief Sets edited pronunciation.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post editedPronunciation() == editedPronunciation.
          */
         void setEditedPronunciation(const QString &editedPronunciation);
@@ -164,6 +172,7 @@ namespace dspx {
         int vibratoAmplitude() const;
         /**
          * @brief Sets vibrato amplitude.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre vibratoAmplitude >= 0.
          * @post vibratoAmplitude() == vibratoAmplitude.
          */
@@ -176,6 +185,7 @@ namespace dspx {
         double vibratoEnd() const;
         /**
          * @brief Sets vibrato end.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre vibratoEnd >= 0.0 && vibratoEnd <= 1.0.
          * @post vibratoEnd() == vibratoEnd.
          */
@@ -188,6 +198,7 @@ namespace dspx {
         double vibratoFrequency() const;
         /**
          * @brief Sets vibrato frequency.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre vibratoFrequency >= 0.0.
          * @post vibratoFrequency() == vibratoFrequency.
          */
@@ -199,6 +210,7 @@ namespace dspx {
         int vibratoOffset() const;
         /**
          * @brief Sets vibrato offset.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post vibratoOffset() == vibratoOffset.
          */
         void setVibratoOffset(int vibratoOffset);
@@ -210,6 +222,7 @@ namespace dspx {
         double vibratoPhase() const;
         /**
          * @brief Sets vibrato phase.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre vibratoPhase >= 0.0 && vibratoPhase <= 1.0.
          * @post vibratoPhase() == vibratoPhase.
          */
@@ -222,6 +235,7 @@ namespace dspx {
         double vibratoStart() const;
         /**
          * @brief Sets vibrato start.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre vibratoStart >= 0.0 && vibratoStart <= 1.0.
          * @post vibratoStart() == vibratoStart.
          */

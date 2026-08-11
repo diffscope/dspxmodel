@@ -63,6 +63,7 @@ namespace dspx {
         Q_INVOKABLE QList<QPointF> slice(int index, int length) const;
         /**
          * @brief Splices items.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre index >= 0.
          * @pre length >= 0.
          * @post If successful, items are spliced.
@@ -70,6 +71,7 @@ namespace dspx {
         Q_INVOKABLE bool splice(int index, int length, const QList<QPointF> &values);
         /**
          * @brief Rotates items.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre leftIndex >= 0.
          * @pre middleIndex >= leftIndex.
          * @pre rightIndex >= middleIndex.

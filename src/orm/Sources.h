@@ -37,6 +37,7 @@ namespace dspx {
         QString category() const;
         /**
          * @brief Sets category.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post category() == category.
          */
         void setCategory(const QString &category);

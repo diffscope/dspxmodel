@@ -38,6 +38,7 @@ namespace dspx {
          *
          * If sources->singingClip() != nullptr, the old singing clip will be detached.
          *
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post sources() == sources.
          */
         void setSources(Sources *sources);

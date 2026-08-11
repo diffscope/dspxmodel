@@ -39,6 +39,7 @@ namespace dspx {
         QString language() const;
         /**
          * @brief Sets language.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post language() == language.
          */
         void setLanguage(const QString &language);
@@ -54,6 +55,7 @@ namespace dspx {
         int start() const;
         /**
          * @brief Sets start.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post start() == start.
          */
         void setStart(int start);
@@ -64,6 +66,7 @@ namespace dspx {
         QString token() const;
         /**
          * @brief Sets token.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post token() == token.
          */
         void setToken(const QString &token);
@@ -74,6 +77,7 @@ namespace dspx {
         bool onset() const;
         /**
          * @brief Sets onset.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post onset() == onset.
          */
         void setOnset(bool onset);

@@ -42,6 +42,7 @@ namespace dspx {
         QList<double> ratio() const;
         /**
          * @brief Sets ratio.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre Each item in ratio is in the range [0.0, 1.0].
          * @pre The sum of items in ratio is less than or equal to 1.0.
          * @post ratio() == ratio.

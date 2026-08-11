@@ -58,6 +58,7 @@ namespace dspx {
         Q_INVOKABLE Singer *item(int index) const;
         /**
          * @brief Inserts item.
+         * @pre owner model has an active transaction.
          * @pre index >= 0.
          * @pre item is not null.
          * @post If successful, item is contained in this list.
@@ -65,12 +66,14 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(int index, Singer *item);
         /**
          * @brief Removes item.
+         * @pre owner model has an active transaction.
          * @pre index >= 0.
          * @post If successful, size may change.
          */
         Q_INVOKABLE Singer *removeItem(int index);
         /**
          * @brief Moves item.
+         * @pre owner model has an active transaction.
          * @pre index >= 0.
          * @pre list is not null.
          * @pre newIndex >= 0.
@@ -79,6 +82,7 @@ namespace dspx {
         Q_INVOKABLE bool moveItem(int index, SingerList *list, int newIndex);
         /**
          * @brief Rotates items.
+         * @pre owner model has an active transaction.
          * @pre leftIndex >= 0.
          * @pre middleIndex >= leftIndex.
          * @pre rightIndex >= middleIndex.

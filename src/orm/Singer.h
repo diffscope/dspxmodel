@@ -52,6 +52,7 @@ namespace dspx {
         QJsonValue extra() const;
         /**
          * @brief Sets extra.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post extra() == extra.
          */
         void setExtra(const QJsonValue &extra);

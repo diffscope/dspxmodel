@@ -72,6 +72,7 @@ namespace dspx {
         Q_INVOKABLE bool contains(Phoneme *item) const;
         /**
          * @brief Inserts item.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @post If successful, item is contained in this sequence.
          * @returns true if successful, false if item is already contained in this sequence or another sequence.
@@ -79,6 +80,7 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(Phoneme *item);
         /**
          * @brief Removes item.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -86,6 +88,7 @@ namespace dspx {
         Q_INVOKABLE bool removeItem(Phoneme *item);
         /**
          * @brief Moves item.
+         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre sequence is not null.
          * @post If successful, item is contained in sequence.

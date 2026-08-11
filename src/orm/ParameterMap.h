@@ -64,6 +64,7 @@ namespace dspx {
         Q_INVOKABLE Parameter *item(const QString &key) const;
         /**
          * @brief Inserts item.
+         * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre key is not contained in this map.
          * @post If successful, item is contained in this map.
@@ -72,12 +73,14 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(const QString &key, Parameter *item);
         /**
          * @brief Removes item.
+         * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post If successful, key is not contained in this map.
          * @returns true if successful, false if key is not contained in this map.
          */
         Q_INVOKABLE bool removeItem(const QString &key);
         /**
          * @brief Moves item.
+         * @pre singingClip()->model()->document()->transaction() != nullptr && singingClip()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre map is not null.
          * @pre newKey is not contained in map.
          * @post If successful, item is contained in map.

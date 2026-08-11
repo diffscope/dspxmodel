@@ -62,6 +62,7 @@ namespace dspx {
         Q_INVOKABLE bool contains(DynamicMixingAnchor *item) const;
         /**
          * @brief Inserts item.
+         * @pre sources()->model()->document()->transaction() != nullptr && sources()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre No other item in this sequence has item->position().
          * @post If successful, item is contained in this sequence.
@@ -70,6 +71,7 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(DynamicMixingAnchor *item);
         /**
          * @brief Removes item.
+         * @pre sources()->model()->document()->transaction() != nullptr && sources()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -77,6 +79,7 @@ namespace dspx {
         Q_INVOKABLE bool removeItem(DynamicMixingAnchor *item);
         /**
          * @brief Moves item.
+         * @pre sources()->model()->document()->transaction() != nullptr && sources()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre sequence is not null.
          * @pre No other item in sequence has item->position().

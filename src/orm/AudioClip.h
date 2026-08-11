@@ -54,6 +54,7 @@ namespace dspx {
         AudioPathInfo path() const;
         /**
          * @brief Sets path.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post path() == path.
          */
         void setPath(const AudioPathInfo &path);

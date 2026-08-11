@@ -56,6 +56,7 @@ namespace dspx {
         QString name() const;
         /**
          * @brief Sets name.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post name() == name.
          */
         void setName(const QString &name);
@@ -67,6 +68,7 @@ namespace dspx {
          double gain() const;
         /**
          * @brief Sets gain.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre gain >= 0.0.
          * @post gain() == gain.
          */
@@ -79,6 +81,7 @@ namespace dspx {
         double pan() const;
         /**
          * @brief Sets pan.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre pan >= -1 && pan <= 1.
          * @post pan() == pan.
          */
@@ -90,6 +93,7 @@ namespace dspx {
         bool mute() const;
         /**
          * @brief Sets mute.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post mute() == mute.
          */
         void setMute(bool mute);
@@ -104,6 +108,7 @@ namespace dspx {
         int position() const;
         /**
          * @brief Sets position.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre position >= 0.
          * @post position() == position.
          */
@@ -116,6 +121,7 @@ namespace dspx {
         int length() const;
         /**
          * @brief Sets length.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre length >= 0.
          * @post length() == length.
          */
@@ -128,6 +134,7 @@ namespace dspx {
         int clipStart() const;
         /**
          * @brief Sets clip start.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre clipStart >= 0.
          * @post clipStart() == clipStart.
          */
@@ -143,6 +150,7 @@ namespace dspx {
         int clipLength() const;
         /**
          * @brief Sets clip length.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre clipLength >= 0.
          * @post clipLength() == clipLength.
          */

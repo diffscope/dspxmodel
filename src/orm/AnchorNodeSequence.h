@@ -67,6 +67,7 @@ namespace dspx {
         Q_INVOKABLE bool contains(AnchorNode *item) const;
         /**
          * @brief Inserts item.
+         * @pre parameter()->model()->document()->transaction() != nullptr && parameter()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre No other item in this sequence has item->x().
          * @post If successful, item is contained in this sequence.
@@ -75,6 +76,7 @@ namespace dspx {
         Q_INVOKABLE bool insertItem(AnchorNode *item);
         /**
          * @brief Removes item.
+         * @pre parameter()->model()->document()->transaction() != nullptr && parameter()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -82,6 +84,7 @@ namespace dspx {
         Q_INVOKABLE bool removeItem(AnchorNode *item);
         /**
          * @brief Moves item.
+         * @pre parameter()->model()->document()->transaction() != nullptr && parameter()->model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre item is not null.
          * @pre sequence is not null.
          * @pre No other item in sequence has item->x().

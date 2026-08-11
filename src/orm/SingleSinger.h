@@ -30,6 +30,7 @@ namespace dspx {
         QString id() const;
         /**
          * @brief Sets id.
+         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @post id() == id.
          */
         void setId(const QString &id);
