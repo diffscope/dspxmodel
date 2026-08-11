@@ -1,10 +1,21 @@
 #include "ClipWatcher.h"
-
 #include "ClipWatcher_p.h"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <set>
+
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <dspxmodelORM/AnchorNode.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
+#include <dspxmodelORM/DynamicMixingAnchor.h>
+#include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 #include <dspxmodelORM/FreeValueDataArray.h>
+#include <dspxmodelORM/MixedSinger.h>
 #include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
 #include <dspxmodelORM/NoteSequence.h>
@@ -12,15 +23,14 @@
 #include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/Phoneme.h>
 #include <dspxmodelORM/PhonemeSequence.h>
+#include <dspxmodelORM/Singer.h>
+#include <dspxmodelORM/SingerList.h>
 #include <dspxmodelORM/SingingClip.h>
+#include <dspxmodelORM/SingleSinger.h>
+#include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/Tempo.h>
 #include <dspxmodelORM/TempoSequence.h>
 #include <dspxmodelORM/VibratoPointDataArray.h>
-
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <set>
 
 namespace dspx {
 
@@ -39,7 +49,8 @@ namespace dspx {
         QVector<std::pair<double, double>> differentTimeRanges(
             const PieceTimeMap &oldMap, int oldClipStart,
             const PieceTimeMap &newMap, int newClipStart,
-            double domainStart, double domainEnd) {
+            double domainStart, double domainEnd
+        ) {
             QVector<std::pair<double, double>> result;
             if (domainEnd < domainStart) {
                 return result;
@@ -52,7 +63,7 @@ namespace dspx {
                 return result;
             }
 
-            QVector<double> breakpoints {domainStart, domainEnd};
+            QVector<double> breakpoints{domainStart, domainEnd};
             auto append = [&breakpoints, domainStart, domainEnd](const PieceTimeMap &map, int clipStart) {
                 for (const auto &segment : map.segments) {
                     const double relative = segment.tick - clipStart;
@@ -87,9 +98,7 @@ namespace dspx {
         }
 
         template <class MultiMap>
-        void addIndexedIds(const MultiMap &index,
-                           const QVector<std::pair<double, double>> &ranges,
-                           QSet<quint64> &ids) {
+        void addIndexedIds(const MultiMap &index, const QVector<std::pair<double, double>> &ranges, QSet<quint64> &ids) {
             for (const auto &[start, end] : ranges) {
                 const int firstTick = static_cast<int>(std::ceil(start));
                 const int lastTick = static_cast<int>(std::floor(end));
@@ -114,16 +123,16 @@ namespace dspx {
         bool freeStatesEqual(const QList<QVariant> &left, const QList<QVariant> &right) {
             int last = std::max(static_cast<int>(left.size()), static_cast<int>(right.size())) - 1;
             while (last >= 0) {
-                const QVariant leftValue = last < left.size() ? left.at(last) : QVariant {};
-                const QVariant rightValue = last < right.size() ? right.at(last) : QVariant {};
+                const QVariant leftValue = last < left.size() ? left.at(last) : QVariant{};
+                const QVariant rightValue = last < right.size() ? right.at(last) : QVariant{};
                 if (leftValue.isValid() || rightValue.isValid()) {
                     break;
                 }
                 --last;
             }
             for (int i = 0; i <= last; ++i) {
-                const QVariant leftValue = i < left.size() ? left.at(i) : QVariant {};
-                const QVariant rightValue = i < right.size() ? right.at(i) : QVariant {};
+                const QVariant leftValue = i < left.size() ? left.at(i) : QVariant{};
+                const QVariant rightValue = i < right.size() ? right.at(i) : QVariant{};
                 if (leftValue != rightValue) {
                     return false;
                 }
@@ -131,8 +140,7 @@ namespace dspx {
             return true;
         }
 
-        bool parameterStatesEqual(const WatcherParameterState &left,
-                                  const WatcherParameterState &right) {
+        bool parameterStatesEqual(const WatcherParameterState &left, const WatcherParameterState &right) {
             return left.id == right.id && left.name == right.name &&
                    freeStatesEqual(left.freeEdited, right.freeEdited) &&
                    freeStatesEqual(left.freeTransform, right.freeTransform) &&
@@ -168,8 +176,7 @@ namespace dspx {
             }
         }
 
-        void addParameterDomain(const WatcherParameterState &parameter,
-                                QList<ClipChangeRange> &ranges) {
+        void addParameterDomain(const WatcherParameterState &parameter, QList<ClipChangeRange> &ranges) {
             addFreeDomain(parameter.freeEdited, ranges);
             addFreeDomain(parameter.freeTransform, ranges);
             addAnchorDomain(parameter.anchorEdited, ranges);
@@ -177,7 +184,8 @@ namespace dspx {
         }
 
         std::map<WatcherAnchorOrder, quint64>::const_iterator iteratorForAnchor(
-            const WatcherAnchorLayer &layer, quint64 id) {
+            const WatcherAnchorLayer &layer, quint64 id
+        ) {
             const auto stateIt = layer.states.constFind(id);
             if (stateIt == layer.states.cend()) {
                 return layer.order.cend();
@@ -185,9 +193,7 @@ namespace dspx {
             return layer.order.find({stateIt->x, id});
         }
 
-        void addAnchorOutgoing(const WatcherAnchorLayer &layer,
-                               quint64 id,
-                               QList<ClipChangeRange> &ranges) {
+        void addAnchorOutgoing(const WatcherAnchorLayer &layer, quint64 id, QList<ClipChangeRange> &ranges) {
             const auto it = iteratorForAnchor(layer, id);
             if (it == layer.order.cend()) {
                 return;
@@ -200,9 +206,7 @@ namespace dspx {
             }
         }
 
-        void addAnchorInfluence(const WatcherAnchorLayer &layer,
-                                quint64 id,
-                                QList<ClipChangeRange> &ranges) {
+        void addAnchorInfluence(const WatcherAnchorLayer &layer, quint64 id, QList<ClipChangeRange> &ranges) {
             const auto center = iteratorForAnchor(layer, id);
             if (center == layer.order.cend()) {
                 return;
@@ -237,17 +241,12 @@ namespace dspx {
                     }
                 }
                 if (depends) {
-                    addRange(ranges, leftState.x,
-                             layer.states.value(right->second).x - leftState.x);
+                    addRange(ranges, leftState.x, layer.states.value(right->second).x - leftState.x);
                 }
             }
         }
 
-        bool applyAnchorChanges(WatcherAnchorLayer &baseline,
-                                const QSet<quint64> &dirtyIds,
-                                const QHash<quint64, QPointer<AnchorNode>> &pointers,
-                                AnchorNodeSequence *sequence,
-                                QList<ClipChangeRange> &ranges) {
+        bool applyAnchorChanges(WatcherAnchorLayer &baseline, const QSet<quint64> &dirtyIds, const QHash<quint64, QPointer<AnchorNode>> &pointers, AnchorNodeSequence *sequence, QList<ClipChangeRange> &ranges) {
             struct Change {
                 quint64 id = 0;
                 std::optional<WatcherAnchorState> oldState;
@@ -263,8 +262,9 @@ namespace dspx {
                 }
                 AnchorNode *node = pointers.value(id);
                 if (node && node->anchorNodeSequence() == sequence) {
-                    change.newState = WatcherAnchorState {
-                        id, node->x(), node->y(), static_cast<int>(node->interpolationMode())};
+                    change.newState = WatcherAnchorState{
+                        id, node->x(), node->y(), static_cast<int>(node->interpolationMode())
+                    };
                 }
                 if (change.oldState != change.newState) {
                     changes.append(change);
@@ -297,7 +297,7 @@ namespace dspx {
             for (const auto &change : std::as_const(changes)) {
                 if (change.newState) {
                     baseline.states.insert(change.id, *change.newState);
-                    baseline.order.emplace(WatcherAnchorOrder {change.newState->x, change.id}, change.id);
+                    baseline.order.emplace(WatcherAnchorOrder{change.newState->x, change.id}, change.id);
                 }
             }
             for (const auto &change : std::as_const(changes)) {
@@ -317,10 +317,7 @@ namespace dspx {
             return true;
         }
 
-        bool applyFreeChanges(QList<QVariant> &baseline,
-                              FreeValueDataArray *array,
-                              const WatcherFreeDirty &dirty,
-                              QList<ClipChangeRange> &ranges) {
+        bool applyFreeChanges(QList<QVariant> &baseline, FreeValueDataArray *array, const WatcherFreeDirty &dirty, QList<ClipChangeRange> &ranges) {
             if (!array || !dirty.isDirty()) {
                 return false;
             }
@@ -338,16 +335,16 @@ namespace dspx {
 
             const int step = FreeValueDataArray::step();
             auto oldValue = [&baseline](int index) {
-                return index >= 0 && index < baseline.size() ? baseline.at(index) : QVariant {};
+                return index >= 0 && index < baseline.size() ? baseline.at(index) : QVariant{};
             };
             auto newValue = [&baseline, &current, first, newEnd, suffix](int index) {
                 if (index >= first && index < newEnd) {
                     return current.at(index - first);
                 }
                 if (suffix && index >= newEnd) {
-                    return QVariant {};
+                    return QVariant{};
                 }
-                return index >= 0 && index < baseline.size() ? baseline.at(index) : QVariant {};
+                return index >= 0 && index < baseline.size() ? baseline.at(index) : QVariant{};
             };
             const int compareEnd = std::max(oldEnd, newEnd);
             bool outputChanged = false;
@@ -374,18 +371,14 @@ namespace dspx {
                 }
             }
 
-            baseline.erase(baseline.begin() + std::min(first, baselineSize),
-                           baseline.begin() + oldEnd);
+            baseline.erase(baseline.begin() + std::min(first, baselineSize), baseline.begin() + oldEnd);
             for (int i = 0; i < current.size(); ++i) {
                 baseline.insert(first + i, current.at(i));
             }
             return outputChanged;
         }
 
-        bool addTimeAffectedFree(const QList<QVariant> &values,
-                                 const PieceTimeMap &oldMap, int oldStart,
-                                 const PieceTimeMap &newMap, int newStart,
-                                 QList<ClipChangeRange> &ranges) {
+        bool addTimeAffectedFree(const QList<QVariant> &values, const PieceTimeMap &oldMap, int oldStart, const PieceTimeMap &newMap, int newStart, QList<ClipChangeRange> &ranges) {
             if (values.isEmpty()) {
                 return false;
             }
@@ -424,22 +417,18 @@ namespace dspx {
             return !affectedIndices.isEmpty();
         }
 
-        bool addTimeAffectedAnchors(const WatcherAnchorLayer &layer,
-                                    const PieceTimeMap &oldMap, int oldStart,
-                                    const PieceTimeMap &newMap, int newStart,
-                                    QList<ClipChangeRange> &ranges) {
+        bool addTimeAffectedAnchors(const WatcherAnchorLayer &layer, const PieceTimeMap &oldMap, int oldStart, const PieceTimeMap &newMap, int newStart, QList<ClipChangeRange> &ranges) {
             if (layer.order.empty()) {
                 return false;
             }
             const double domainStart = layer.order.cbegin()->first.x;
             const double domainEnd = layer.order.crbegin()->first.x;
-            const auto changed = differentTimeRanges(oldMap, oldStart, newMap, newStart,
-                                                     domainStart, domainEnd);
+            const auto changed = differentTimeRanges(oldMap, oldStart, newMap, newStart, domainStart, domainEnd);
             QSet<quint64> affectedIds;
             for (const auto &[left, right] : changed) {
                 const int first = static_cast<int>(std::ceil(left));
                 const int last = static_cast<int>(std::floor(right));
-                for (auto it = layer.order.lower_bound(WatcherAnchorOrder {first, 0});
+                for (auto it = layer.order.lower_bound(WatcherAnchorOrder{first, 0});
                      it != layer.order.cend() && it->first.x <= last; ++it) {
                     const int x = it->first.x;
                     if (oldMap.tickToMilliseconds(oldStart + x) !=
@@ -485,6 +474,8 @@ namespace dspx {
         pendingParameters.clear();
         pendingTempoIds.clear();
         clipStartDirty = false;
+        clipTimingDirty = false;
+        sourcesDirty = false;
     }
 
     void ClipWatcherPrivate::bind(SingingClip *clip) {
@@ -500,8 +491,7 @@ namespace dspx {
             return false;
         }
         watchedObjects.insert(object);
-        QObject::connect(object, &QObject::destroyed, watchContext,
-                         [this](QObject *destroyed) { watchedObjects.remove(destroyed); });
+        QObject::connect(object, &QObject::destroyed, watchContext, [this](QObject *destroyed) { watchedObjects.remove(destroyed); });
         return true;
     }
 
@@ -517,8 +507,7 @@ namespace dspx {
         }
     }
 
-    void ClipWatcherPrivate::markFree(quint64 id, bool edited,
-                                      int first, int last, bool throughEnd) {
+    void ClipWatcherPrivate::markFree(quint64 id, bool edited, int first, int last, bool throughEnd) {
         auto &dirty = edited ? pendingParameters[id].freeEdited
                              : pendingParameters[id].freeTransform;
         dirty.include(first, last, throughEnd);
@@ -536,8 +525,7 @@ namespace dspx {
         }
         result.reserve(sequence->size());
         for (Phoneme *phoneme : sequence->asRange()) {
-            result.append({phoneme->handle().d, phoneme->language(), phoneme->token(),
-                           phoneme->start(), phoneme->onset()});
+            result.append({phoneme->handle().d, phoneme->language(), phoneme->token(), phoneme->start(), phoneme->onset()});
         }
         std::sort(result.begin(), result.end(), [](const auto &left, const auto &right) {
             if (left.start != right.start) {
@@ -582,7 +570,7 @@ namespace dspx {
         for (AnchorNode *node : sequence->asRange()) {
             const auto state = captureAnchor(node);
             result.states.insert(state.id, state);
-            result.order.emplace(WatcherAnchorOrder {state.x, state.id}, state.id);
+            result.order.emplace(WatcherAnchorOrder{state.x, state.id}, state.id);
         }
         return result;
     }
@@ -596,6 +584,57 @@ namespace dspx {
         result.anchorEdited = captureAnchors(parameter->anchorEdited());
         result.anchorTransform = captureAnchors(parameter->anchorTransform());
         return result;
+    }
+
+    QByteArray ClipWatcherPrivate::captureSources() const {
+        if (!singingClip || !singingClip->sources()) {
+            return {};
+        }
+        const auto encodeSinger = [&](const auto &self, Singer *singer) -> QJsonObject {
+            QJsonObject object{
+                {QStringLiteral("type"), static_cast<int>(singer->type())},
+                {QStringLiteral("extra"), singer->extra()},
+            };
+            if (singer->type() == Singer::Single) {
+                object.insert(QStringLiteral("id"), static_cast<SingleSinger *>(singer)->id());
+            } else {
+                auto mixed = static_cast<MixedSinger *>(singer);
+                QJsonArray ratio;
+                for (double value : mixed->ratio()) {
+                    ratio.append(value);
+                }
+                QJsonArray children;
+                for (Singer *child : mixed->singers()->items()) {
+                    children.append(self(self, child));
+                }
+                object.insert(QStringLiteral("ratio"), ratio);
+                object.insert(QStringLiteral("singers"), children);
+            }
+            return object;
+        };
+
+        Sources *sources = singingClip->sources();
+        QJsonArray singers;
+        for (Singer *singer : sources->singers()->items()) {
+            singers.append(encodeSinger(encodeSinger, singer));
+        }
+        QJsonArray anchors;
+        for (DynamicMixingAnchor *anchor : sources->dynamicMixingAnchors()->asRange()) {
+            QJsonArray ratio;
+            for (double value : anchor->ratio()) {
+                ratio.append(value);
+            }
+            anchors.append(QJsonObject{
+                {QStringLiteral("position"), anchor->position()},
+                {QStringLiteral("ratio"), ratio},
+            });
+        }
+        return QJsonDocument(QJsonObject{
+                                 {QStringLiteral("category"), sources->category()},
+                                 {QStringLiteral("singers"), singers},
+                                 {QStringLiteral("anchors"), anchors},
+                             })
+            .toJson(QJsonDocument::Compact);
     }
 
     void ClipWatcherPrivate::captureBaseline() {
@@ -614,6 +653,11 @@ namespace dspx {
         timeMapCache.reset(singingClip->model()->tempos());
         baselineTimeMap = timeMapCache.timeMap();
         baselineClipStart = singingClip->start();
+        baselinePosition = singingClip->position();
+        baselineLength = singingClip->length();
+        baselineVisibleStart = singingClip->clipStart();
+        baselineVisibleLength = singingClip->clipLength();
+        baselineSources = captureSources();
         for (Note *note : singingClip->notes()->asRange()) {
             const auto state = captureNote(note);
             baselineNotes.insert(state.id, state);
@@ -643,8 +687,7 @@ namespace dspx {
         QObject::connect(phoneme, &Phoneme::startChanged, watchContext, changed);
         QObject::connect(phoneme, &Phoneme::tokenChanged, watchContext, changed);
         QObject::connect(phoneme, &Phoneme::onsetChanged, watchContext, changed);
-        QObject::connect(phoneme, &QObject::destroyed, watchContext,
-                         [this, id] { markNote(phonemeOwners.value(id)); });
+        QObject::connect(phoneme, &QObject::destroyed, watchContext, [this, id] { markNote(phonemeOwners.value(id)); });
     }
 
     void ClipWatcherPrivate::installPhonemeWatcher(PhonemeSequence *sequence, quint64 noteId) {
@@ -654,13 +697,11 @@ namespace dspx {
         for (Phoneme *phoneme : sequence->asRange()) {
             installPhonemeWatcher(phoneme, noteId);
         }
-        QObject::connect(sequence, &PhonemeSequence::itemAboutToRemove, watchContext,
-                         [this, noteId](Phoneme *, PhonemeSequence *) { markNote(noteId); });
-        QObject::connect(sequence, &PhonemeSequence::itemInserted, watchContext,
-                         [this, noteId](Phoneme *phoneme, PhonemeSequence *) {
-                             installPhonemeWatcher(phoneme, noteId);
-                             markNote(noteId);
-                         });
+        QObject::connect(sequence, &PhonemeSequence::itemAboutToRemove, watchContext, [this, noteId](Phoneme *, PhonemeSequence *) { markNote(noteId); });
+        QObject::connect(sequence, &PhonemeSequence::itemInserted, watchContext, [this, noteId](Phoneme *phoneme, PhonemeSequence *) {
+            installPhonemeWatcher(phoneme, noteId);
+            markNote(noteId);
+        });
     }
 
     void ClipWatcherPrivate::installNoteWatcher(Note *note) {
@@ -686,17 +727,12 @@ namespace dspx {
         QObject::connect(note, &Note::vibratoOffsetChanged, watchContext, changed);
         QObject::connect(note, &Note::vibratoPhaseChanged, watchContext, changed);
         QObject::connect(note, &Note::vibratoStartChanged, watchContext, changed);
-        QObject::connect(note, &QObject::destroyed, watchContext,
-                         [this, id] { markNote(id); });
+        QObject::connect(note, &QObject::destroyed, watchContext, [this, id] { markNote(id); });
         installPhonemeWatcher(note->editedPhonemes(), id);
-        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::spliced,
-                         watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
-        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::rotated,
-                         watchContext, [changed](int, int, int) { changed(); });
-        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::spliced,
-                         watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
-        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::rotated,
-                         watchContext, [changed](int, int, int) { changed(); });
+        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::spliced, watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
+        QObject::connect(note->vibratoAmplitudeControlPoints(), &VibratoPointDataArray::rotated, watchContext, [changed](int, int, int) { changed(); });
+        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::spliced, watchContext, [changed](int, int, const QList<QPointF> &) { changed(); });
+        QObject::connect(note->vibratoFrequencyControlPoints(), &VibratoPointDataArray::rotated, watchContext, [changed](int, int, int) { changed(); });
     }
 
     void ClipWatcherPrivate::installTempoWatcher(Tempo *tempo) {
@@ -707,36 +743,26 @@ namespace dspx {
         auto changed = [this, id] { pendingTempoIds.insert(id); };
         QObject::connect(tempo, &Tempo::positionChanged, watchContext, changed);
         QObject::connect(tempo, &Tempo::valueChanged, watchContext, changed);
-        QObject::connect(tempo, &QObject::destroyed, watchContext,
-                         [this, id] { pendingTempoIds.insert(id); });
+        QObject::connect(tempo, &QObject::destroyed, watchContext, [this, id] { pendingTempoIds.insert(id); });
     }
 
-    void ClipWatcherPrivate::installFreeWatcher(FreeValueDataArray *array,
-                                                quint64 parameterId,
-                                                bool edited) {
+    void ClipWatcherPrivate::installFreeWatcher(FreeValueDataArray *array, quint64 parameterId, bool edited) {
         if (!array || !beginWatching(array)) {
             return;
         }
-        QObject::connect(array, &FreeValueDataArray::spliced, watchContext,
-                         [this, parameterId, edited](int index, int removed, const QList<QVariant> &values) {
-                             const int inserted = values.size();
-                             markFree(parameterId, edited, std::max(0, index - 1),
-                                      index + std::max(removed, inserted) + 2,
-                                      removed != inserted);
-                         });
-        QObject::connect(array, &FreeValueDataArray::rotated, watchContext,
-                         [this, parameterId, edited](int left, int, int right) {
-                             markFree(parameterId, edited, std::max(0, left - 1), right + 1, false);
-                         });
-        QObject::connect(array, &QObject::destroyed, watchContext,
-                         [this, parameterId, edited] {
-                             markFree(parameterId, edited, 0, 0, true);
-                         });
+        QObject::connect(array, &FreeValueDataArray::spliced, watchContext, [this, parameterId, edited](int index, int removed, const QList<QVariant> &values) {
+            const int inserted = values.size();
+            markFree(parameterId, edited, std::max(0, index - 1), index + std::max(removed, inserted) + 2, removed != inserted);
+        });
+        QObject::connect(array, &FreeValueDataArray::rotated, watchContext, [this, parameterId, edited](int left, int, int right) {
+            markFree(parameterId, edited, std::max(0, left - 1), right + 1, false);
+        });
+        QObject::connect(array, &QObject::destroyed, watchContext, [this, parameterId, edited] {
+            markFree(parameterId, edited, 0, 0, true);
+        });
     }
 
-    void ClipWatcherPrivate::installAnchorWatcher(AnchorNode *node,
-                                                  quint64 parameterId,
-                                                  bool edited) {
+    void ClipWatcherPrivate::installAnchorWatcher(AnchorNode *node, quint64 parameterId, bool edited) {
         if (!node) {
             return;
         }
@@ -753,31 +779,26 @@ namespace dspx {
         QObject::connect(node, &AnchorNode::xChanged, watchContext, changed);
         QObject::connect(node, &AnchorNode::yChanged, watchContext, changed);
         QObject::connect(node, &AnchorNode::interpolationModeChanged, watchContext, changed);
-        QObject::connect(node, &QObject::destroyed, watchContext,
-                         [this, id] {
-                             const auto owner = anchorOwners.value(id);
-                             markAnchor(owner.first, owner.second, id);
-                         });
+        QObject::connect(node, &QObject::destroyed, watchContext, [this, id] {
+            const auto owner = anchorOwners.value(id);
+            markAnchor(owner.first, owner.second, id);
+        });
     }
 
-    void ClipWatcherPrivate::installAnchorWatcher(AnchorNodeSequence *sequence,
-                                                  quint64 parameterId,
-                                                  bool edited) {
+    void ClipWatcherPrivate::installAnchorWatcher(AnchorNodeSequence *sequence, quint64 parameterId, bool edited) {
         if (!sequence || !beginWatching(sequence)) {
             return;
         }
         for (AnchorNode *node : sequence->asRange()) {
             installAnchorWatcher(node, parameterId, edited);
         }
-        QObject::connect(sequence, &AnchorNodeSequence::itemAboutToRemove, watchContext,
-                         [this, parameterId, edited](AnchorNode *node, AnchorNodeSequence *) {
-                             markAnchor(parameterId, edited, node->handle().d);
-                         });
-        QObject::connect(sequence, &AnchorNodeSequence::itemInserted, watchContext,
-                         [this, parameterId, edited](AnchorNode *node, AnchorNodeSequence *) {
-                             installAnchorWatcher(node, parameterId, edited);
-                             markAnchor(parameterId, edited, node->handle().d);
-                         });
+        QObject::connect(sequence, &AnchorNodeSequence::itemAboutToRemove, watchContext, [this, parameterId, edited](AnchorNode *node, AnchorNodeSequence *) {
+            markAnchor(parameterId, edited, node->handle().d);
+        });
+        QObject::connect(sequence, &AnchorNodeSequence::itemInserted, watchContext, [this, parameterId, edited](AnchorNode *node, AnchorNodeSequence *) {
+            installAnchorWatcher(node, parameterId, edited);
+            markAnchor(parameterId, edited, node->handle().d);
+        });
     }
 
     void ClipWatcherPrivate::installParameterWatcher(const QString &, Parameter *parameter) {
@@ -793,8 +814,65 @@ namespace dspx {
         installFreeWatcher(parameter->freeTransform(), id, false);
         installAnchorWatcher(parameter->anchorEdited(), id, true);
         installAnchorWatcher(parameter->anchorTransform(), id, false);
-        QObject::connect(parameter, &QObject::destroyed, watchContext,
-                         [this, id] { markParameterMembership(id); });
+        QObject::connect(parameter, &QObject::destroyed, watchContext, [this, id] { markParameterMembership(id); });
+    }
+
+    void ClipWatcherPrivate::installSingerWatcher(Singer *singer) {
+        if (!singer || !beginWatching(singer)) {
+            return;
+        }
+        auto changed = [this] { sourcesDirty = true; };
+        QObject::connect(singer, &Singer::extraChanged, watchContext, changed);
+        if (singer->type() == Singer::Single) {
+            QObject::connect(static_cast<SingleSinger *>(singer), &SingleSinger::idChanged, watchContext, changed);
+            return;
+        }
+        auto mixed = static_cast<MixedSinger *>(singer);
+        QObject::connect(mixed, &MixedSinger::ratioChanged, watchContext, changed);
+        installSingerListWatchers(mixed->singers());
+    }
+
+    void ClipWatcherPrivate::installSingerListWatchers(SingerList *list) {
+        if (!list || !beginWatching(list)) {
+            return;
+        }
+        for (Singer *singer : list->items()) {
+            installSingerWatcher(singer);
+        }
+        QObject::connect(list, &SingerList::itemAboutToRemove, watchContext, [this](int, Singer *, SingerList *) { sourcesDirty = true; });
+        QObject::connect(list, &SingerList::itemInserted, watchContext, [this](int, Singer *singer, SingerList *) {
+            installSingerWatcher(singer);
+            sourcesDirty = true;
+        });
+        QObject::connect(list, &SingerList::rotated, watchContext, [this](int, int, int) { sourcesDirty = true; });
+    }
+
+    void ClipWatcherPrivate::installSourceWatchers(Sources *sources) {
+        if (!sources || !beginWatching(sources)) {
+            return;
+        }
+        QObject::connect(sources, &Sources::categoryChanged, watchContext, [this] { sourcesDirty = true; });
+        installSingerListWatchers(sources->singers());
+        auto anchors = sources->dynamicMixingAnchors();
+        if (beginWatching(anchors)) {
+            auto watchAnchor = [this](DynamicMixingAnchor *anchor) {
+                if (!anchor || !beginWatching(anchor)) {
+                    return;
+                }
+                QObject::connect(anchor, &DynamicMixingAnchor::positionChanged, watchContext, [this] { sourcesDirty = true; });
+                QObject::connect(anchor, &DynamicMixingAnchor::ratioChanged, watchContext, [this] { sourcesDirty = true; });
+            };
+            for (DynamicMixingAnchor *anchor : anchors->asRange()) {
+                watchAnchor(anchor);
+            }
+            QObject::connect(anchors, &DynamicMixingAnchorSequence::itemAboutToRemove, watchContext, [this](DynamicMixingAnchor *, DynamicMixingAnchorSequence *) {
+                sourcesDirty = true;
+            });
+            QObject::connect(anchors, &DynamicMixingAnchorSequence::itemInserted, watchContext, [this, watchAnchor](DynamicMixingAnchor *anchor, DynamicMixingAnchorSequence *) {
+                watchAnchor(anchor);
+                sourcesDirty = true;
+            });
+        }
     }
 
     void ClipWatcherPrivate::installWatchers() {
@@ -817,46 +895,49 @@ namespace dspx {
             clearPending();
             emit q_ptr->singingClipChanged(nullptr);
         });
-        QObject::connect(singingClip, &SingingClip::startChanged, watchContext,
-                         [this](int) { clipStartDirty = true; });
+        QObject::connect(singingClip, &SingingClip::startChanged, watchContext, [this](int) { clipStartDirty = true; });
+        auto timingChanged = [this] { clipTimingDirty = true; };
+        QObject::connect(singingClip, &SingingClip::positionChanged, watchContext, timingChanged);
+        QObject::connect(singingClip, &SingingClip::lengthChanged, watchContext, timingChanged);
+        QObject::connect(singingClip, &SingingClip::clipStartChanged, watchContext, timingChanged);
+        QObject::connect(singingClip, &SingingClip::clipLengthChanged, watchContext, timingChanged);
+        QObject::connect(singingClip, &SingingClip::sourcesChanged, watchContext, [this](Sources *sources) {
+            sourcesDirty = true;
+            installSourceWatchers(sources);
+        });
+        installSourceWatchers(singingClip->sources());
 
         NoteSequence *notes = singingClip->notes();
         for (Note *note : notes->asRange()) {
             installNoteWatcher(note);
         }
-        QObject::connect(notes, &NoteSequence::itemAboutToRemove, watchContext,
-                         [this](Note *note, NoteSequence *) { markNote(note->handle().d); });
-        QObject::connect(notes, &NoteSequence::itemInserted, watchContext,
-                         [this](Note *note, NoteSequence *) {
-                             installNoteWatcher(note);
-                             markNote(note->handle().d);
-                         });
+        QObject::connect(notes, &NoteSequence::itemAboutToRemove, watchContext, [this](Note *note, NoteSequence *) { markNote(note->handle().d); });
+        QObject::connect(notes, &NoteSequence::itemInserted, watchContext, [this](Note *note, NoteSequence *) {
+            installNoteWatcher(note);
+            markNote(note->handle().d);
+        });
 
         TempoSequence *tempos = singingClip->model()->tempos();
         for (Tempo *tempo : tempos->asRange()) {
             installTempoWatcher(tempo);
         }
-        QObject::connect(tempos, &TempoSequence::itemAboutToRemove, watchContext,
-                         [this](Tempo *tempo) { pendingTempoIds.insert(tempo->handle().d); });
-        QObject::connect(tempos, &TempoSequence::itemInserted, watchContext,
-                         [this](Tempo *tempo) {
-                             installTempoWatcher(tempo);
-                             pendingTempoIds.insert(tempo->handle().d);
-                         });
+        QObject::connect(tempos, &TempoSequence::itemAboutToRemove, watchContext, [this](Tempo *tempo) { pendingTempoIds.insert(tempo->handle().d); });
+        QObject::connect(tempos, &TempoSequence::itemInserted, watchContext, [this](Tempo *tempo) {
+            installTempoWatcher(tempo);
+            pendingTempoIds.insert(tempo->handle().d);
+        });
 
         ParameterMap *parameters = singingClip->parameters();
         for (const QString &name : parameters->keys()) {
             installParameterWatcher(name, parameters->item(name));
         }
-        QObject::connect(parameters, &ParameterMap::itemAboutToRemove, watchContext,
-                         [this](const QString &, Parameter *parameter, ParameterMap *) {
-                             markParameterMembership(parameter->handle().d);
-                         });
-        QObject::connect(parameters, &ParameterMap::itemInserted, watchContext,
-                         [this](const QString &name, Parameter *parameter, ParameterMap *) {
-                             installParameterWatcher(name, parameter);
-                             markParameterMembership(parameter->handle().d);
-                         });
+        QObject::connect(parameters, &ParameterMap::itemAboutToRemove, watchContext, [this](const QString &, Parameter *parameter, ParameterMap *) {
+            markParameterMembership(parameter->handle().d);
+        });
+        QObject::connect(parameters, &ParameterMap::itemInserted, watchContext, [this](const QString &name, Parameter *parameter, ParameterMap *) {
+            installParameterWatcher(name, parameter);
+            markParameterMembership(parameter->handle().d);
+        });
     }
 
     std::optional<WatcherNoteState> ClipWatcherPrivate::currentNote(quint64 id) const {
@@ -865,7 +946,7 @@ namespace dspx {
         }
         Note *note = notePointers.value(id);
         if (!note) {
-            note = singingClip->model()->find<Note>(Handle {id});
+            note = singingClip->model()->find<Note>(Handle{id});
         }
         if (!note || note->noteSequence() != singingClip->notes()) {
             return std::nullopt;
@@ -898,6 +979,28 @@ namespace dspx {
         ClipChange::ChangeTypes types;
         QSet<QString> parameterNameSet;
         QList<ClipChangeRange> ranges;
+        if (sourcesDirty) {
+            const auto sources = captureSources();
+            if (sources != baselineSources) {
+                types |= ClipChange::Sources;
+                addRange(ranges, 0, std::max(1, singingClip->length()));
+                baselineSources = sources;
+            }
+        }
+        if (clipTimingDirty) {
+            const bool changed = baselinePosition != singingClip->position() ||
+                                 baselineLength != singingClip->length() ||
+                                 baselineVisibleStart != singingClip->clipStart() ||
+                                 baselineVisibleLength != singingClip->clipLength();
+            if (changed) {
+                types |= ClipChange::ClipTiming;
+                addRange(ranges, 0, std::max({1, baselineLength, singingClip->length()}));
+                baselinePosition = singingClip->position();
+                baselineLength = singingClip->length();
+                baselineVisibleStart = singingClip->clipStart();
+                baselineVisibleLength = singingClip->clipLength();
+            }
+        }
         if (!pendingTempoIds.isEmpty()) {
             timeMapCache.update(singingClip->model()->tempos(), pendingTempoIds);
         }
@@ -919,9 +1022,7 @@ namespace dspx {
                     domainStart = std::min(domainStart, noteEnds.begin()->first);
                     domainEnd = std::max(domainEnd, noteEnds.rbegin()->first);
                 }
-                const auto changed = differentTimeRanges(baselineTimeMap, baselineClipStart,
-                                                         newTimeMap, newClipStart,
-                                                         domainStart, domainEnd);
+                const auto changed = differentTimeRanges(baselineTimeMap, baselineClipStart, newTimeMap, newClipStart, domainStart, domainEnd);
                 addIndexedIds(noteStarts, changed, noteIds);
                 addIndexedIds(noteEnds, changed, noteIds);
             }
@@ -930,8 +1031,8 @@ namespace dspx {
         for (quint64 id : std::as_const(noteIds)) {
             const auto oldIt = baselineNotes.constFind(id);
             const std::optional<WatcherNoteState> oldState = oldIt == baselineNotes.cend()
-                                                                    ? std::nullopt
-                                                                    : std::optional(*oldIt);
+                                                                 ? std::nullopt
+                                                                 : std::optional(*oldIt);
             const auto newState = currentNote(id);
             ClipChange::ChangeTypes noteTypes;
             if (oldState.has_value() != newState.has_value()) {
@@ -944,13 +1045,17 @@ namespace dspx {
                     noteTypes |= ClipChange::Pronunciation;
                 }
                 const double oldStartMs = baselineTimeMap.tickToMilliseconds(
-                    static_cast<double>(baselineClipStart) + oldState->position);
+                    static_cast<double>(baselineClipStart) + oldState->position
+                );
                 const double oldEndMs = baselineTimeMap.tickToMilliseconds(
-                    static_cast<double>(baselineClipStart) + oldState->position + oldState->length);
+                    static_cast<double>(baselineClipStart) + oldState->position + oldState->length
+                );
                 const double newStartMs = newTimeMap.tickToMilliseconds(
-                    static_cast<double>(newClipStart) + newState->position);
+                    static_cast<double>(newClipStart) + newState->position
+                );
                 const double newEndMs = newTimeMap.tickToMilliseconds(
-                    static_cast<double>(newClipStart) + newState->position + newState->length);
+                    static_cast<double>(newClipStart) + newState->position + newState->length
+                );
                 if (oldState->keyNumber != newState->keyNumber ||
                     oldState->centShift != newState->centShift ||
                     oldStartMs != newStartMs || oldEndMs != newEndMs) {
@@ -990,8 +1095,8 @@ namespace dspx {
             auto oldIt = baselineParameters.find(id);
             if (dirtyIt->membership) {
                 const std::optional<WatcherParameterState> oldState = oldIt == baselineParameters.end()
-                                                                         ? std::nullopt
-                                                                         : std::optional(*oldIt);
+                                                                          ? std::nullopt
+                                                                          : std::optional(*oldIt);
                 const auto newState = currentParameter(id);
                 if (oldState.has_value() != newState.has_value() ||
                     (oldState && newState && !parameterStatesEqual(*oldState, *newState))) {
@@ -1019,14 +1124,10 @@ namespace dspx {
                 continue;
             }
             bool changed = false;
-            changed |= applyFreeChanges(oldIt->freeEdited, parameter->freeEdited(),
-                                        dirtyIt->freeEdited, ranges);
-            changed |= applyFreeChanges(oldIt->freeTransform, parameter->freeTransform(),
-                                        dirtyIt->freeTransform, ranges);
-            changed |= applyAnchorChanges(oldIt->anchorEdited, dirtyIt->anchorEdited,
-                                          anchorPointers, parameter->anchorEdited(), ranges);
-            changed |= applyAnchorChanges(oldIt->anchorTransform, dirtyIt->anchorTransform,
-                                          anchorPointers, parameter->anchorTransform(), ranges);
+            changed |= applyFreeChanges(oldIt->freeEdited, parameter->freeEdited(), dirtyIt->freeEdited, ranges);
+            changed |= applyFreeChanges(oldIt->freeTransform, parameter->freeTransform(), dirtyIt->freeTransform, ranges);
+            changed |= applyAnchorChanges(oldIt->anchorEdited, dirtyIt->anchorEdited, anchorPointers, parameter->anchorEdited(), ranges);
+            changed |= applyAnchorChanges(oldIt->anchorTransform, dirtyIt->anchorTransform, anchorPointers, parameter->anchorTransform(), ranges);
             if (changed) {
                 types |= ClipChange::Parameter;
                 parameterNameSet.insert(oldIt->name);
@@ -1036,14 +1137,10 @@ namespace dspx {
         if (timeMappingChanged) {
             for (auto it = baselineParameters.begin(); it != baselineParameters.end(); ++it) {
                 bool affected = false;
-                affected |= addTimeAffectedFree(it->freeEdited, baselineTimeMap, baselineClipStart,
-                                                newTimeMap, newClipStart, ranges);
-                affected |= addTimeAffectedFree(it->freeTransform, baselineTimeMap, baselineClipStart,
-                                                newTimeMap, newClipStart, ranges);
-                affected |= addTimeAffectedAnchors(it->anchorEdited, baselineTimeMap, baselineClipStart,
-                                                   newTimeMap, newClipStart, ranges);
-                affected |= addTimeAffectedAnchors(it->anchorTransform, baselineTimeMap, baselineClipStart,
-                                                   newTimeMap, newClipStart, ranges);
+                affected |= addTimeAffectedFree(it->freeEdited, baselineTimeMap, baselineClipStart, newTimeMap, newClipStart, ranges);
+                affected |= addTimeAffectedFree(it->freeTransform, baselineTimeMap, baselineClipStart, newTimeMap, newClipStart, ranges);
+                affected |= addTimeAffectedAnchors(it->anchorEdited, baselineTimeMap, baselineClipStart, newTimeMap, newClipStart, ranges);
+                affected |= addTimeAffectedAnchors(it->anchorTransform, baselineTimeMap, baselineClipStart, newTimeMap, newClipStart, ranges);
                 if (affected) {
                     types |= ClipChange::Parameter;
                     parameterNameSet.insert(it->name);

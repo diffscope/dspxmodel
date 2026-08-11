@@ -1,22 +1,23 @@
 #ifndef DSPXMODEL_CLIPWATCHER_P_H
 #define DSPXMODEL_CLIPWATCHER_P_H
 
-#include <QHash>
-#include <QList>
-#include <QObject>
-#include <QPointer>
-#include <QPointF>
-#include <QSet>
-#include <QString>
-#include <QVariant>
+#include "ClipChange.h"
+#include "PieceUtils_p.h"
 
-#include <map>
 #include <limits>
+#include <map>
 #include <optional>
 #include <utility>
 
-#include "ClipChange.h"
-#include "PieceUtils_p.h"
+#include <QByteArray>
+#include <QHash>
+#include <QList>
+#include <QObject>
+#include <QPointF>
+#include <QPointer>
+#include <QSet>
+#include <QString>
+#include <QVariant>
 
 namespace dspx {
 
@@ -29,6 +30,9 @@ namespace dspx {
     class Phoneme;
     class PhonemeSequence;
     class SingingClip;
+    class Singer;
+    class SingerList;
+    class Sources;
     class Tempo;
 
     struct WatcherPhonemeState {
@@ -127,6 +131,9 @@ namespace dspx {
         void installPhonemeWatcher(Phoneme *phoneme, quint64 noteId);
         void installTempoWatcher(Tempo *tempo);
         void installParameterWatcher(const QString &name, Parameter *parameter);
+        void installSourceWatchers(Sources *sources);
+        void installSingerListWatchers(SingerList *list);
+        void installSingerWatcher(Singer *singer);
         void installFreeWatcher(FreeValueDataArray *array, quint64 parameterId, bool edited);
         void installAnchorWatcher(AnchorNodeSequence *sequence, quint64 parameterId, bool edited);
         void installAnchorWatcher(AnchorNode *node, quint64 parameterId, bool edited);
@@ -142,6 +149,7 @@ namespace dspx {
         WatcherAnchorState captureAnchor(AnchorNode *node) const;
         WatcherAnchorLayer captureAnchors(AnchorNodeSequence *sequence) const;
         WatcherParameterState captureParameter(const QString &name, Parameter *parameter) const;
+        QByteArray captureSources() const;
         std::optional<WatcherNoteState> currentNote(quint64 id) const;
         std::optional<WatcherParameterState> currentParameter(quint64 id) const;
 
@@ -160,6 +168,11 @@ namespace dspx {
         PieceTimeMapCache timeMapCache;
         PieceTimeMap baselineTimeMap;
         int baselineClipStart = 0;
+        int baselinePosition = 0;
+        int baselineLength = 0;
+        int baselineVisibleStart = 0;
+        int baselineVisibleLength = 0;
+        QByteArray baselineSources;
         QHash<quint64, WatcherNoteState> baselineNotes;
         std::multimap<int, quint64> noteStarts;
         std::multimap<int, quint64> noteEnds;
@@ -169,6 +182,8 @@ namespace dspx {
         QHash<quint64, WatcherParameterDirty> pendingParameters;
         QSet<quint64> pendingTempoIds;
         bool clipStartDirty = false;
+        bool clipTimingDirty = false;
+        bool sourcesDirty = false;
     };
 
 }

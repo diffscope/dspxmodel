@@ -1,8 +1,15 @@
-#include "PieceDivider.h"
-
 #include "Piece.h"
-#include "Piece_p.h"
+#include "PieceDivider.h"
 #include "PieceDivider_p.h"
+#include "Piece_p.h"
+
+#include <algorithm>
+#include <cmath>
+#include <functional>
+#include <limits>
+#include <utility>
+
+#include <QPointer>
 
 #include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
@@ -12,14 +19,6 @@
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Tempo.h>
 #include <dspxmodelORM/TempoSequence.h>
-
-#include <QPointer>
-
-#include <algorithm>
-#include <cmath>
-#include <functional>
-#include <limits>
-#include <utility>
 
 namespace dspx {
 
@@ -109,8 +108,7 @@ namespace dspx {
             return false;
         }
         watchedObjects.insert(object);
-        QObject::connect(object, &QObject::destroyed, watchContext,
-                         [this](QObject *destroyed) { watchedObjects.remove(destroyed); });
+        QObject::connect(object, &QObject::destroyed, watchContext, [this](QObject *destroyed) { watchedObjects.remove(destroyed); });
         return true;
     }
 
@@ -126,8 +124,7 @@ namespace dspx {
         auto changed = [this, id] { markNote(phonemeOwners.value(id)); };
         QObject::connect(phoneme, &Phoneme::startChanged, watchContext, changed);
         QObject::connect(phoneme, &Phoneme::onsetChanged, watchContext, changed);
-        QObject::connect(phoneme, &QObject::destroyed, watchContext,
-                         [this, id] { markNote(phonemeOwners.value(id)); });
+        QObject::connect(phoneme, &QObject::destroyed, watchContext, [this, id] { markNote(phonemeOwners.value(id)); });
     }
 
     void PieceDividerPrivate::installPhonemeWatcher(PhonemeSequence *sequence, quint64 noteId) {
@@ -140,13 +137,11 @@ namespace dspx {
         for (Phoneme *phoneme : sequence->asRange()) {
             installPhonemeWatcher(phoneme, noteId);
         }
-        QObject::connect(sequence, &PhonemeSequence::itemAboutToRemove, watchContext,
-                         [this, noteId](Phoneme *, PhonemeSequence *) { markNote(noteId); });
-        QObject::connect(sequence, &PhonemeSequence::itemInserted, watchContext,
-                         [this, noteId](Phoneme *phoneme, PhonemeSequence *) {
-                             installPhonemeWatcher(phoneme, noteId);
-                             markNote(noteId);
-                         });
+        QObject::connect(sequence, &PhonemeSequence::itemAboutToRemove, watchContext, [this, noteId](Phoneme *, PhonemeSequence *) { markNote(noteId); });
+        QObject::connect(sequence, &PhonemeSequence::itemInserted, watchContext, [this, noteId](Phoneme *phoneme, PhonemeSequence *) {
+            installPhonemeWatcher(phoneme, noteId);
+            markNote(noteId);
+        });
     }
 
     void PieceDividerPrivate::installNoteWatcher(Note *note) {
@@ -162,8 +157,7 @@ namespace dspx {
         QObject::connect(note, &Note::lengthChanged, watchContext, changed);
         QObject::connect(note, &Note::lyricChanged, watchContext, changed);
         QObject::connect(note, &Note::positionChanged, watchContext, changed);
-        QObject::connect(note, &QObject::destroyed, watchContext,
-                         [this, id] { markNote(id); });
+        QObject::connect(note, &QObject::destroyed, watchContext, [this, id] { markNote(id); });
         installPhonemeWatcher(note->originalPhonemes(), id);
     }
 
@@ -178,8 +172,7 @@ namespace dspx {
         auto changed = [this, id] { pendingTempoIds.insert(id); };
         QObject::connect(tempo, &Tempo::positionChanged, watchContext, changed);
         QObject::connect(tempo, &Tempo::valueChanged, watchContext, changed);
-        QObject::connect(tempo, &QObject::destroyed, watchContext,
-                         [this, id] { pendingTempoIds.insert(id); });
+        QObject::connect(tempo, &QObject::destroyed, watchContext, [this, id] { pendingTempoIds.insert(id); });
     }
 
     void PieceDividerPrivate::installWatchers() {
@@ -199,33 +192,27 @@ namespace dspx {
             discardPending();
             emit q_ptr->singingClipChanged(nullptr);
         });
-        QObject::connect(singingClip, &SingingClip::startChanged, watchContext,
-                         [this](int) { clipStartDirty = true; });
+        QObject::connect(singingClip, &SingingClip::startChanged, watchContext, [this](int) { clipStartDirty = true; });
 
         NoteSequence *notes = singingClip->notes();
         for (Note *note : notes->asRange()) {
             installNoteWatcher(note);
         }
-        QObject::connect(notes, &NoteSequence::itemAboutToRemove, watchContext,
-                         [this](Note *note, NoteSequence *) { markNote(note->handle().d); });
-        QObject::connect(notes, &NoteSequence::itemInserted, watchContext,
-                         [this](Note *note, NoteSequence *) {
-                             installNoteWatcher(note);
-                             markNote(note->handle().d);
-                         });
+        QObject::connect(notes, &NoteSequence::itemAboutToRemove, watchContext, [this](Note *note, NoteSequence *) { markNote(note->handle().d); });
+        QObject::connect(notes, &NoteSequence::itemInserted, watchContext, [this](Note *note, NoteSequence *) {
+            installNoteWatcher(note);
+            markNote(note->handle().d);
+        });
 
         TempoSequence *tempos = singingClip->model()->tempos();
         for (Tempo *tempo : tempos->asRange()) {
             installTempoWatcher(tempo);
         }
-        QObject::connect(tempos, &TempoSequence::itemAboutToRemove, watchContext,
-                         [this](Tempo *tempo) { pendingTempoIds.insert(tempo->handle().d); });
-        QObject::connect(tempos, &TempoSequence::itemInserted, watchContext,
-                         [this](Tempo *tempo) {
-                             installTempoWatcher(tempo);
-                             pendingTempoIds.insert(tempo->handle().d);
-                         });
-
+        QObject::connect(tempos, &TempoSequence::itemAboutToRemove, watchContext, [this](Tempo *tempo) { pendingTempoIds.insert(tempo->handle().d); });
+        QObject::connect(tempos, &TempoSequence::itemInserted, watchContext, [this](Tempo *tempo) {
+            installTempoWatcher(tempo);
+            pendingTempoIds.insert(tempo->handle().d);
+        });
     }
 
     void PieceDividerPrivate::discardPending() {
@@ -262,7 +249,7 @@ namespace dspx {
             for (Note *note : singingClip->notes()->asRange()) {
                 const auto state = captureNote(note);
                 committedNotes.insert(state.id, state);
-                orderedNotes.emplace(PieceNoteOrder {state.position, state.id}, state.id);
+                orderedNotes.emplace(PieceNoteOrder{state.position, state.id}, state.id);
                 notePointers.insert(state.id, note);
             }
             reconcile(buildAllBlueprints());
@@ -284,12 +271,7 @@ namespace dspx {
 
     PieceBlueprint PieceDividerPrivate::blueprintFromPiece(Piece *piece) const {
         const auto *d = PiecePrivate::get(piece);
-        return {d->position,
-                d->length,
-                d->firstNotePosition,
-                d->lastNotePosition,
-                d->noteIds,
-                piece};
+        return {d->position, d->length, d->firstNotePosition, d->lastNotePosition, d->noteIds, piece};
     }
 
     bool PieceDividerPrivate::blueprintExactlyEqualsPiece(const PieceBlueprint &blueprint, Piece *piece) const {
@@ -303,7 +285,8 @@ namespace dspx {
         std::map<PieceNoteOrder, quint64>::const_iterator last,
         int stopAfterPosition,
         int oldSearchStart,
-        int *matchedOldIndex) const {
+        int *matchedOldIndex
+    ) const {
         QList<PieceBlueprint> result;
         if (matchedOldIndex) {
             *matchedOldIndex = -1;
@@ -333,15 +316,16 @@ namespace dspx {
                 if (noteIt != committedNotes.cend()) {
                     const auto &note = *noteIt;
                     const double noteStartMilliseconds = committedTimeMap.tickToMilliseconds(
-                        static_cast<double>(committedClipStart) + note.position);
+                        static_cast<double>(committedClipStart) + note.position
+                    );
                     const double noteEndMilliseconds = committedTimeMap.tickToMilliseconds(
-                        static_cast<double>(committedClipStart) + note.position + note.length);
+                        static_cast<double>(committedClipStart) + note.position + note.length
+                    );
                     group.startMilliseconds = noteStartMilliseconds;
                     const bool rest = restLyrics.contains(note.lyric, Qt::CaseSensitive);
                     const double leftPadding = rest
                                                    ? 0.0
-                                                   : std::min(paddingBase + note.leadingNonOnsetPhonemes * paddingAdditional,
-                                                              paddingGap);
+                                                   : std::min(paddingBase + note.leadingNonOnsetPhonemes * paddingAdditional, paddingGap);
                     const double rightPadding = rest ? 0.0 : paddingBase;
                     group.lambda = std::min(group.lambda, leftPadding);
                     if (noteEndMilliseconds > group.bodyEndMilliseconds) {
@@ -390,10 +374,9 @@ namespace dspx {
             if (oldSearchStart >= 0) {
                 const qsizetype searchIndex = std::clamp<qsizetype>(oldSearchStart, 0, pieces.size());
                 const auto searchFirst = pieces.cbegin() + searchIndex;
-                const auto candidate = std::lower_bound(searchFirst, pieces.cend(), firstPosition,
-                                                        [](Piece *piece, int position) {
-                                                            return PiecePrivate::get(piece)->firstNotePosition < position;
-                                                        });
+                const auto candidate = std::lower_bound(searchFirst, pieces.cend(), firstPosition, [](Piece *piece, int position) {
+                    return PiecePrivate::get(piece)->firstNotePosition < position;
+                });
                 if (candidate != pieces.cend() &&
                     PiecePrivate::get(*candidate)->firstNotePosition == firstPosition &&
                     blueprintExactlyEqualsPiece(blueprint, *candidate)) {
@@ -444,20 +427,17 @@ namespace dspx {
     }
 
     QList<PieceBlueprint> PieceDividerPrivate::buildAllBlueprints() const {
-        return partitionFrom(orderedNotes.cbegin(), orderedNotes.cend(),
-                             std::numeric_limits<int>::max(), -1, nullptr);
+        return partitionFrom(orderedNotes.cbegin(), orderedNotes.cend(), std::numeric_limits<int>::max(), -1, nullptr);
     }
 
-    QList<PieceBlueprint> PieceDividerPrivate::buildLocalBlueprints(int firstAffectedPosition,
-                                                                     int lastAffectedPosition) const {
+    QList<PieceBlueprint> PieceDividerPrivate::buildLocalBlueprints(int firstAffectedPosition, int lastAffectedPosition) const {
         if (pieces.isEmpty()) {
             return buildAllBlueprints();
         }
 
-        const auto containing = std::lower_bound(pieces.cbegin(), pieces.cend(), firstAffectedPosition,
-                                                 [](Piece *piece, int position) {
-                                                     return PiecePrivate::get(piece)->lastNotePosition < position;
-                                                 });
+        const auto containing = std::lower_bound(pieces.cbegin(), pieces.cend(), firstAffectedPosition, [](Piece *piece, int position) {
+            return PiecePrivate::get(piece)->lastNotePosition < position;
+        });
         const int containingIndex = static_cast<int>(std::distance(pieces.cbegin(), containing));
         int startIndex;
         if (containingIndex == pieces.size()) {
@@ -475,12 +455,10 @@ namespace dspx {
         // An affected note may have moved before the first note of the old Piece.
         // Starting only at the old Piece boundary would omit that note from the
         // rebuilt suffix until an unrelated full rebuild occurred.
-        const int startPosition = std::min(PiecePrivate::get(pieces.at(startIndex))->firstNotePosition,
-                                           firstAffectedPosition);
-        const auto first = orderedNotes.lower_bound(PieceNoteOrder {startPosition, 0});
+        const int startPosition = std::min(PiecePrivate::get(pieces.at(startIndex))->firstNotePosition, firstAffectedPosition);
+        const auto first = orderedNotes.lower_bound(PieceNoteOrder{startPosition, 0});
         int matchedOldIndex = -1;
-        result.append(partitionFrom(first, orderedNotes.cend(), lastAffectedPosition,
-                                    startIndex, &matchedOldIndex));
+        result.append(partitionFrom(first, orderedNotes.cend(), lastAffectedPosition, startIndex, &matchedOldIndex));
         if (matchedOldIndex >= 0) {
             for (int i = matchedOldIndex + 1; i < pieces.size(); ++i) {
                 result.append(blueprintFromPiece(pieces.at(i)));
@@ -489,8 +467,7 @@ namespace dspx {
         return result;
     }
 
-    QList<Piece *> PieceDividerPrivate::chooseReusablePieces(const QList<Piece *> &oldPieces,
-                                                              const QList<PieceBlueprint> &blueprints) const {
+    QList<Piece *> PieceDividerPrivate::chooseReusablePieces(const QList<Piece *> &oldPieces, const QList<PieceBlueprint> &blueprints) const {
         const int oldCount = oldPieces.size();
         const int newCount = blueprints.size();
         QList<Piece *> result(newCount, nullptr);
@@ -545,8 +522,7 @@ namespace dspx {
         if (static_cast<qsizetype>(oldCount + 1) * static_cast<qsizetype>(newCount + 1) > maximumDpCells) {
             if (preservedOrder) {
                 result = preservedMatches;
-                auto matchGap = [this, &result, &oldPieces, &blueprints](int oldFirst, int oldLast,
-                                                                         int newFirst, int newLast) {
+                auto matchGap = [this, &result, &oldPieces, &blueprints](int oldFirst, int oldLast, int newFirst, int newLast) {
                     int oldCursor = oldFirst;
                     int newCursor = newFirst;
                     while (oldCursor < oldLast && newCursor < newLast) {
@@ -577,8 +553,7 @@ namespace dspx {
                             long double bestDistance = std::numeric_limits<long double>::infinity();
                             for (int candidate = oldCursor; candidate <= maximumOld; ++candidate) {
                                 const auto *oldData = PiecePrivate::get(oldPieces.at(candidate));
-                                const int overlap = sharedNoteCount(oldData->noteIds,
-                                                                    blueprints.at(newCursor).noteIds);
+                                const int overlap = sharedNoteCount(oldData->noteIds, blueprints.at(newCursor).noteIds);
                                 const long double distance =
                                     std::abs(oldData->position - blueprints.at(newCursor).position) +
                                     std::abs(oldData->length - blueprints.at(newCursor).length);
@@ -775,12 +750,12 @@ namespace dspx {
         if (membershipChanged) {
             emit q->piecesChanged();
         }
-
     }
 
     std::pair<int, int> PieceDividerPrivate::timeMapAffectedPositions(
         const PieceTimeMap &oldMap, int oldClipStart,
-        const PieceTimeMap &newMap, int newClipStart) const {
+        const PieceTimeMap &newMap, int newClipStart
+    ) const {
         const int noneFirst = std::numeric_limits<int>::max();
         const int noneLast = std::numeric_limits<int>::min();
         if (pieces.isEmpty()) {
@@ -791,7 +766,7 @@ namespace dspx {
         const auto *lastPiece = PiecePrivate::get(pieces.constLast());
         const double domainStart = firstPiece->position;
         const double domainEnd = lastPiece->position + lastPiece->length;
-        QVector<double> breakpoints {domainStart, domainEnd};
+        QVector<double> breakpoints{domainStart, domainEnd};
         auto appendBreakpoints = [&breakpoints, domainStart, domainEnd](const PieceTimeMap &map, int clipStart) {
             for (const auto &segment : map.segments) {
                 const double relative = segment.tick - clipStart;
@@ -825,7 +800,8 @@ namespace dspx {
             [](Piece *piece, double position) {
                 const auto *data = PiecePrivate::get(piece);
                 return data->position + data->length < position;
-            });
+            }
+        );
         int firstIndex = static_cast<int>(std::distance(pieces.cbegin(), firstAffectedPiece));
         const int pieceCount = static_cast<int>(pieces.size());
         firstIndex = std::clamp(firstIndex - 1, 0, pieceCount - 1);
@@ -835,8 +811,7 @@ namespace dspx {
             ++lastIndex;
         }
         lastIndex = std::min(lastIndex + 1, pieceCount - 1);
-        return {PiecePrivate::get(pieces.at(firstIndex))->firstNotePosition,
-                PiecePrivate::get(pieces.at(lastIndex))->lastNotePosition};
+        return {PiecePrivate::get(pieces.at(firstIndex))->firstNotePosition, PiecePrivate::get(pieces.at(lastIndex))->lastNotePosition};
     }
 
     void PieceDividerPrivate::updatePending() {
@@ -860,8 +835,7 @@ namespace dspx {
         const bool timeMapChanged = newClipStart != oldClipStart || newTimeMap.segments != oldTimeMap.segments;
         const auto timePositions = timeMapChanged
                                        ? timeMapAffectedPositions(oldTimeMap, oldClipStart, newTimeMap, newClipStart)
-                                       : std::pair<int, int> {std::numeric_limits<int>::max(),
-                                                             std::numeric_limits<int>::min()};
+                                       : std::pair<int, int>{std::numeric_limits<int>::max(), std::numeric_limits<int>::min()};
 
         QHash<quint64, PieceNoteState> oldAffectedStates;
         int firstAffectedPosition = timePositions.first;
@@ -872,18 +846,18 @@ namespace dspx {
                 oldAffectedStates.insert(id, *oldIt);
                 firstAffectedPosition = std::min(firstAffectedPosition, oldIt->position);
                 lastAffectedPosition = std::max(lastAffectedPosition, oldIt->position);
-                orderedNotes.erase(PieceNoteOrder {oldIt->position, id});
+                orderedNotes.erase(PieceNoteOrder{oldIt->position, id});
                 committedNotes.remove(id);
             }
 
             Note *note = notePointers.value(id);
             if (!note) {
-                note = singingClip->model()->find<Note>(Handle {id});
+                note = singingClip->model()->find<Note>(Handle{id});
             }
             if (note && note->noteSequence() == singingClip->notes()) {
                 const auto state = captureNote(note);
                 committedNotes.insert(id, state);
-                orderedNotes.emplace(PieceNoteOrder {state.position, id}, id);
+                orderedNotes.emplace(PieceNoteOrder{state.position, id}, id);
                 notePointers.insert(id, note);
                 firstAffectedPosition = std::min(firstAffectedPosition, state.position);
                 lastAffectedPosition = std::max(lastAffectedPosition, state.position);
@@ -1002,6 +976,29 @@ namespace dspx {
     QList<Piece *> PieceDivider::pieces() const {
         Q_D(const PieceDivider);
         return d->pieces;
+    }
+
+    QList<Piece *> PieceDivider::slice(double position, double length) const {
+        Q_D(const PieceDivider);
+        QList<Piece *> result;
+        if (!std::isfinite(position) || !std::isfinite(length) || length <= 0.0) {
+            return result;
+        }
+        const double end = position + length;
+        if (!std::isfinite(end)) {
+            return result;
+        }
+        for (Piece *piece : d->pieces) {
+            const double pieceEnd = piece->position() + piece->length();
+            if (pieceEnd <= position) {
+                continue;
+            }
+            if (piece->position() >= end) {
+                break;
+            }
+            result.append(piece);
+        }
+        return result;
     }
 
     void PieceDivider::update() {

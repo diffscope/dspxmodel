@@ -1,12 +1,13 @@
 #ifndef DSPXMODEL_CLIPCHANGE_H
 #define DSPXMODEL_CLIPCHANGE_H
 
+#include <qqmlintegration.h>
+
 #include <QFlags>
 #include <QList>
 #include <QMetaType>
 #include <QSharedDataPointer>
 #include <QStringList>
-#include <qqmlintegration.h>
 
 #include <dspxmodelPiece/ClipChangeRange.h>
 #include <dspxmodelPiece/DSPXModelPieceGlobal.h>
@@ -36,13 +37,15 @@ namespace dspx {
     public:
         /** @brief A category of clip content change. */
         enum ChangeType {
-            Score = 0x01,         ///< A note entered or left the clip.
-            Lyric = 0x02,         ///< A note lyric or language changed.
+            Score = 0x01, ///< A note entered or left the clip.
+            Lyric = 0x02, ///< A note lyric or language changed.
             Pronunciation = 0x04, ///< An edited pronunciation changed.
-            Note = 0x08,          ///< Pitch or absolute note timing changed.
-            Phoneme = 0x10,       ///< Edited phoneme content changed.
-            Vibrato = 0x20,       ///< Vibrato properties or points changed.
-            Parameter = 0x40,     ///< Edited/transform parameter output changed.
+            Note = 0x08, ///< Pitch or absolute note timing changed.
+            Phoneme = 0x10, ///< Edited phoneme content changed.
+            Vibrato = 0x20, ///< Vibrato properties or points changed.
+            Parameter = 0x40, ///< Edited/transform parameter output changed.
+            Sources = 0x80, ///< Architecture, singers, extras or mixing changed.
+            ClipTiming = 0x100, ///< Clip placement or visible/content range changed.
         };
         Q_ENUM(ChangeType)
         Q_DECLARE_FLAGS(ChangeTypes, ChangeType)
@@ -96,9 +99,7 @@ namespace dspx {
         QList<ClipChangeRange> ranges() const;
 
     private:
-        explicit ClipChange(ChangeTypes types,
-                            QStringList parameterNames,
-                            QList<ClipChangeRange> ranges);
+        explicit ClipChange(ChangeTypes types, QStringList parameterNames, QList<ClipChangeRange> ranges);
 
         QSharedDataPointer<ClipChangePrivate> d_ptr;
 

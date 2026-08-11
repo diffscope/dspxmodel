@@ -1,11 +1,12 @@
 #ifndef DSPXMODEL_PIECEDIVIDER_H
 #define DSPXMODEL_PIECEDIVIDER_H
 
+#include <qqmlintegration.h>
+
 #include <QList>
 #include <QObject>
 #include <QScopedPointer>
 #include <QStringList>
-#include <qqmlintegration.h>
 
 #include <dspxmodelPiece/DSPXModelPieceGlobal.h>
 
@@ -122,6 +123,14 @@ namespace dspx {
          * The list position is derived state and has no persistent index semantics.
          */
         QList<Piece *> pieces() const;
+
+        /**
+         * @brief Gets pieces intersecting a clip-relative half-open interval.
+         *
+         * The returned objects remain owned by this divider and preserve the
+         * same order as pieces(). A zero-length query returns no pieces.
+         */
+        Q_INVOKABLE QList<Piece *> slice(double position, double length) const;
 
         /**
          * @brief Applies every recorded model and configuration change.
