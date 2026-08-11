@@ -3,10 +3,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <utility>
 
 #include <dini/engine.h>
-#include <dini/transaction.h>
 #include <opendspx/phoneme.h>
 
 #include <dspxmodelCore/Schema.h>
@@ -16,25 +16,16 @@
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
+#include <dspxmodelORM/private/Phoneme_p.h>
 
 namespace dspx {
 
     namespace {
 
-        dini::QuerySpec phonemeRelationQuery(Handle noteHandle, PhonemeSequence::PhonemeRole role) {
-            return dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::notePhonemeRelationParent(), noteHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::notePhonemeRelationRoleColumn()),
-                                     dini::Value(static_cast<std::int64_t>(role))),
-                }),
-            };
-        }
-
-        dini::QuerySpec orderedPhonemeQuery(Handle relationHandle,
+        dini::QuerySpec orderedPhonemeQuery(Handle noteHandle,
                                             dini::SortDirection direction = dini::SortDirection::Ascending) {
             return dini::QuerySpec {
-                .filter = orm::parentFilter(Schema::phonemeParent(), relationHandle),
+                .filter = orm::parentFilter(Schema::phonemeParent(), noteHandle),
                 .sortKeys = orm::sortKeys(orm::phonemeOrderSpec(), direction),
             };
         }
@@ -56,12 +47,7 @@ namespace dspx {
     }
 
     Handle PhonemeSequencePrivate::relationHandle() const {
-        auto *modelData = ModelPrivate::get(note->model());
-        if (auto relation = orm::firstSnapshot(modelData->engine->query(Schema::notePhonemeRelationTable(),
-                                                                        phonemeRelationQuery(note->handle(), role)))) {
-            return orm::handleFromId(relation->id);
-        }
-        return {};
+        return role == PhonemeSequence::Edited ? note->handle() : Handle {};
     }
 
     dini::Value PhonemeSequencePrivate::associationValue() const {
@@ -69,6 +55,10 @@ namespace dspx {
     }
 
     void PhonemeSequencePrivate::refresh(bool notify) {
+        if (role == PhonemeSequence::Original) {
+            refreshOriginal(notify);
+            return;
+        }
         Q_Q(PhonemeSequence);
         auto *modelData = ModelPrivate::get(note->model());
         const auto relation = relationHandle();
@@ -128,10 +118,131 @@ namespace dspx {
         }
     }
 
+    void PhonemeSequencePrivate::addOriginalItem(Phoneme *item) {
+        Q_Q(PhonemeSequence);
+        originalItems.emplace(std::make_pair(item->start(), item->handle().d), item);
+        originalStartConnections.emplace(
+            item,
+            QObject::connect(item, &Phoneme::startChanged, q, [this, item](int) {
+                originalStartChanged(item);
+            }));
+    }
+
+    void PhonemeSequencePrivate::removeOriginalItem(Phoneme *item) {
+        const auto itemIt = std::find_if(originalItems.begin(), originalItems.end(), [item](const auto &entry) {
+            return entry.second == item;
+        });
+        if (itemIt != originalItems.end()) {
+            originalItems.erase(itemIt);
+        }
+        const auto connectionIt = originalStartConnections.find(item);
+        if (connectionIt != originalStartConnections.end()) {
+            QObject::disconnect(connectionIt->second);
+            originalStartConnections.erase(connectionIt);
+        }
+    }
+
+    void PhonemeSequencePrivate::originalStartChanged(Phoneme *item) {
+        const auto itemIt = std::find_if(originalItems.begin(), originalItems.end(), [item](const auto &entry) {
+            return entry.second == item;
+        });
+        if (itemIt == originalItems.end()) {
+            return;
+        }
+        originalItems.erase(itemIt);
+        originalItems.emplace(std::make_pair(item->start(), item->handle().d), item);
+        refreshOriginal(true);
+    }
+
+    void PhonemeSequencePrivate::refreshOriginal(bool notify) {
+        Q_Q(PhonemeSequence);
+        const auto newSize = static_cast<int>(originalItems.size());
+        auto *newFirst = originalItems.empty() ? nullptr : originalItems.begin()->second;
+        auto *newLast = originalItems.empty() ? nullptr : originalItems.rbegin()->second;
+        const bool sizeChanged = size != newSize;
+        const bool firstChanged = first != newFirst;
+        const bool lastChanged = last != newLast;
+        size = newSize;
+        first = newFirst;
+        last = newLast;
+
+        for (auto it = originalItems.begin(); it != originalItems.end(); ++it) {
+            auto *item = it->second;
+            auto *previous = it == originalItems.begin() ? nullptr : std::prev(it)->second;
+            auto next = std::next(it);
+            auto *nextItem = next == originalItems.end() ? nullptr : next->second;
+            auto *itemData = PhonemePrivate::get(item);
+            itemData->setPreviousItem(previous, notify);
+            itemData->setNextItem(nextItem, notify);
+        }
+
+        if (!notify) {
+            return;
+        }
+        if (sizeChanged) {
+            emit q->sizeChanged(size);
+        }
+        if (firstChanged) {
+            emit q->firstItemChanged(first);
+        }
+        if (lastChanged) {
+            emit q->lastItemChanged(last);
+        }
+    }
+
+    void PhonemeSequencePrivate::clearOriginalItemsForModelDestruction() {
+        for (const auto &entry : originalStartConnections) {
+            QObject::disconnect(entry.second);
+        }
+        originalStartConnections.clear();
+        originalItems.clear();
+        size = 0;
+        first = nullptr;
+        last = nullptr;
+    }
+
+    void PhonemeSequencePrivate::destroyOriginalItems() {
+        Q_Q(PhonemeSequence);
+        auto *modelData = ModelPrivate::get(note->model());
+        while (!originalItems.empty()) {
+            auto *item = originalItems.begin()->second;
+            q->removeItem(item);
+            modelData->phonemeObjects.remove(item->handle());
+            item->deleteLater();
+        }
+    }
+
     PhonemeSequence::PhonemeSequence(Note *note, PhonemeRole role) : QObject(note), d_ptr(new PhonemeSequencePrivate(this, note, role)) {
     }
 
-    PhonemeSequence::~PhonemeSequence() = default;
+    PhonemeSequence::~PhonemeSequence() {
+        Q_D(PhonemeSequence);
+        if (d->role != Original || d->originalItems.empty()) {
+            return;
+        }
+        auto *modelData = ModelPrivate::get(d->note->model());
+        QList<Phoneme *> items;
+        items.reserve(static_cast<qsizetype>(d->originalItems.size()));
+        for (const auto &entry : d->originalItems) {
+            items.append(entry.second);
+        }
+        for (const auto &entry : d->originalStartConnections) {
+            QObject::disconnect(entry.second);
+        }
+        d->originalItems.clear();
+        d->originalStartConnections.clear();
+        if (modelData->destroying) {
+            return;
+        }
+        for (auto *item : items) {
+            auto *itemData = PhonemePrivate::get(item);
+            itemData->setSequence(nullptr, false);
+            itemData->setPreviousItem(nullptr, false);
+            itemData->setNextItem(nullptr, false);
+            modelData->phonemeObjects.remove(item->handle());
+            item->deleteLater();
+        }
+    }
 
     int PhonemeSequence::size() const {
         Q_D(const PhonemeSequence);
@@ -153,6 +264,16 @@ namespace dspx {
             return {};
         }
         Q_D(const PhonemeSequence);
+        if (d->role == Original) {
+            QList<Phoneme *> result;
+            const auto end = position + length;
+            for (auto it = d->originalItems.lower_bound(std::make_pair(position, quint64 {0}));
+                 it != d->originalItems.end() && it->first.first < end;
+                 ++it) {
+                result.append(it->second);
+            }
+            return result;
+        }
         const auto relation = d->relationHandle();
         if (!relation) {
             return {};
@@ -180,10 +301,23 @@ namespace dspx {
     }
 
     bool PhonemeSequence::insertItem(Phoneme *item) {
-        if (!item || item->model() != note()->model() || item->phonemeSequence()) {
+        Q_D(PhonemeSequence);
+        const auto itemRole = d->role == Original ? Phoneme::Original : Phoneme::Edited;
+        if (!item || item->model() != note()->model() || item->phonemeSequence() ||
+            item->role() != itemRole) {
             return false;
         }
-        Q_D(const PhonemeSequence);
+        if (d->role == Original) {
+            if (ModelPrivate::get(note()->model())->find<Phoneme>(item->handle()) != item) {
+                return false;
+            }
+            emit itemAboutToInsert(item, nullptr);
+            d->addOriginalItem(item);
+            PhonemePrivate::get(item)->setSequence(this, true);
+            d->refreshOriginal(true);
+            emit itemInserted(item, nullptr);
+            return true;
+        }
         const auto associationValue = d->associationValue();
         if (associationValue.isNull()) {
             return false;
@@ -198,6 +332,18 @@ namespace dspx {
         if (!contains(item)) {
             return false;
         }
+        Q_D(PhonemeSequence);
+        if (d->role == Original) {
+            emit itemAboutToRemove(item, nullptr);
+            d->removeOriginalItem(item);
+            auto *itemData = PhonemePrivate::get(item);
+            itemData->setSequence(nullptr, true);
+            itemData->setPreviousItem(nullptr, true);
+            itemData->setNextItem(nullptr, true);
+            d->refreshOriginal(true);
+            emit itemRemoved(item, nullptr);
+            return true;
+        }
         ModelPrivate::get(note()->model())->update(item->handle(), {
             dini::ColumnValue {.column = Schema::phonemeParent().column(), .value = dini::Value::null()},
         });
@@ -205,8 +351,23 @@ namespace dspx {
     }
 
     bool PhonemeSequence::moveItem(Phoneme *item, PhonemeSequence *sequence) {
-        if (!contains(item) || !sequence || sequence->note()->model() != note()->model() || sequence->contains(item)) {
+        if (!contains(item) || !sequence || sequence->note()->model() != note()->model() || sequence->contains(item) ||
+            sequence->role() != role()) {
             return false;
+        }
+        Q_D(PhonemeSequence);
+        if (d->role == Original) {
+            auto *targetData = PhonemeSequencePrivate::get(sequence);
+            emit itemAboutToRemove(item, sequence);
+            emit sequence->itemAboutToInsert(item, this);
+            d->removeOriginalItem(item);
+            targetData->addOriginalItem(item);
+            PhonemePrivate::get(item)->setSequence(sequence, true);
+            d->refreshOriginal(true);
+            targetData->refreshOriginal(true);
+            emit itemRemoved(item, sequence);
+            emit sequence->itemInserted(item, this);
+            return true;
         }
         const auto associationValue = PhonemeSequencePrivate::get(sequence)->associationValue();
         if (associationValue.isNull()) {
@@ -241,7 +402,8 @@ namespace dspx {
             removeItem(firstItem());
         }
         for (const auto &source : phonemes) {
-            auto *phoneme = note()->model()->createPhoneme();
+            auto *phoneme = role() == Original ? note()->model()->createOriginalPhoneme()
+                                               : note()->model()->createPhoneme();
             phoneme->fromOpenDSPX(source);
             insertItem(phoneme);
         }

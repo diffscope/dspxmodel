@@ -19,6 +19,7 @@
 #include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
+#include <dspxmodelORM/Phoneme.h>
 #include <dspxmodelORM/PhonemeSequence.h>
 #include <dspxmodelORM/VibratoPointDataArray.h>
 #include <dspxmodelORM/private/AnchorNode_p.h>
@@ -34,6 +35,7 @@
 #include <dspxmodelORM/private/ORMUtils_p.h>
 #include <dspxmodelORM/private/Parameter_p.h>
 #include <dspxmodelORM/private/Phoneme_p.h>
+#include <dspxmodelORM/private/PhonemeSequence_p.h>
 #include <dspxmodelORM/private/Tempo_p.h>
 #include <dspxmodelORM/private/TempoSequence_p.h>
 #include <dspxmodelORM/private/TimeSignature_p.h>
@@ -42,6 +44,12 @@
 #include <dspxmodelORM/private/TrackList_p.h>
 
 namespace dspx {
+
+    namespace {
+
+        constexpr quint64 originalPhonemeHandleFlag = quint64 {1} << 63;
+
+    }
 
     namespace orm {
 
@@ -513,6 +521,11 @@ namespace dspx {
         Q_D(Model);
         d->destroying = true;
         d->subscription.disconnect();
+        for (auto *child : children()) {
+            if (auto *note = qobject_cast<Note *>(child)) {
+                PhonemeSequencePrivate::get(note->originalPhonemes())->clearOriginalItemsForModelDestruction();
+            }
+        }
     }
 
     Document *Model::document() const {
@@ -786,14 +799,6 @@ namespace dspx {
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationParent().column(), .value = noteValue},
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(VibratoPointDataArray::Frequency))},
         });
-        transaction->insert(Schema::notePhonemeRelationTable(), {
-            dini::ColumnValue {.column = Schema::notePhonemeRelationParent().column(), .value = noteValue},
-            dini::ColumnValue {.column = Schema::notePhonemeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(PhonemeSequence::Original))},
-        });
-        transaction->insert(Schema::notePhonemeRelationTable(), {
-            dini::ColumnValue {.column = Schema::notePhonemeRelationParent().column(), .value = noteValue},
-            dini::ColumnValue {.column = Schema::notePhonemeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(PhonemeSequence::Edited))},
-        });
         return d->ensure<Note>(orm::handleFromId(id));
     }
 
@@ -803,6 +808,18 @@ namespace dspx {
             dini::ColumnValue {.column = Schema::phonemeParent().column(), .value = dini::Value::null()},
         });
         return d->ensure<Phoneme>(orm::handleFromId(id));
+    }
+
+    Phoneme *Model::createOriginalPhoneme() {
+        Q_D(Model);
+        Handle handle;
+        do {
+            handle = Handle {originalPhonemeHandleFlag | d->nextOriginalPhonemeHandleId++};
+        } while (d->phonemeObjects.contains(handle) || d->engine->contains(orm::idFromHandle(handle)));
+
+        auto *phoneme = PhonemePrivate::create(handle, this, Phoneme::Original);
+        d->phonemeObjects.insert(handle, phoneme);
+        return phoneme;
     }
 
     Parameter *Model::createParameter() {
@@ -879,6 +896,17 @@ namespace dspx {
         if (!item || item->model() != this || !item->handle()) {
             return false;
         }
+        if (auto *phoneme = qobject_cast<Phoneme *>(item); phoneme && phoneme->role() == Phoneme::Original) {
+            if (d->phonemeObjects.value(phoneme->handle()) != phoneme) {
+                return false;
+            }
+            if (auto *sequence = phoneme->phonemeSequence()) {
+                sequence->removeItem(phoneme);
+            }
+            d->phonemeObjects.remove(phoneme->handle());
+            phoneme->deleteLater();
+            return true;
+        }
         d->requireTransaction()->remove(orm::idFromHandle(item->handle()));
         return true;
     }
@@ -924,6 +952,9 @@ namespace dspx {
             }
         }
         if (matches(Phoneme::staticMetaObject)) {
+            if (auto *object = d->find<Phoneme>(handle)) {
+                return object;
+            }
             if (auto *object = d->ensure<Phoneme>(handle)) {
                 return object;
             }

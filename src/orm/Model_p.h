@@ -135,7 +135,7 @@ namespace dspx {
             } else if constexpr (std::is_same_v<T, Parameter>) {
                 return ParameterPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Phoneme>) {
-                return PhonemePrivate::create(handle, model);
+                return PhonemePrivate::create(handle, model, Phoneme::Edited);
             } else if constexpr (std::is_same_v<T, SingleSinger>) {
                 return SingleSingerPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, MixedSinger>) {
@@ -387,6 +387,7 @@ namespace dspx {
         QHash<Handle, DynamicMixingAnchor *> dynamicMixingAnchorObjects;
         QHash<Handle, Parameter *> parameterObjects;
         QHash<Handle, Phoneme *> phonemeObjects;
+        quint64 nextOriginalPhonemeHandleId = 1;
         QHash<Handle, Singer *> singerObjects;
         QHash<Handle, SingleSinger *> singleSingerObjects;
         QHash<Handle, MixedSinger *> mixedSingerObjects;

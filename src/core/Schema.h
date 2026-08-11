@@ -24,7 +24,6 @@ namespace dspx {
         static dini::TableHandle labelTable();
         static dini::TableHandle mixableTable();
         static dini::TableHandle modelTable();
-        static dini::TableHandle notePhonemeRelationTable();
         static dini::TableHandle noteVibratoPointRelationTable();
         static dini::TableHandle noteTable();
         static dini::TableHandle phonemeTable();
@@ -50,7 +49,6 @@ namespace dspx {
         static dini::RelationHandle keySignatureParent();
         static dini::RelationHandle labelParent();
         static dini::RelationHandle noteParent();
-        static dini::RelationHandle notePhonemeRelationParent();
         static dini::RelationHandle noteVibratoPointRelationParent();
         static dini::RelationHandle parameterAnchorNodeRelationParent();
         static dini::RelationHandle phonemeParent();
@@ -66,7 +64,6 @@ namespace dspx {
         static dini::VariantHandle singleSingerVariant();
         static dini::VariantHandle mixedSingerVariant();
 
-        static dini::ColumnHandle notePhonemeRelationRoleColumn();
         static dini::ColumnHandle noteVibratoPointRelationRoleColumn();
         static dini::ColumnHandle vibratoPointXColumn();
         static dini::ColumnHandle vibratoPointYColumn();

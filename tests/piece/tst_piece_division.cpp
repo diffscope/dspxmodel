@@ -466,7 +466,7 @@ public:
         result->setLyric(spec.lyric);
         target->notes()->insertItem(result);
         for (const auto &phonemeSpec : spec.originalPhonemes) {
-            auto *item = model.createPhoneme();
+            auto *item = model.createOriginalPhoneme();
             item->setStart(phonemeSpec.start);
             item->setOnset(phonemeSpec.onset);
             result->originalPhonemes()->insertItem(item);
@@ -483,7 +483,8 @@ public:
     }
 
     Phoneme *addPhoneme(PhonemeSequence *target, int start, bool onset) {
-        auto *result = model.createPhoneme();
+        auto *result = target->role() == PhonemeSequence::Original ? model.createOriginalPhoneme()
+                                                                  : model.createPhoneme();
         result->setStart(start);
         result->setOnset(onset);
         target->insertItem(result);
@@ -547,8 +548,6 @@ enum PhonemeEdit {
     ChangeStartAfterOnset,
     ToggleLeadingToOnset,
     ToggleOnsetToNonOnset,
-    MoveOriginalToEdited,
-    MoveEditedToOriginal,
     MoveOriginalBetweenNotes,
     AddEqualStartOnsetTie,
     EditIgnoredOriginalFields,
@@ -901,8 +900,6 @@ void PieceDivisionTest::originalPhonemeRebuildOperations_data() {
     QTest::newRow("move-phoneme-after-onset") << int(ChangeStartAfterOnset);
     QTest::newRow("toggle-leading-phoneme-to-onset") << int(ToggleLeadingToOnset);
     QTest::newRow("toggle-onset-to-non-onset") << int(ToggleOnsetToNonOnset);
-    QTest::newRow("move-original-to-edited") << int(MoveOriginalToEdited);
-    QTest::newRow("move-edited-to-original") << int(MoveEditedToOriginal);
     QTest::newRow("move-original-between-notes") << int(MoveOriginalBetweenNotes);
     QTest::newRow("add-equal-start-onset-tie") << int(AddEqualStartOnsetTie);
     QTest::newRow("edit-ignored-original-fields") << int(EditIgnoredOriginalFields);
@@ -961,12 +958,6 @@ void PieceDivisionTest::originalPhonemeRebuildOperations() {
             break;
         case ToggleOnsetToNonOnset:
             onset->setOnset(false);
-            break;
-        case MoveOriginalToEdited:
-            first->originalPhonemes()->moveItem(leading, first->editedPhonemes());
-            break;
-        case MoveEditedToOriginal:
-            first->editedPhonemes()->moveItem(edited, first->originalPhonemes());
             break;
         case MoveOriginalBetweenNotes:
             first->originalPhonemes()->moveItem(leading, second->originalPhonemes());
@@ -1225,14 +1216,13 @@ void PieceDivisionTest::undoAndRedo() {
     PieceFixture fixture;
     Note *first = nullptr;
     Note *second = nullptr;
-    Phoneme *leading = nullptr;
     Tempo *middleTempo = nullptr;
     fixture.commit([&] {
         fixture.clip->setPosition(480);
         first = fixture.addNote(fixture.clip, note(0, 480, QStringLiteral("la")));
         second = fixture.addNote(fixture.clip, note(1440, 480, QStringLiteral("R")));
         fixture.addNote(fixture.clip, note(3000, 240, QStringLiteral("la")));
-        leading = fixture.addPhoneme(first->originalPhonemes(), -100, false);
+        fixture.addPhoneme(first->originalPhonemes(), -100, false);
         fixture.addPhoneme(first->originalPhonemes(), 0, true);
         fixture.addTempo(tempo(0, 100));
         middleTempo = fixture.addTempo(tempo(1920, 200));
@@ -1252,7 +1242,6 @@ void PieceDivisionTest::undoAndRedo() {
         first->setLyric(QStringLiteral("R"));
         second->setPosition(2600);
         second->setLyric(QStringLiteral("la"));
-        leading->setOnset(true);
         middleTempo->setPosition(1680);
         middleTempo->setValue(55);
     });
@@ -1273,7 +1262,7 @@ void PieceDivisionTest::undoAndRedo() {
 
     fixture.commit([&] {
         fixture.addNote(fixture.clip,
-                        note(1100, 0, QStringLiteral("la"), {phoneme(-20, false)}));
+                        note(1100, 0, QStringLiteral("la")));
         fixture.clip->notes()->removeItem(second);
     });
     const auto afterMembershipChange = actualPieces(fixture.divider);

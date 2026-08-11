@@ -87,7 +87,12 @@ namespace dspx {
                 .moveSemantics = MoveSemantics::BetweenOwners,
                 .ensure = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) { return model.ensure<Note>(snapshot); },
                 .find = [](ModelPrivate &model, Handle handle) { return model.find<Note>(handle); },
-                .removeObject = [](ModelPrivate &model, Handle handle) { model.noteObjects.remove(handle); },
+                .removeObject = [](ModelPrivate &model, Handle handle) {
+                    if (auto *note = model.noteObjects.value(handle)) {
+                        PhonemeSequencePrivate::get(note->originalPhonemes())->destroyOriginalItems();
+                    }
+                    model.noteObjects.remove(handle);
+                },
                 .sync = [](Note *item, const dini::ItemSnapshot &snapshot, bool notify) { syncNoteColumns(item, snapshot, notify); },
                 .applyColumn = [](Note *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) { return applyNoteColumn(item, column, value, notify); },
                 .ownerForSnapshot = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) {

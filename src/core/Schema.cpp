@@ -2045,7 +2045,6 @@ namespace dspx {
                                                                       noteOverlappedCountColumn,
                                                                       noteOverlapIndex));
                 buildNoteVibratoPointRelationTable(noteTableBuilder);
-                buildNotePhonemeRelationTable(noteTableBuilder);
             }
 
             void buildNoteVibratoPointRelationTable(dini::TableBuilder &noteTableBuilder) {
@@ -2075,33 +2074,6 @@ namespace dspx {
                                                                            2));
             }
 
-            void buildNotePhonemeRelationTable(dini::TableBuilder &noteTableBuilder) {
-                auto relationTableBuilder = schemaBuilder.createTable("NotePhonemeRelation");
-                notePhonemeRelationTable = relationTableBuilder.handle();
-                notePhonemeRelationParent = relationTableBuilder.addAssociation({
-                    .debugName = "note",
-                    .target = noteTable,
-                    .nullable = false,
-                });
-                notePhonemeRelationRoleColumn = relationTableBuilder.addColumn({
-                    .debugName = "role",
-                    .type = dini::ValueType::Int64,
-                    .index = dini::IndexKind::Unique,
-                    .nullable = false,
-                    .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0 && v < 2; }
-                });
-                addBeforeCommitHook(relationTableBuilder, RequiredRoleRowsHook(noteTable,
-                                                                               notePhonemeRelationTable,
-                                                                               notePhonemeRelationParent,
-                                                                               notePhonemeRelationRoleColumn,
-                                                                               2));
-                addBeforeCommitHook(noteTableBuilder, RequiredRoleRowsHook(noteTable,
-                                                                           notePhonemeRelationTable,
-                                                                           notePhonemeRelationParent,
-                                                                           notePhonemeRelationRoleColumn,
-                                                                           2));
-            }
-
             void buildVibratoPointList() {
                 auto vibratoPointListBuilder = schemaBuilder.createList("VibratoPointList");
                 vibratoPointList = vibratoPointListBuilder.handle();
@@ -2128,8 +2100,8 @@ namespace dspx {
                 auto phonemeTableBuilder = schemaBuilder.createTable("Phoneme");
                 phonemeTable = phonemeTableBuilder.handle();
                 phonemeParent = phonemeTableBuilder.addAssociation({
-                    .debugName = "notePhonemeRelation",
-                    .target = notePhonemeRelationTable,
+                    .debugName = "note",
+                    .target = noteTable,
                 });
                 phonemeLanguageColumn = phonemeTableBuilder.addColumn({
                     .debugName = "language",
@@ -2319,7 +2291,6 @@ namespace dspx {
             dini::TableHandle labelTable;
             dini::TableHandle mixableTable;
             dini::TableHandle modelTable;
-            dini::TableHandle notePhonemeRelationTable;
             dini::TableHandle noteVibratoPointRelationTable;
             dini::TableHandle noteTable;
             dini::TableHandle phonemeTable;
@@ -2345,7 +2316,6 @@ namespace dspx {
             dini::RelationHandle keySignatureParent;
             dini::RelationHandle labelParent;
             dini::RelationHandle noteParent;
-            dini::RelationHandle notePhonemeRelationParent;
             dini::RelationHandle noteVibratoPointRelationParent;
             dini::RelationHandle parameterAnchorNodeRelationParent;
             dini::RelationHandle phonemeParent;
@@ -2361,7 +2331,6 @@ namespace dspx {
             dini::VariantHandle singleSingerVariant;
             dini::VariantHandle mixedSingerVariant;
 
-            dini::ColumnHandle notePhonemeRelationRoleColumn;
             dini::ColumnHandle noteVibratoPointRelationRoleColumn;
             dini::ColumnHandle vibratoPointXColumn;
             dini::ColumnHandle vibratoPointYColumn;
@@ -2510,10 +2479,6 @@ namespace dspx {
         return g.modelTable;
     }
 
-    dini::TableHandle Schema::notePhonemeRelationTable() {
-        return g.notePhonemeRelationTable;
-    }
-
     dini::TableHandle Schema::noteVibratoPointRelationTable() {
         return g.noteVibratoPointRelationTable;
     }
@@ -2606,10 +2571,6 @@ namespace dspx {
         return g.noteParent;
     }
 
-    dini::RelationHandle Schema::notePhonemeRelationParent() {
-        return g.notePhonemeRelationParent;
-    }
-
     dini::RelationHandle Schema::noteVibratoPointRelationParent() {
         return g.noteVibratoPointRelationParent;
     }
@@ -2660,10 +2621,6 @@ namespace dspx {
 
     dini::VariantHandle Schema::mixedSingerVariant() {
         return g.mixedSingerVariant;
-    }
-
-    dini::ColumnHandle Schema::notePhonemeRelationRoleColumn() {
-        return g.notePhonemeRelationRoleColumn;
     }
 
     dini::ColumnHandle Schema::noteVibratoPointRelationRoleColumn() {

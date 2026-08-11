@@ -10,15 +10,18 @@ namespace dspx {
     class PhonemePrivate {
         Q_DECLARE_PUBLIC(Phoneme)
     public:
-        explicit PhonemePrivate(Phoneme *q);
+        PhonemePrivate(Phoneme *q, Phoneme::PhonemeRole role);
 
         DSPXMODEL_DECLARE_GET(Phoneme)
         DSPXMODEL_FORWARD_CONSTRUCTOR(Phoneme)
 
         void setPlacement(Handle relation, bool notify);
         void setSequence(PhonemeSequence *sequence, bool notify);
+        void setPreviousItem(Phoneme *previousItem, bool notify);
+        void setNextItem(Phoneme *nextItem, bool notify);
 
         Phoneme *q_ptr = nullptr;
+        Phoneme::PhonemeRole role = Phoneme::Edited;
         QString language;
         int start = 0;
         QString token;

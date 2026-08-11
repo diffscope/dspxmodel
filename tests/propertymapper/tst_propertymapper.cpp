@@ -185,8 +185,8 @@ void PropertyMapperTest::noteMapperUnifiedAndDivergentValues() {
 
         auto *edited1 = context.model.createPhoneme();
         auto *edited2 = context.model.createPhoneme();
-        auto *original1 = context.model.createPhoneme();
-        auto *original2 = context.model.createPhoneme();
+        auto *original1 = context.model.createOriginalPhoneme();
+        auto *original2 = context.model.createOriginalPhoneme();
         QVERIFY(note1->editedPhonemes()->insertItem(edited1));
         QVERIFY(note2->editedPhonemes()->insertItem(edited2));
         QVERIFY(note1->originalPhonemes()->insertItem(original1));

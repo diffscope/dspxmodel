@@ -281,11 +281,16 @@ namespace dspx {
          */
         Q_INVOKABLE Note *createNote();
         /**
-         * @brief Creates phoneme.
+         * @brief Creates an edited phoneme stored in the document.
          * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @post createPhoneme() != nullptr.
          */
         Q_INVOKABLE Phoneme *createPhoneme();
+        /**
+         * @brief Creates an original phoneme stored only by the ORM.
+         * @post createOriginalPhoneme() != nullptr.
+         */
+        Q_INVOKABLE Phoneme *createOriginalPhoneme();
         /**
          * @brief Creates parameter.
          * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
@@ -325,9 +330,9 @@ namespace dspx {
 
         /**
          * @brief Destroys an item and schedules its ORM object for deletion.
-         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre item is an original phoneme || document()->transaction() is active.
          * @pre item != nullptr.
-         * @post If successful, the item is removed from the document.
+         * @post If successful, the item is removed from the model.
          */
         Q_INVOKABLE bool destroyItem(EntityObject *item);
 

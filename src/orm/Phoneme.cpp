@@ -22,31 +22,12 @@ namespace dspx {
     namespace {
 
         PhonemeSequence *phonemeOwnerFromAssociationValue(ModelPrivate &model, const dini::Value &value) {
-            const auto relationHandle = orm::handleFromValue(value);
-            if (!relationHandle || !model.engine->contains(orm::idFromHandle(relationHandle))) {
-                return nullptr;
-            }
-            const auto relation = model.engine->read(orm::idFromHandle(relationHandle));
-            if (!orm::isContainer(relation, Schema::notePhonemeRelationTable())) {
-                return nullptr;
-            }
-            const auto noteHandle = orm::handleFromValue(orm::snapshotValue(relation, Schema::notePhonemeRelationParent().column()));
-            const auto roleValue = orm::snapshotValue(relation, Schema::notePhonemeRelationRoleColumn());
-            if (!noteHandle || roleValue.isNull()) {
+            const auto noteHandle = orm::handleFromValue(value);
+            if (!noteHandle) {
                 return nullptr;
             }
             auto *note = model.ensure<Note>(noteHandle);
-            if (!note) {
-                return nullptr;
-            }
-            const auto role = static_cast<PhonemeSequence::PhonemeRole>(roleValue.asInt64());
-            if (role == PhonemeSequence::Original) {
-                return note->originalPhonemes();
-            }
-            if (role == PhonemeSequence::Edited) {
-                return note->editedPhonemes();
-            }
-            return nullptr;
+            return note ? note->editedPhonemes() : nullptr;
         }
 
         PhonemeSequence *phonemeOwnerFromSnapshot(ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
@@ -116,7 +97,7 @@ namespace dspx {
 
     }
 
-    PhonemePrivate::PhonemePrivate(Phoneme *q) : q_ptr(q) {
+    PhonemePrivate::PhonemePrivate(Phoneme *q, Phoneme::PhonemeRole role) : q_ptr(q), role(role) {
     }
 
     void PhonemePrivate::setPlacement(Handle newRelation, bool notify) {
@@ -142,10 +123,40 @@ namespace dspx {
         }
     }
 
-    Phoneme::Phoneme(Handle handle, Model *model) : EntityObject(handle, model, model), d_ptr(new PhonemePrivate(this)) {
+    void PhonemePrivate::setPreviousItem(Phoneme *newPrevious, bool notify) {
+        Q_Q(Phoneme);
+        if (previous == newPrevious) {
+            return;
+        }
+        previous = newPrevious;
+        previousHandle = previous ? previous->handle() : Handle {};
+        if (notify) {
+            emit q->previousItemChanged(previous);
+        }
+    }
+
+    void PhonemePrivate::setNextItem(Phoneme *newNext, bool notify) {
+        Q_Q(Phoneme);
+        if (next == newNext) {
+            return;
+        }
+        next = newNext;
+        nextHandle = next ? next->handle() : Handle {};
+        if (notify) {
+            emit q->nextItemChanged(next);
+        }
+    }
+
+    Phoneme::Phoneme(Handle handle, Model *model, PhonemeRole role)
+        : EntityObject(handle, model, model), d_ptr(new PhonemePrivate(this, role)) {
     }
 
     Phoneme::~Phoneme() = default;
+
+    Phoneme::PhonemeRole Phoneme::role() const {
+        Q_D(const Phoneme);
+        return d->role;
+    }
 
     QString Phoneme::language() const {
         Q_D(const Phoneme);
@@ -153,6 +164,15 @@ namespace dspx {
     }
 
     void Phoneme::setLanguage(const QString &language) {
+        Q_D(Phoneme);
+        if (d->role == Original) {
+            if (d->language == language) {
+                return;
+            }
+            d->language = language;
+            emit languageChanged(language);
+            return;
+        }
         ModelPrivate::get(model())->update(handle(), Schema::phonemeLanguageColumn(), orm::valueFromString(language));
     }
 
@@ -162,6 +182,15 @@ namespace dspx {
     }
 
     void Phoneme::setStart(int start) {
+        Q_D(Phoneme);
+        if (d->role == Original) {
+            if (d->start == start) {
+                return;
+            }
+            d->start = start;
+            emit startChanged(start);
+            return;
+        }
         ModelPrivate::get(model())->update(handle(), Schema::phonemeStartColumn(), dini::Value(static_cast<std::int64_t>(start)));
     }
 
@@ -171,6 +200,15 @@ namespace dspx {
     }
 
     void Phoneme::setToken(const QString &token) {
+        Q_D(Phoneme);
+        if (d->role == Original) {
+            if (d->token == token) {
+                return;
+            }
+            d->token = token;
+            emit tokenChanged(token);
+            return;
+        }
         ModelPrivate::get(model())->update(handle(), Schema::phonemeTokenColumn(), orm::valueFromString(token));
     }
 
@@ -180,11 +218,23 @@ namespace dspx {
     }
 
     void Phoneme::setOnset(bool onset) {
+        Q_D(Phoneme);
+        if (d->role == Original) {
+            if (d->onset == onset) {
+                return;
+            }
+            d->onset = onset;
+            emit onsetChanged(onset);
+            return;
+        }
         ModelPrivate::get(model())->update(handle(), Schema::phonemeOnsetColumn(), dini::Value(onset));
     }
 
     Phoneme *Phoneme::previousItem() const {
         Q_D(const Phoneme);
+        if (d->role == Original) {
+            return d->previous;
+        }
         if (!d->previous && d->previousHandle) {
             d->previous = ModelPrivate::get(model())->ensure<Phoneme>(d->previousHandle);
         }
@@ -193,6 +243,9 @@ namespace dspx {
 
     Phoneme *Phoneme::nextItem() const {
         Q_D(const Phoneme);
+        if (d->role == Original) {
+            return d->next;
+        }
         if (!d->next && d->nextHandle) {
             d->next = ModelPrivate::get(model())->ensure<Phoneme>(d->nextHandle);
         }

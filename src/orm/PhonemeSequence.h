@@ -72,15 +72,15 @@ namespace dspx {
         Q_INVOKABLE bool contains(Phoneme *item) const;
         /**
          * @brief Inserts item.
-         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || note()->model()->document()->transaction() is active.
          * @pre item is not null.
          * @post If successful, item is contained in this sequence.
-         * @returns true if successful, false if item is already contained in this sequence or another sequence.
+         * @returns true if successful, false if item has a different role or is already contained in a sequence.
          */
         Q_INVOKABLE bool insertItem(Phoneme *item);
         /**
          * @brief Removes item.
-         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || note()->model()->document()->transaction() is active.
          * @pre item is not null.
          * @post If successful, item is not contained in this sequence.
          * @returns true if successful, false if item is not contained in this sequence.
@@ -88,12 +88,12 @@ namespace dspx {
         Q_INVOKABLE bool removeItem(Phoneme *item);
         /**
          * @brief Moves item.
-         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || note()->model()->document()->transaction() is active.
          * @pre item is not null.
          * @pre sequence is not null.
          * @post If successful, item is contained in sequence.
-         * @returns true if successful, false if item is not contained in this sequence, or item is already contained in
-         * the target sequence or another sequence.
+         * @returns true if successful, false if item is not contained in this sequence, the target has a different role,
+         * or item is already contained in the target sequence.
          */
         Q_INVOKABLE bool moveItem(Phoneme *item, PhonemeSequence *sequence);
 
@@ -118,7 +118,7 @@ namespace dspx {
         /**
          * @brief Converts from OpenDSPX phonemes.
          * @note Typically, this method SHOULD only be called on a newly created object.
-         * @pre note()->model()->document()->transaction() != nullptr && note()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre role() == Original || note()->model()->document()->transaction() is active.
          */
         void fromOpenDSPX(const std::vector<opendspx::Phoneme> &phonemes);
 

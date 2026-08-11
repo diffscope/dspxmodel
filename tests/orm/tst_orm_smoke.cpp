@@ -409,7 +409,7 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         (void) note1->previousItem();
         (void) note1->nextItem();
 
-        auto *phoneme1 = model.createPhoneme();
+        auto *phoneme1 = model.createOriginalPhoneme();
         auto *phoneme2 = model.createPhoneme();
         verifyEntity(phoneme1, &model);
         verifyEntity(phoneme2, &model);
@@ -426,6 +426,8 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         auto *editedPhonemes = note1->editedPhonemes();
         QCOMPARE(originalPhonemes->role(), PhonemeSequence::Original);
         QCOMPARE(editedPhonemes->role(), PhonemeSequence::Edited);
+        QCOMPARE(phoneme1->role(), Phoneme::Original);
+        QCOMPARE(phoneme2->role(), Phoneme::Edited);
         QCOMPARE(originalPhonemes->note(), note1);
         QVERIFY(originalPhonemes->insertItem(phoneme1));
         QVERIFY(editedPhonemes->insertItem(phoneme2));
@@ -434,8 +436,6 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(originalPhonemes->lastItem(), phoneme1);
         QVERIFY(originalPhonemes->contains(phoneme1));
         QCOMPARE(originalPhonemes->slice(0, 200).size(), 1);
-        QVERIFY(editedPhonemes->moveItem(phoneme2, originalPhonemes));
-        QVERIFY(originalPhonemes->moveItem(phoneme2, editedPhonemes));
         QVERIFY(originalPhonemes->removeItem(phoneme1));
         QVERIFY(originalPhonemes->insertItem(phoneme1));
 
@@ -667,6 +667,12 @@ void OrmSmokeTest::destroyItem() {
         verifyEntity(track, &model);
         QVERIFY(model.destroyItem(track));
     });
+
+    auto *phoneme = model.createOriginalPhoneme();
+    const auto handle = phoneme->handle();
+    verifyEntity(phoneme, &model);
+    QVERIFY(model.destroyItem(phoneme));
+    QVERIFY(model.find<Phoneme>(handle) == nullptr);
 }
 
 QTEST_GUILESS_MAIN(OrmSmokeTest)

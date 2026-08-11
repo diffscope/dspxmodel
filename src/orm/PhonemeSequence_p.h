@@ -1,6 +1,11 @@
 #ifndef DSPXMODEL_PHONEMESEQUENCE_P_H
 #define DSPXMODEL_PHONEMESEQUENCE_P_H
 
+#include <map>
+#include <utility>
+
+#include <QMetaObject>
+
 #include <dspxmodelORM/PhonemeSequence.h>
 
 #include <dini/value.h>
@@ -21,6 +26,12 @@ namespace dspx {
         void refresh(bool notify);
         Handle relationHandle() const;
         dini::Value associationValue() const;
+        void addOriginalItem(Phoneme *item);
+        void removeOriginalItem(Phoneme *item);
+        void originalStartChanged(Phoneme *item);
+        void refreshOriginal(bool notify);
+        void destroyOriginalItems();
+        void clearOriginalItemsForModelDestruction();
 
         PhonemeSequence *q_ptr = nullptr;
         Note *note = nullptr;
@@ -28,6 +39,8 @@ namespace dspx {
         int size = 0;
         Phoneme *first = nullptr;
         Phoneme *last = nullptr;
+        std::map<std::pair<int, quint64>, Phoneme *> originalItems;
+        std::map<Phoneme *, QMetaObject::Connection> originalStartConnections;
 
         JSIterable *jsIterable = nullptr;
     };
