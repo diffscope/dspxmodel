@@ -294,7 +294,7 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         path.fileName = QStringLiteral("take.wav");
         path.formatEntryClassName = QStringLiteral("Wave");
         path.userData = QStringLiteral("userdata");
-        path.sha512 = QStringLiteral("hash");
+        path.digest = QStringLiteral("hash");
         audioClip->setPath(path);
 
         singingClip1->setName(QStringLiteral("Vocal A"));

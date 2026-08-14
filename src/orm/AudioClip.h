@@ -23,14 +23,14 @@ namespace dspx {
         Q_PROPERTY(QString fileName MEMBER fileName)
         Q_PROPERTY(QString formatEntryClassName MEMBER formatEntryClassName)
         Q_PROPERTY(QVariant userData MEMBER userData)
-        Q_PROPERTY(QString sha512 MEMBER sha512)
+        Q_PROPERTY(QString digest MEMBER digest)
     public:
         QString absoluteDir;
         QString relativeDir;
         QString fileName;
         QString formatEntryClassName;
         QVariant userData;
-        QString sha512;
+        QString digest;
 
         bool operator==(const AudioPathInfo &other) const = default;
         bool operator!=(const AudioPathInfo &other) const = default;

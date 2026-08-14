@@ -142,7 +142,7 @@ void OrmPropertiesTest::trackClipNoteAndPhonemeProperties() {
         path.fileName = QStringLiteral("backing.flac");
         path.formatEntryClassName = QStringLiteral("Flac");
         path.userData = QVariant::fromValue(42);
-        path.sha512 = QStringLiteral("abc");
+        path.digest = QStringLiteral("abc");
         audioClip->setPath(path);
         QCOMPARE(audioClip->name(), QStringLiteral("Backing Audio"));
         QCOMPARE(audioClip->gain(), 0.7);

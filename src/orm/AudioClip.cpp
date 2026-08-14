@@ -98,7 +98,7 @@ namespace dspx {
                    << path.fileName
                    << path.formatEntryClassName
                    << path.userData
-                   << path.sha512;
+                   << path.digest;
             return dini::Value(bytesFromQByteArray(bytes));
         }
 
@@ -114,7 +114,7 @@ namespace dspx {
                    >> path.fileName
                    >> path.formatEntryClassName
                    >> path.userData
-                   >> path.sha512;
+                   >> path.digest;
             return path;
         }
 
@@ -156,7 +156,7 @@ namespace dspx {
         audio["relativeDir"] = audioPathInfo.relativeDir.toStdString();
         audio["formatEntryClassName"] = audioPathInfo.formatEntryClassName.toStdString();
         audio["userData"] = encodeUserData(audioPathInfo.userData).toStdString();
-        audio["sha512"] = audioPathInfo.sha512.toStdString();
+        audio["digest"] = audioPathInfo.digest.toStdString();
         OpenDSPXConversion::convertClipToOpenDSPX(this, target);
         return target;
     }
@@ -179,8 +179,8 @@ namespace dspx {
             if (auto v = conv::optionalChain(workspace, "audio", "userData"); v.is_string()) {
                 audioPathInfo.userData = decodeUserData(v);
             }
-            if (auto v = conv::optionalChain(workspace, "audio", "sha512"); v.is_string()) {
-                audioPathInfo.sha512 = QString::fromStdString(v.get<std::string>());
+            if (auto v = conv::optionalChain(workspace, "audio", "digest"); v.is_string()) {
+                audioPathInfo.digest = QString::fromStdString(v.get<std::string>());
             }
         }
         setPath(audioPathInfo);
