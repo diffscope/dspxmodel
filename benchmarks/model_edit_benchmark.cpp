@@ -407,6 +407,17 @@ FreeValueDataArray *createFreeValueDataArray(Document &document, Model &model, c
     FreeValueDataArray *array = nullptr;
     withTransaction(document, [&] {
         auto *parameter = model.createParameter();
+        array = parameter->freeEdited();
+        array->splice(0, 0, values);
+    });
+    document.engine()->clearUndoHistory();
+    return array;
+}
+
+FreeValueDataArray *createInternalFreeValueDataArray(Document &document, Model &model, const QList<QVariant> &values) {
+    FreeValueDataArray *array = nullptr;
+    withTransaction(document, [&] {
+        auto *parameter = model.createParameter();
         array = parameter->original();
         array->splice(0, 0, values);
     });
@@ -447,6 +458,26 @@ void BM_SpliceFreeValueDataArray(benchmark::State &state) {
 }
 
 BENCHMARK(BM_SpliceFreeValueDataArray)->Apply(addFreeValueDataSizes);
+
+void BM_SpliceInternalFreeValueDataArray(benchmark::State &state) {
+    const auto dataSize = static_cast<int>(state.range(0));
+    const auto generatedSplice = generateFreeValueSplice(dataSize);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *array = createInternalFreeValueDataArray(document, model, generatedSplice.initialValues);
+        state.ResumeTiming();
+
+        spliceFreeValueDataArray(document, array, generatedSplice.index, dataSize * 2, generatedSplice.insertedValues);
+
+        benchmark::DoNotOptimize(array->size());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * dataSize);
+}
+
+BENCHMARK(BM_SpliceInternalFreeValueDataArray)->Apply(addFreeValueDataSizes);
 
 void BM_SpliceFreeValueDataArrayWithUndoRedo(benchmark::State &state) {
     const auto dataSize = static_cast<int>(state.range(0));

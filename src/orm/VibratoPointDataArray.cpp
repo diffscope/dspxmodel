@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -361,14 +362,18 @@ namespace dspx {
                                         .offset = static_cast<std::ptrdiff_t>(removedCount),
                                     });
             }
-            for (int i = 0; i < length; ++i) {
-                transaction->removeAt(list, associationValue, oldSize - static_cast<std::size_t>(i) - 1);
+            if (removedCount > 0) {
+                transaction->removeAt(list, associationValue, oldSize - removedCount, removedCount);
             }
-            for (int i = 0; i < values.size(); ++i) {
+            if (insertedCount > 0) {
+                std::vector<dini::ListInsertItem> insertedItems(insertedCount);
+                std::ranges::transform(values, insertedItems.begin(), [](const QPointF &value) {
+                    return dini::ListInsertItem {.values = pointValues(value)};
+                });
                 transaction->insert(list,
                                     associationValue,
-                                    oldSize - removedCount + static_cast<std::size_t>(i),
-                                    pointValues(values.at(i)));
+                                    oldSize - removedCount,
+                                    std::move(insertedItems));
             }
             if (insertedCount > 0 && suffixCount > 0) {
                 transaction->rotate(list,

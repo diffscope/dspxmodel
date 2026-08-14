@@ -764,7 +764,7 @@ namespace dspx {
 
     Track *Model::createTrack() {
         Q_D(Model);
-        const auto id = d->requireTransaction()->insert(Schema::trackList(), dini::Value::null(), 0, {});
+        const auto id = d->requireTransaction()->insert(Schema::trackList(), dini::Value::null(), 0, {{}}).front();
         return d->ensure<Track>(orm::handleFromId(id));
     }
 
@@ -868,8 +868,7 @@ namespace dspx {
         const auto id = d->requireTransaction()->insert(Schema::singerList(),
                                                         dini::Value::null(),
                                                         0,
-                                                        {},
-                                                        Schema::singleSingerVariant());
+                                                        {{.variant = Schema::singleSingerVariant()}}).front();
         return d->ensure<SingleSinger>(orm::handleFromId(id));
     }
 
@@ -878,8 +877,7 @@ namespace dspx {
         const auto id = d->requireTransaction()->insert(Schema::singerList(),
                                                         dini::Value::null(),
                                                         0,
-                                                        {},
-                                                        Schema::mixedSingerVariant());
+                                                        {{.variant = Schema::mixedSingerVariant()}}).front();
         return d->ensure<MixedSinger>(orm::handleFromId(id));
     }
 

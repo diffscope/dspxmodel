@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <functional>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -363,11 +364,18 @@ namespace dspx {
         }
         if (d->role == Original) {
             emit aboutToSplice(index, length, values);
-            for (int i = 0; i < length; ++i) {
-                d->originalItems.removeAt(index);
+            const auto insertedCount = static_cast<int>(values.size());
+            if (insertedCount < length) {
+                d->originalItems.remove(index + insertedCount, length - insertedCount);
+            } else if (insertedCount > length) {
+                const auto oldSize = d->originalItems.size();
+                d->originalItems.resize(oldSize + insertedCount - length);
+                std::ranges::move_backward(d->originalItems.begin() + index + length,
+                                           d->originalItems.begin() + oldSize,
+                                           d->originalItems.end());
             }
-            for (int i = 0; i < values.size(); ++i) {
-                d->originalItems.insert(index + i, values.at(i));
+            if (insertedCount > 0) {
+                std::ranges::copy_n(values.cbegin(), insertedCount, d->originalItems.begin() + index);
             }
             d->refresh(true, true);
             emit spliced(index, length, values);
@@ -398,14 +406,18 @@ namespace dspx {
                                         .offset = static_cast<std::ptrdiff_t>(removedCount),
                                     });
             }
-            for (int i = 0; i < length; ++i) {
-                transaction->removeAt(list, associationValue, oldSize - static_cast<std::size_t>(i) - 1);
+            if (removedCount > 0) {
+                transaction->removeAt(list, associationValue, oldSize - removedCount, removedCount);
             }
-            for (int i = 0; i < values.size(); ++i) {
+            if (insertedCount > 0) {
+                std::vector<dini::ListInsertItem> insertedItems(insertedCount);
+                std::ranges::transform(values, insertedItems.begin(), [](const QVariant &value) {
+                    return dini::ListInsertItem {.values = freeValueValues(value)};
+                });
                 transaction->insert(list,
                                     associationValue,
-                                    oldSize - removedCount + static_cast<std::size_t>(i),
-                                    freeValueValues(values.at(i)));
+                                    oldSize - removedCount,
+                                    std::move(insertedItems));
             }
             if (insertedCount > 0 && suffixCount > 0) {
                 transaction->rotate(list,
