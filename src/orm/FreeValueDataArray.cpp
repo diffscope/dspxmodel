@@ -288,14 +288,12 @@ namespace dspx {
 
     void FreeValueDataArrayPrivate::refresh(bool notify, bool itemsChanged) {
         Q_Q(FreeValueDataArray);
-        int newSize = 0;
-        if (role == FreeValueDataArray::Original) {
-            newSize = static_cast<int>(originalItems.size());
-        } else {
+        if (role != FreeValueDataArray::Original) {
             const auto relation = relationHandle();
             auto *modelData = ModelPrivate::get(parameter->model());
-            newSize = relation ? static_cast<int>(modelData->engine->listLength(Schema::freeValueList(), orm::valueFromHandle(relation))) : 0;
+            items = relation ? variantsFromView(modelData->engine->query(Schema::freeValueList(), freeValueQuery(relation))) : QList<QVariant> {};
         }
+        const auto newSize = static_cast<int>(items.size());
         const bool sizeChanged = size != newSize;
         size = newSize;
 
@@ -323,15 +321,7 @@ namespace dspx {
 
     QList<QVariant> FreeValueDataArray::items() const {
         Q_D(const FreeValueDataArray);
-        if (d->role == Original) {
-            return d->originalItems;
-        }
-        const auto relation = d->relationHandle();
-        if (!relation) {
-            return {};
-        }
-        auto *modelData = ModelPrivate::get(parameter()->model());
-        return variantsFromView(modelData->engine->query(Schema::freeValueList(), freeValueQuery(relation)));
+        return d->items;
     }
 
     QList<QVariant> FreeValueDataArray::slice(int index, int length) const {
@@ -339,17 +329,7 @@ namespace dspx {
             return {};
         }
         Q_D(const FreeValueDataArray);
-        if (d->role == Original) {
-            return d->originalItems.mid(index, length);
-        }
-        const auto relation = d->relationHandle();
-        if (!relation) {
-            return {};
-        }
-        auto *modelData = ModelPrivate::get(parameter()->model());
-        return variantsFromView(modelData->engine->query(Schema::freeValueList(), freeValueQuery(relation))
-                                    .offset(static_cast<std::size_t>(index))
-                                    .limit(static_cast<std::size_t>(length)));
+        return d->items.mid(index, length);
     }
 
     bool FreeValueDataArray::splice(int index, int length, const QList<QVariant> &values) {
@@ -366,16 +346,16 @@ namespace dspx {
             emit aboutToSplice(index, length, values);
             const auto insertedCount = static_cast<int>(values.size());
             if (insertedCount < length) {
-                d->originalItems.remove(index + insertedCount, length - insertedCount);
+                d->items.remove(index + insertedCount, length - insertedCount);
             } else if (insertedCount > length) {
-                const auto oldSize = d->originalItems.size();
-                d->originalItems.resize(oldSize + insertedCount - length);
-                std::ranges::move_backward(d->originalItems.begin() + index + length,
-                                           d->originalItems.begin() + oldSize,
-                                           d->originalItems.end());
+                const auto oldSize = d->items.size();
+                d->items.resize(oldSize + insertedCount - length);
+                std::ranges::move_backward(d->items.begin() + index + length,
+                                           d->items.begin() + oldSize,
+                                           d->items.end());
             }
             if (insertedCount > 0) {
-                std::ranges::copy_n(values.cbegin(), insertedCount, d->originalItems.begin() + index);
+                std::ranges::copy_n(values.cbegin(), insertedCount, d->items.begin() + index);
             }
             d->refresh(true, true);
             emit spliced(index, length, values);
@@ -445,9 +425,9 @@ namespace dspx {
         }
         if (d->role == Original) {
             emit aboutToRotate(leftIndex, middleIndex, rightIndex);
-            std::rotate(d->originalItems.begin() + leftIndex,
-                        d->originalItems.begin() + middleIndex,
-                        d->originalItems.begin() + rightIndex);
+            std::rotate(d->items.begin() + leftIndex,
+                        d->items.begin() + middleIndex,
+                        d->items.begin() + rightIndex);
             emit itemsChanged();
             emit rotated(leftIndex, middleIndex, rightIndex);
             return true;

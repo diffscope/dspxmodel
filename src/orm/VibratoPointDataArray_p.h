@@ -26,6 +26,7 @@ namespace dspx {
         VibratoPointDataArray *q_ptr = nullptr;
         Note *note = nullptr;
         VibratoPointDataArray::VibratoPointRole role = VibratoPointDataArray::Amplitude;
+        QList<QPointF> items;
         int size = 0;
         bool suppressNotifications = false;
 

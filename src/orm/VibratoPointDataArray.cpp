@@ -281,7 +281,8 @@ namespace dspx {
         Q_Q(VibratoPointDataArray);
         const auto relation = relationHandle();
         auto *modelData = ModelPrivate::get(note->model());
-        const auto newSize = relation ? static_cast<int>(modelData->engine->listLength(Schema::vibratoPointList(), orm::valueFromHandle(relation))) : 0;
+        items = relation ? pointsFromView(modelData->engine->query(Schema::vibratoPointList(), vibratoPointQuery(relation))) : QList<QPointF> {};
+        const auto newSize = static_cast<int>(items.size());
         const bool sizeChanged = size != newSize;
         size = newSize;
 
@@ -309,12 +310,7 @@ namespace dspx {
 
     QList<QPointF> VibratoPointDataArray::items() const {
         Q_D(const VibratoPointDataArray);
-        const auto relation = d->relationHandle();
-        if (!relation) {
-            return {};
-        }
-        auto *modelData = ModelPrivate::get(note()->model());
-        return pointsFromView(modelData->engine->query(Schema::vibratoPointList(), vibratoPointQuery(relation)));
+        return d->items;
     }
 
     QList<QPointF> VibratoPointDataArray::slice(int index, int length) const {
@@ -322,14 +318,7 @@ namespace dspx {
             return {};
         }
         Q_D(const VibratoPointDataArray);
-        const auto relation = d->relationHandle();
-        if (!relation) {
-            return {};
-        }
-        auto *modelData = ModelPrivate::get(note()->model());
-        return pointsFromView(modelData->engine->query(Schema::vibratoPointList(), vibratoPointQuery(relation))
-                                  .offset(static_cast<std::size_t>(index))
-                                  .limit(static_cast<std::size_t>(length)));
+        return d->items.mid(index, length);
     }
 
     bool VibratoPointDataArray::splice(int index, int length, const QList<QPointF> &values) {
