@@ -14,7 +14,7 @@
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
-#include <nlohmann/json.hpp>
+#include <stdcorelib/support/json.h>
 
 namespace dspx {
 
@@ -144,22 +144,22 @@ namespace dspx {
         return KeySignatureSequencePrivate::get(this)->model;
     }
 
-    nlohmann::json KeySignatureSequence::toOpenDSPX() const {
-        nlohmann::json result = nlohmann::json::array();
+    stdc::JsonValue KeySignatureSequence::toOpenDSPX() const {
+        stdc::JsonArray result;
         for (auto keySignature = firstItem(); keySignature; keySignature = keySignature->nextItem()) {
             result.push_back(keySignature->toOpenDSPX());
         }
         return result;
     }
 
-    void KeySignatureSequence::fromOpenDSPX(const nlohmann::json &keySignatures) {
+    void KeySignatureSequence::fromOpenDSPX(const stdc::JsonValue &keySignatures) {
         while (size() > 0) {
             removeItem(firstItem());
         }
-        if (!keySignatures.is_array()) {
+        if (!keySignatures.isArray()) {
             return;
         }
-        for (const auto &source : keySignatures) {
+        for (const auto &source : keySignatures.toArray()) {
             auto keySignature = model()->createKeySignature();
             keySignature->fromOpenDSPX(source);
             insertItem(keySignature);

@@ -6,13 +6,14 @@
 #include <dini//engine.h>
 #include <dini/transaction.h>
 
+#include <stdcorelib/support/json.h>
+
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/KeySignatureSequence_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
-#include <nlohmann/json.hpp>
 
 namespace dspx {
 
@@ -173,27 +174,27 @@ namespace dspx {
         return d->sequence;
     }
 
-    nlohmann::json KeySignature::toOpenDSPX() const {
-        return nlohmann::json::object({
-            {"pos", position()},
-            {"mode", mode()},
-            {"tonality", tonality()},
-            {"accidentalType", accidentalType()},
-        });
+    stdc::JsonValue KeySignature::toOpenDSPX() const {
+        stdc::JsonObject result;
+        result["pos"] = position();
+        result["mode"] = mode();
+        result["tonality"] = tonality();
+        result["accidentalType"] = accidentalType();
+        return result;
     }
 
-    void KeySignature::fromOpenDSPX(const nlohmann::json &keySignature) {
-        if (auto v = conv::optionalChain(keySignature, "pos"); v.is_number_integer() && v.get<int>() >= 0) {
-            setPosition(v.get<int>());
+    void KeySignature::fromOpenDSPX(const stdc::JsonValue &keySignature) {
+        if (auto v = conv::optionalChain(keySignature, "pos"); v.isInt() && v.toInt() >= 0) {
+            setPosition(static_cast<int>(v.toInt()));
         }
-        if (auto v = conv::optionalChain(keySignature, "mode"); v.is_number_integer() && v.get<int>() >= 0 && v.get<int>() < 4096) {
-            setMode(v.get<int>());
+        if (auto v = conv::optionalChain(keySignature, "mode"); v.isInt() && v.toInt() >= 0 && v.toInt() < 4096) {
+            setMode(static_cast<int>(v.toInt()));
         }
-        if (auto v = conv::optionalChain(keySignature, "tonality"); v.is_number_integer() && v.get<int>() >= 0 && v.get<int>() < 12) {
-            setTonality(v.get<int>());
+        if (auto v = conv::optionalChain(keySignature, "tonality"); v.isInt() && v.toInt() >= 0 && v.toInt() < 12) {
+            setTonality(static_cast<int>(v.toInt()));
         }
-        if (auto v = conv::optionalChain(keySignature, "accidentalType"); v.is_number_integer()) {
-            const auto value = v.get<int>();
+        if (auto v = conv::optionalChain(keySignature, "accidentalType"); v.isInt()) {
+            const auto value = static_cast<int>(v.toInt());
             if (value == Flat || value == Sharp) {
                 setAccidentalType(static_cast<AccidentalType>(value));
             }

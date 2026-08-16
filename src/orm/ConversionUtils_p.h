@@ -2,14 +2,20 @@
 #define DSPXMODEL_CONVERSIONUTILS_P_H
 
 #include <cmath>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
-#include <dini/types.h>
-#include <nlohmann/json.hpp>
+#include <stdcorelib/support/json.h>
+
 #include <opendspx/workspace.h>
+
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+
+#include <dini/types.h>
 
 namespace dspx::conv {
 
@@ -37,11 +43,11 @@ namespace dspx::conv {
         inline constexpr bool is_string_like_v = is_string_like<T>::value;
 
         template <typename T>
-        bool optionalChainStep(const nlohmann::json *&cur, T &&arg) {
+        bool optionalChainStep(const stdc::JsonValue *&cur, T &&arg) {
             using D = std::decay_t<T>;
 
             if constexpr (is_string_like_v<T>) {
-                if (!cur || !cur->is_object()) {
+                if (!cur || !cur->isObject()) {
                     return false;
                 }
 
@@ -53,26 +59,28 @@ namespace dspx::conv {
                         return false;
                     }
 
-                    auto it = cur->find(key);
-                    if (it == cur->end()) {
+                    const auto &object = cur->toObject();
+                    auto it = object.find(key);
+                    if (it == object.end()) {
                         return false;
                     }
 
-                    cur = &(*it);
+                    cur = &(it->second);
                     return true;
                 } else {
                     std::string key(arg);
 
-                    auto it = cur->find(key);
-                    if (it == cur->end()) {
+                    const auto &object = cur->toObject();
+                    auto it = object.find(key);
+                    if (it == object.end()) {
                         return false;
                     }
 
-                    cur = &(*it);
+                    cur = &(it->second);
                     return true;
                 }
             } else if constexpr (std::is_integral_v<D> && !std::is_same_v<D, bool>) {
-                if (!cur || !cur->is_array()) {
+                if (!cur || !cur->isArray()) {
                     return false;
                 }
 
@@ -82,13 +90,13 @@ namespace dspx::conv {
                     }
                 }
 
-                auto index = static_cast<nlohmann::json::size_type>(arg);
-
-                if (index >= cur->size()) {
+                const auto index = static_cast<std::size_t>(arg);
+                const auto &array = cur->toArray();
+                if (index >= array.size()) {
                     return false;
                 }
 
-                cur = &((*cur)[index]);
+                cur = &(array[index]);
                 return true;
             } else {
                 static_assert(
@@ -110,50 +118,31 @@ namespace dspx::conv {
     }
 
     template <typename ...Args>
-    nlohmann::json optionalChain(const nlohmann::json &json, Args &&...args) {
-        const nlohmann::json *cur = &json;
+    stdc::JsonValue optionalChain(const stdc::JsonValue &json, Args &&...args) {
+        const stdc::JsonValue *cur = &json;
         bool ok = (detail::optionalChainStep(cur, std::forward<Args>(args)) && ...);
         if (!ok || !cur) {
-            return nullptr;
+            return stdc::JsonValue();
         }
         return *cur;
     }
 
-    inline dini::ByteArray serializeWorkspace(const nlohmann::json &workspace) {
-        if (!workspace.is_object()) {
-            return {};
-        }
-        return nlohmann::json::to_msgpack(workspace);
+    inline dini::ByteArray serializeWorkspace(const stdc::JsonObject &workspace) {
+        return stdc::JsonValue(workspace).toCbor();
     }
 
-    inline nlohmann::json &ensureObject(nlohmann::json &value) {
-        if (!value.is_object()) {
-            value = nlohmann::json::object();
-        }
-        return value;
-    }
-
-    inline nlohmann::json &ensureObjectMember(nlohmann::json &value, const char *key) {
-        auto &object = ensureObject(value);
-        auto &member = object[key];
-        return ensureObject(member);
-    }
-
-    inline nlohmann::json workspaceToJson(const opendspx::Workspace &workspace) {
-        auto result = nlohmann::json::object();
+    inline stdc::JsonObject workspaceToJson(const opendspx::Workspace &workspace) {
+        stdc::JsonObject result;
         for (const auto &[key, value] : workspace) {
             result[key] = value;
         }
         return result;
     }
 
-    inline opendspx::Workspace workspaceFromJson(const nlohmann::json &workspace) {
+    inline opendspx::Workspace workspaceFromJson(const stdc::JsonObject &workspace) {
         opendspx::Workspace result;
-        if (!workspace.is_object()) {
-            return result;
-        }
-        for (auto it = workspace.begin(); it != workspace.end(); ++it) {
-            result[it.key()] = *it;
+        for (const auto &[key, value] : workspace) {
+            result[key] = value.toObject();
         }
         return result;
     }
@@ -166,21 +155,18 @@ namespace dspx::conv {
         if (workspace.empty()) {
             return {};
         }
-        try {
-            auto result = nlohmann::json::from_msgpack(workspace);
-            if (result.is_object()) {
-                return workspaceFromJson(result);
-            }
-        } catch (const nlohmann::json::exception &) {
+        auto result = stdc::JsonValue::fromCbor(workspace);
+        if (result.isObject()) {
+            return workspaceFromJson(result.toObject());
         }
         return {};
     }
 
-    inline nlohmann::json jsonFromQJsonValue(const QJsonValue &value) {
+    inline stdc::JsonValue jsonFromQJsonValue(const QJsonValue &value) {
         switch (value.type()) {
             case QJsonValue::Null:
             case QJsonValue::Undefined:
-                return nullptr;
+                return stdc::JsonValue();
             case QJsonValue::Bool:
                 return value.toBool();
             case QJsonValue::Double:
@@ -188,7 +174,7 @@ namespace dspx::conv {
             case QJsonValue::String:
                 return value.toString().toStdString();
             case QJsonValue::Array: {
-                auto result = nlohmann::json::array();
+                stdc::JsonArray result;
                 const auto array = value.toArray();
                 for (const auto &item : array) {
                     result.push_back(jsonFromQJsonValue(item));
@@ -196,7 +182,7 @@ namespace dspx::conv {
                 return result;
             }
             case QJsonValue::Object: {
-                auto result = nlohmann::json::object();
+                stdc::JsonObject result;
                 const auto object = value.toObject();
                 for (auto it = object.begin(); it != object.end(); ++it) {
                     result[it.key().toStdString()] = jsonFromQJsonValue(it.value());
@@ -204,39 +190,39 @@ namespace dspx::conv {
                 return result;
             }
         }
-        return nullptr;
+        return stdc::JsonValue();
     }
 
-    inline QJsonValue qJsonValueFromJson(const nlohmann::json &json) {
-        if (json.is_null()) {
-            return {};
-        }
-        if (json.is_boolean()) {
-            return json.get<bool>();
-        }
-        if (json.is_number()) {
-            return json.get<double>();
-        }
-        if (json.is_string()) {
-            return QString::fromStdString(json.get<std::string>());
-        }
-        if (json.is_array()) {
-            QJsonArray result;
-            for (const auto &item : json) {
-                result.append(qJsonValueFromJson(item));
+    inline QJsonValue qJsonValueFromJson(const stdc::JsonValue &json) {
+        switch (json.type()) {
+            case stdc::JsonValue::Null:
+            case stdc::JsonValue::Binary:
+                return {};
+            case stdc::JsonValue::Bool:
+                return json.toBool();
+            case stdc::JsonValue::Double:
+            case stdc::JsonValue::Int:
+                return json.toDouble();
+            case stdc::JsonValue::String:
+                return QString::fromStdString(json.toString());
+            case stdc::JsonValue::Array: {
+                QJsonArray result;
+                for (const auto &item : json.toArray()) {
+                    result.append(qJsonValueFromJson(item));
+                }
+                return result;
             }
-            return result;
-        }
-        if (json.is_object()) {
-            QJsonObject result;
-            for (auto it = json.begin(); it != json.end(); ++it) {
-                result.insert(QString::fromStdString(it.key()), qJsonValueFromJson(*it));
+            case stdc::JsonValue::Object: {
+                QJsonObject result;
+                for (const auto &[key, value] : json.toObject()) {
+                    result.insert(QString::fromStdString(key), qJsonValueFromJson(value));
+                }
+                return result;
             }
-            return result;
         }
         return {};
     }
 
 }
 
-#endif //DSPXMODEL_CONVERSIONUTILS_P_H
+#endif // DSPXMODEL_CONVERSIONUTILS_P_H

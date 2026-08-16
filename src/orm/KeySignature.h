@@ -4,8 +4,9 @@
 #include <QScopedPointer>
 #include <qqmlintegration.h>
 
+#include <stdcorelib/support/json.h>
+
 #include <dspxmodelORM/EntityObject.h>
-#include <nlohmann/json_fwd.hpp>
 
 namespace dspx {
 
@@ -116,14 +117,14 @@ namespace dspx {
         /**
          * @brief Converts to OpenDSPX key signature.
          */
-        nlohmann::json toOpenDSPX() const;
+        stdc::JsonValue toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX key signature.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre keySignature must be valid.
          */
-        void fromOpenDSPX(const nlohmann::json &keySignature);
+        void fromOpenDSPX(const stdc::JsonValue &keySignature);
 
     signals:
         void positionChanged(int position);

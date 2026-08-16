@@ -7,7 +7,6 @@ qm_import(Qml)
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
-find_package(nlohmann_json CONFIG REQUIRED)
 find_package(opendspx CONFIG REQUIRED)
 
 dspxmodel_add_library(${PROJECT_NAME} AUTOGEN

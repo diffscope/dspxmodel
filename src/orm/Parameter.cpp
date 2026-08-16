@@ -13,7 +13,7 @@
 #include <opendspx/param.h>
 #include <opendspx/paramcurveanchor.h>
 #include <opendspx/paramcurvefree.h>
-#include <opendspxinterpolator/interpolator.h>
+#include <opendspx/interpolator/interpolator.h>
 #include <dspxmodelORM/AnchorNode.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelORM/FreeValueDataArray.h>

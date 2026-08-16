@@ -173,7 +173,7 @@ namespace dspx {
         };
         target.clips = clips()->toOpenDSPX();
         target.workspace = conv::deserializeWorkspace(d->workspace());
-        auto &diffscope = conv::ensureObject(target.workspace["diffscope"]);
+        auto &diffscope = target.workspace["diffscope"];
         diffscope["colorId"] = colorId();
         diffscope["height"] = height();
         diffscope["record"] = record();
@@ -192,14 +192,14 @@ namespace dspx {
         clips()->fromOpenDSPX(track.clips);
         if (auto it = track.workspace.find("diffscope"); it != track.workspace.end()) {
             const auto &workspace = it->second;
-            if (auto v = conv::optionalChain(workspace, "colorId"); v.is_number_integer()) {
-                setColorId(v.get<int>());
+            if (auto v = conv::optionalChain(workspace, "colorId"); v.isInt()) {
+                setColorId(static_cast<int>(v.toInt()));
             }
-            if (auto v = conv::optionalChain(workspace, "height"); v.is_number()) {
-                setHeight(v.get<double>());
+            if (auto v = conv::optionalChain(workspace, "height"); v.isNumber()) {
+                setHeight(v.toDouble());
             }
-            if (auto v = conv::optionalChain(workspace, "record"); v.is_boolean()) {
-                setRecord(v.get<bool>());
+            if (auto v = conv::optionalChain(workspace, "record"); v.isBool()) {
+                setRecord(v.toBool());
             }
         }
         OpenDSPXConversion::convertTrackFromOpenDSPX(this, track);

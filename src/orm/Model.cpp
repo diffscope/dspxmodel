@@ -683,13 +683,15 @@ namespace dspx {
             }
         };
         target.content.workspace = conv::deserializeWorkspace(d->workspace());
-        auto &diffscope = conv::ensureObject(target.content.workspace["diffscope"]);
-        auto &loop = conv::ensureObjectMember(diffscope, "loop");
+        auto &diffscope = target.content.workspace["diffscope"];
+        stdc::JsonObject loop;
         loop["enabled"] = loopEnabled();
         loop["start"] = loopStart();
         loop["length"] = loopLength();
-        auto &master = conv::ensureObjectMember(diffscope, "master");
+        diffscope["loop"] = std::move(loop);
+        stdc::JsonObject master;
         master["multiChannelOutput"] = multiChannelOutput();
+        diffscope["master"] = std::move(master);
         diffscope["keySignatures"] = keySignatures()->toOpenDSPX();
         OpenDSPXConversion::convertModelToOpenDSPX(this, target);
         return target;
@@ -711,20 +713,20 @@ namespace dspx {
         tracks()->fromOpenDSPX(model.content.tracks);
         if (auto it = model.content.workspace.find("diffscope"); it != model.content.workspace.end()) {
             const auto &workspace = it->second;
-            if (auto v = conv::optionalChain(workspace, "loop", "enabled"); v.is_boolean()) {
-                setLoopEnabled(v.get<bool>());
+            if (auto v = conv::optionalChain(workspace, "loop", "enabled"); v.isBool()) {
+                setLoopEnabled(v.toBool());
             }
-            if (auto v = conv::optionalChain(workspace, "loop", "start"); v.is_number_integer() && v.get<int>() >= 0) {
-                setLoopStart(v.get<int>());
+            if (auto v = conv::optionalChain(workspace, "loop", "start"); v.isInt() && v.toInt() >= 0) {
+                setLoopStart(static_cast<int>(v.toInt()));
             }
-            if (auto v = conv::optionalChain(workspace, "loop", "length"); v.is_number_integer() && v.get<int>() > 0) {
-                setLoopLength(v.get<int>());
+            if (auto v = conv::optionalChain(workspace, "loop", "length"); v.isInt() && v.toInt() > 0) {
+                setLoopLength(static_cast<int>(v.toInt()));
             }
-            if (auto v = conv::optionalChain(workspace, "master", "multiChannelOutput"); v.is_boolean()) {
-                setMultiChannelOutput(v.get<bool>());
+            if (auto v = conv::optionalChain(workspace, "master", "multiChannelOutput"); v.isBool()) {
+                setMultiChannelOutput(v.toBool());
             }
-            if (auto v = conv::optionalChain(workspace, "keySignatures"); v.is_array()) {
-                keySignatures()->fromOpenDSPX(v.get<std::vector<nlohmann::json>>());
+            if (auto v = conv::optionalChain(workspace, "keySignatures"); v.isArray()) {
+                keySignatures()->fromOpenDSPX(v);
             }
         }
         OpenDSPXConversion::convertModelFromOpenDSPX(this, model);

@@ -2,6 +2,7 @@
 #include "AudioClip_p.h"
 
 #include <cstdint>
+#include <utility>
 
 #include <QByteArray>
 #include <QDataStream>
@@ -11,6 +12,7 @@
 
 #include <dini/transaction.h>
 #include <opendspx/audioclip.h>
+#include <stdcorelib/support/json.h>
 
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
@@ -44,11 +46,11 @@ namespace dspx {
             return QString::fromLatin1(serializeVariant(value).toBase64());
         }
 
-        QVariant decodeUserData(const nlohmann::json &value) {
-            if (!value.is_string()) {
+        QVariant decodeUserData(const stdc::JsonValue &value) {
+            if (!value.isString()) {
                 return {};
             }
-            const auto base64 = QByteArray::fromStdString(value.get<std::string>());
+            const auto base64 = QByteArray::fromStdString(value.toString());
             return deserializeVariant(QByteArray::fromBase64(base64));
         }
 
@@ -152,11 +154,13 @@ namespace dspx {
 
         const auto audioPathInfo = path();
         target.path = QDir(audioPathInfo.absoluteDir).filePath(audioPathInfo.fileName).toStdString();
-        auto &audio = conv::ensureObjectMember(conv::ensureObject(target.workspace["diffscope"]), "audio");
+        auto &diffscope = target.workspace["diffscope"];
+        stdc::JsonObject audio;
         audio["relativeDir"] = audioPathInfo.relativeDir.toStdString();
         audio["formatEntryClassName"] = audioPathInfo.formatEntryClassName.toStdString();
         audio["userData"] = encodeUserData(audioPathInfo.userData).toStdString();
         audio["digest"] = audioPathInfo.digest.toStdString();
+        diffscope["audio"] = std::move(audio);
         OpenDSPXConversion::convertClipToOpenDSPX(this, target);
         return target;
     }
@@ -170,17 +174,17 @@ namespace dspx {
         audioPathInfo.fileName = fileInfo.fileName();
         if (auto it = clip.workspace.find("diffscope"); it != clip.workspace.end()) {
             const auto &workspace = it->second;
-            if (auto v = conv::optionalChain(workspace, "audio", "relativeDir"); v.is_string()) {
-                audioPathInfo.relativeDir = QString::fromStdString(v.get<std::string>());
+            if (auto v = conv::optionalChain(workspace, "audio", "relativeDir"); v.isString()) {
+                audioPathInfo.relativeDir = QString::fromStdString(v.toString());
             }
-            if (auto v = conv::optionalChain(workspace, "audio", "formatEntryClassName"); v.is_string()) {
-                audioPathInfo.formatEntryClassName = QString::fromStdString(v.get<std::string>());
+            if (auto v = conv::optionalChain(workspace, "audio", "formatEntryClassName"); v.isString()) {
+                audioPathInfo.formatEntryClassName = QString::fromStdString(v.toString());
             }
-            if (auto v = conv::optionalChain(workspace, "audio", "userData"); v.is_string()) {
+            if (auto v = conv::optionalChain(workspace, "audio", "userData"); v.isString()) {
                 audioPathInfo.userData = decodeUserData(v);
             }
-            if (auto v = conv::optionalChain(workspace, "audio", "digest"); v.is_string()) {
-                audioPathInfo.digest = QString::fromStdString(v.get<std::string>());
+            if (auto v = conv::optionalChain(workspace, "audio", "digest"); v.isString()) {
+                audioPathInfo.digest = QString::fromStdString(v.toString());
             }
         }
         setPath(audioPathInfo);

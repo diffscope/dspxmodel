@@ -10,7 +10,7 @@
 
 #include <dspxmodelORM/DSPXModelORMGlobal.h>
 #include <dspxmodelORM/RangeHelpers.h>
-#include <nlohmann/json_fwd.hpp>
+#include <stdcorelib/support/json.h>
 
 namespace dspx {
 
@@ -89,14 +89,14 @@ namespace dspx {
         /**
          * @brief Converts to OpenDSPX key signature sequence.
          */
-        nlohmann::json toOpenDSPX() const;
+        stdc::JsonValue toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX key signature sequence.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre keySignatures must be valid.
          */
-        void fromOpenDSPX(const nlohmann::json &keySignatures);
+        void fromOpenDSPX(const stdc::JsonValue &keySignatures);
 
     signals:
         void sizeChanged(int size);
