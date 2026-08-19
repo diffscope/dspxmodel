@@ -143,8 +143,11 @@ namespace dspx {
                 .ownerForAssociationValue = [](ModelPrivate &model, const dini::Value &value) {
                     return vibratoPointOwnerFromAssociationValue(model, value);
                 },
-                .refreshOwner = [](VibratoPointDataArray *owner, bool notify, bool itemsChanged) {
-                    VibratoPointDataArrayPrivate::get(owner)->refresh(notify, itemsChanged);
+                .applySplice = [](VibratoPointDataArray *owner, int index, int length, const QList<QPointF> &values, bool notify) {
+                    VibratoPointDataArrayPrivate::get(owner)->applySplice(index, length, values, notify);
+                },
+                .applyRotate = [](VibratoPointDataArray *owner, int leftIndex, int middleIndex, int rightIndex, bool notify) {
+                    VibratoPointDataArrayPrivate::get(owner)->applyRotate(leftIndex, middleIndex, rightIndex, notify);
                 },
                 .decodeItem = [](const dini::ItemSnapshot &snapshot) {
                     return pointFromSnapshot(snapshot);
@@ -250,7 +253,7 @@ namespace dspx {
                         return;
                     }
                     emit owner->aboutToSplice(signalIndex, signalLength, insertedValues);
-                    ownerData->refresh(true, true);
+                    ownerData->applySplice(signalIndex, signalLength, insertedValues, true);
                     emit owner->spliced(signalIndex, signalLength, insertedValues);
                 };
             }
@@ -277,6 +280,8 @@ namespace dspx {
         return orm::valueFromHandle(relationHandle());
     }
 
+    // Full rebuild from the engine. Initialization only; all change paths must
+    // update the cache incrementally via applySplice()/applyRotate().
     void VibratoPointDataArrayPrivate::refresh(bool notify, bool itemsChanged) {
         Q_Q(VibratoPointDataArray);
         const auto relation = relationHandle();
@@ -293,6 +298,49 @@ namespace dspx {
             emit q->sizeChanged(size);
         }
         if (itemsChanged || sizeChanged) {
+            emit q->itemsChanged();
+        }
+    }
+
+    void VibratoPointDataArrayPrivate::applySplice(int index, int length, const QList<QPointF> &values, bool notify) {
+        Q_Q(VibratoPointDataArray);
+        if (index < 0 || length < 0 || index > items.size() || length > items.size() - index) {
+            return;
+        }
+        const auto insertedCount = static_cast<int>(values.size());
+        if (insertedCount < length) {
+            items.remove(index + insertedCount, length - insertedCount);
+        } else if (insertedCount > length) {
+            const auto oldSize = items.size();
+            items.resize(oldSize + insertedCount - length);
+            std::ranges::move_backward(items.begin() + index + length,
+                                       items.begin() + oldSize,
+                                       items.end());
+        }
+        if (insertedCount > 0) {
+            std::ranges::copy_n(values.cbegin(), insertedCount, items.begin() + index);
+        }
+        const auto newSize = static_cast<int>(items.size());
+        const bool sizeChanged = size != newSize;
+        size = newSize;
+        if (!notify) {
+            return;
+        }
+        if (sizeChanged) {
+            emit q->sizeChanged(size);
+        }
+        emit q->itemsChanged();
+    }
+
+    void VibratoPointDataArrayPrivate::applyRotate(int leftIndex, int middleIndex, int rightIndex, bool notify) {
+        Q_Q(VibratoPointDataArray);
+        if (leftIndex < 0 || middleIndex < leftIndex || rightIndex < middleIndex || rightIndex > items.size()) {
+            return;
+        }
+        std::rotate(items.begin() + leftIndex,
+                    items.begin() + middleIndex,
+                    items.begin() + rightIndex);
+        if (notify) {
             emit q->itemsChanged();
         }
     }
@@ -378,7 +426,7 @@ namespace dspx {
             throw;
         }
         d->suppressNotifications = false;
-        d->refresh(true, true);
+        d->applySplice(index, length, values, true);
         emit spliced(index, length, values);
         return true;
     }

@@ -151,8 +151,11 @@ namespace dspx {
                 .ownerForAssociationValue = [](ModelPrivate &model, const dini::Value &value) {
                     return freeValueOwnerFromAssociationValue(model, value);
                 },
-                .refreshOwner = [](FreeValueDataArray *owner, bool notify, bool itemsChanged) {
-                    FreeValueDataArrayPrivate::get(owner)->refresh(notify, itemsChanged);
+                .applySplice = [](FreeValueDataArray *owner, int index, int length, const QList<QVariant> &values, bool notify) {
+                    FreeValueDataArrayPrivate::get(owner)->applySplice(index, length, values, notify);
+                },
+                .applyRotate = [](FreeValueDataArray *owner, int leftIndex, int middleIndex, int rightIndex, bool notify) {
+                    FreeValueDataArrayPrivate::get(owner)->applyRotate(leftIndex, middleIndex, rightIndex, notify);
                 },
                 .decodeItem = [](const dini::ItemSnapshot &snapshot) {
                     return variantFromSnapshot(snapshot);
@@ -258,7 +261,7 @@ namespace dspx {
                         return;
                     }
                     emit owner->aboutToSplice(signalIndex, signalLength, insertedValues);
-                    ownerData->refresh(true, true);
+                    ownerData->applySplice(signalIndex, signalLength, insertedValues, true);
                     emit owner->spliced(signalIndex, signalLength, insertedValues);
                 };
             }
@@ -286,6 +289,8 @@ namespace dspx {
         return orm::valueFromHandle(relationHandle());
     }
 
+    // Full rebuild from the engine. Initialization only; all change paths must
+    // update the cache incrementally via applySplice()/applyRotate().
     void FreeValueDataArrayPrivate::refresh(bool notify, bool itemsChanged) {
         Q_Q(FreeValueDataArray);
         if (role != FreeValueDataArray::Original) {
@@ -304,6 +309,49 @@ namespace dspx {
             emit q->sizeChanged(size);
         }
         if (itemsChanged || sizeChanged) {
+            emit q->itemsChanged();
+        }
+    }
+
+    void FreeValueDataArrayPrivate::applySplice(int index, int length, const QList<QVariant> &values, bool notify) {
+        Q_Q(FreeValueDataArray);
+        if (index < 0 || length < 0 || index > items.size() || length > items.size() - index) {
+            return;
+        }
+        const auto insertedCount = static_cast<int>(values.size());
+        if (insertedCount < length) {
+            items.remove(index + insertedCount, length - insertedCount);
+        } else if (insertedCount > length) {
+            const auto oldSize = items.size();
+            items.resize(oldSize + insertedCount - length);
+            std::ranges::move_backward(items.begin() + index + length,
+                                       items.begin() + oldSize,
+                                       items.end());
+        }
+        if (insertedCount > 0) {
+            std::ranges::copy_n(values.cbegin(), insertedCount, items.begin() + index);
+        }
+        const auto newSize = static_cast<int>(items.size());
+        const bool sizeChanged = size != newSize;
+        size = newSize;
+        if (!notify) {
+            return;
+        }
+        if (sizeChanged) {
+            emit q->sizeChanged(size);
+        }
+        emit q->itemsChanged();
+    }
+
+    void FreeValueDataArrayPrivate::applyRotate(int leftIndex, int middleIndex, int rightIndex, bool notify) {
+        Q_Q(FreeValueDataArray);
+        if (leftIndex < 0 || middleIndex < leftIndex || rightIndex < middleIndex || rightIndex > items.size()) {
+            return;
+        }
+        std::rotate(items.begin() + leftIndex,
+                    items.begin() + middleIndex,
+                    items.begin() + rightIndex);
+        if (notify) {
             emit q->itemsChanged();
         }
     }
@@ -344,20 +392,7 @@ namespace dspx {
         }
         if (d->role == Original) {
             emit aboutToSplice(index, length, values);
-            const auto insertedCount = static_cast<int>(values.size());
-            if (insertedCount < length) {
-                d->items.remove(index + insertedCount, length - insertedCount);
-            } else if (insertedCount > length) {
-                const auto oldSize = d->items.size();
-                d->items.resize(oldSize + insertedCount - length);
-                std::ranges::move_backward(d->items.begin() + index + length,
-                                           d->items.begin() + oldSize,
-                                           d->items.end());
-            }
-            if (insertedCount > 0) {
-                std::ranges::copy_n(values.cbegin(), insertedCount, d->items.begin() + index);
-            }
-            d->refresh(true, true);
+            d->applySplice(index, length, values, true);
             emit spliced(index, length, values);
             return true;
         }
@@ -413,7 +448,7 @@ namespace dspx {
             throw;
         }
         d->suppressNotifications = false;
-        d->refresh(true, true);
+        d->applySplice(index, length, values, true);
         emit spliced(index, length, values);
         return true;
     }
@@ -425,10 +460,7 @@ namespace dspx {
         }
         if (d->role == Original) {
             emit aboutToRotate(leftIndex, middleIndex, rightIndex);
-            std::rotate(d->items.begin() + leftIndex,
-                        d->items.begin() + middleIndex,
-                        d->items.begin() + rightIndex);
-            emit itemsChanged();
+            d->applyRotate(leftIndex, middleIndex, rightIndex, true);
             emit rotated(leftIndex, middleIndex, rightIndex);
             return true;
         }

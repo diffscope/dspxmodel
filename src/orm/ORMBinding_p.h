@@ -837,7 +837,8 @@ namespace dspx {
             dini::ColumnHandle associationColumn;
 
             std::function<Owner *(ModelPrivate &, const dini::Value &)> ownerForAssociationValue;
-            std::function<void(Owner *, bool, bool)> refreshOwner;
+            std::function<void(Owner *, int, int, const QList<ItemValue> &, bool)> applySplice;
+            std::function<void(Owner *, int, int, int, bool)> applyRotate;
             std::function<ItemValue(const dini::ItemSnapshot &)> decodeItem;
             std::function<bool(Owner *)> notificationsSuppressed;
 
@@ -852,9 +853,9 @@ namespace dspx {
             auto suppressed = [spec](Owner *owner) {
                 return owner && spec.notificationsSuppressed && spec.notificationsSuppressed(owner);
             };
-            auto refresh = [spec, suppressed](Owner *owner, bool itemsChanged) {
-                if (owner && spec.refreshOwner && !suppressed(owner)) {
-                    spec.refreshOwner(owner, true, itemsChanged);
+            auto spliceCache = [spec, suppressed](Owner *owner, int index, int length, const QList<ItemValue> &values) {
+                if (owner && spec.applySplice && !suppressed(owner)) {
+                    spec.applySplice(owner, index, length, values, true);
                 }
             };
             auto oneValue = [spec](const dini::ItemSnapshot &item) {
@@ -862,7 +863,7 @@ namespace dspx {
                 values.append(spec.decodeItem(item));
                 return values;
             };
-            auto emitSplice = [spec, suppressed, refresh](Owner *owner, int index, int length, const QList<ItemValue> &values) {
+            auto emitSplice = [spec, suppressed, spliceCache](Owner *owner, int index, int length, const QList<ItemValue> &values) {
                 if (!owner) {
                     return;
                 }
@@ -870,17 +871,20 @@ namespace dspx {
                 if (shouldNotify && spec.aboutToSplice) {
                     spec.aboutToSplice(owner, index, length, values);
                 }
-                refresh(owner, true);
+                spliceCache(owner, index, length, values);
                 if (shouldNotify && spec.spliced) {
                     spec.spliced(owner, index, length, values);
                 }
             };
             return ListBinding {
                 .list = spec.list,
-                .itemInserted = [spec, refresh](ModelPrivate &model, const dini::ItemInsertedChange &change) {
-                    if (change.item.listAssociationValue.has_value()) {
-                        refresh(spec.ownerForAssociationValue(model, change.item.listAssociationValue.value()), true);
+                .itemInserted = [spec, spliceCache, oneValue](ModelPrivate &model, const dini::ItemInsertedChange &change) {
+                    if (!change.item.listAssociationValue.has_value()) {
+                        return;
                     }
+                    auto *owner = spec.ownerForAssociationValue(model, change.item.listAssociationValue.value());
+                    const auto index = static_cast<int>(change.item.listIndex.value_or(0));
+                    spliceCache(owner, index, 0, oneValue(change.item));
                 },
                 .itemRemoved = [spec, emitSplice](ModelPrivate &model, const dini::ItemSnapshot &snapshot, bool) {
                     if (!snapshot.listAssociationValue.has_value()) {
@@ -898,7 +902,7 @@ namespace dspx {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
                     emitSplice(owner, static_cast<int>(change.index), 1, QList<ItemValue>());
                 },
-                .columnUpdated = [spec, emitSplice, oneValue, refresh](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
+                .columnUpdated = [spec, emitSplice, oneValue, spliceCache](ModelPrivate &model, const dini::ColumnUpdatedChange &change) {
                     if (change.column == spec.associationColumn) {
                         auto *oldOwner = spec.ownerForAssociationValue(model, change.oldValue);
                         auto *newOwner = spec.ownerForAssociationValue(model, change.newValue);
@@ -916,20 +920,24 @@ namespace dspx {
                     }
                     const auto item = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                     if (item.listAssociationValue.has_value()) {
-                        refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
+                        auto *owner = spec.ownerForAssociationValue(model, item.listAssociationValue.value());
+                        const auto index = static_cast<int>(item.listIndex.value_or(0));
+                        spliceCache(owner, index, 1, oneValue(item));
                     }
                 },
-                .computedColumnUpdated = [spec, refresh](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
+                .computedColumnUpdated = [spec, spliceCache, oneValue](ModelPrivate &model, const dini::ComputedColumnUpdatedChange &change) {
                     const auto *eventSnapshot = currentEventSnapshot(model, change.itemId);
                     if (!eventSnapshot && !getModelEngine(model)->contains(change.itemId)) {
                         return;
                     }
                     const auto item = eventSnapshot ? *eventSnapshot : getModelEngine(model)->read(change.itemId);
                     if (item.listAssociationValue.has_value()) {
-                        refresh(spec.ownerForAssociationValue(model, item.listAssociationValue.value()), true);
+                        auto *owner = spec.ownerForAssociationValue(model, item.listAssociationValue.value());
+                        const auto index = static_cast<int>(item.listIndex.value_or(0));
+                        spliceCache(owner, index, 1, oneValue(item));
                     }
                 },
-                .listRotated = [spec, suppressed, refresh](ModelPrivate &model, const dini::ListRotatedChange &change) {
+                .listRotated = [spec, suppressed](ModelPrivate &model, const dini::ListRotatedChange &change) {
                     auto *owner = spec.ownerForAssociationValue(model, change.associationValue);
                     if (!owner) {
                         return;
@@ -942,7 +950,9 @@ namespace dspx {
                     if (shouldNotify && spec.aboutToRotate) {
                         spec.aboutToRotate(owner, left, middle, right);
                     }
-                    refresh(owner, true);
+                    if (shouldNotify && spec.applyRotate) {
+                        spec.applyRotate(owner, left, middle, right, true);
+                    }
                     if (shouldNotify && spec.rotated) {
                         spec.rotated(owner, left, middle, right);
                     }

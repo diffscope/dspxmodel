@@ -22,6 +22,8 @@ namespace dspx {
         Handle relationHandle() const;
         dini::Value associationValue() const;
         void refresh(bool notify, bool itemsChanged);
+        void applySplice(int index, int length, const QList<QVariant> &values, bool notify);
+        void applyRotate(int leftIndex, int middleIndex, int rightIndex, bool notify);
 
         FreeValueDataArray *q_ptr = nullptr;
         Parameter *parameter = nullptr;
