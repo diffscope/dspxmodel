@@ -89,20 +89,25 @@ namespace dspx {
                                      const dini::ChangeSet &changeSet,
                                      const DataArrayChangeGroup &group) {
             const auto &operations = changeSet.operations();
+            auto eraseInsertedItem = [&items](const dini::ItemSnapshot &snapshot, std::size_t index) {
+                auto item = items.end();
+                if (index < items.size() && items[index].id == snapshot.id) {
+                    item = items.begin() + static_cast<std::ptrdiff_t>(index);
+                } else {
+                    item = std::find_if(items.begin(), items.end(), [&snapshot](const dini::ItemSnapshot &candidate) {
+                        return candidate.id == snapshot.id;
+                    });
+                }
+                if (item != items.end()) {
+                    items.erase(item);
+                }
+            };
             for (auto it = group.operationIndexes.rbegin(); it != group.operationIndexes.rend(); ++it) {
                 const auto &payload = operations[*it].payload();
                 if (const auto *change = std::get_if<dini::ListInsertedChange>(&payload)) {
-                    auto item = items.end();
-                    if (change->index < items.size() && items[change->index].id == change->item.id) {
-                        item = items.begin() + static_cast<std::ptrdiff_t>(change->index);
-                    } else {
-                        item = std::find_if(items.begin(), items.end(), [change](const dini::ItemSnapshot &snapshot) {
-                            return snapshot.id == change->item.id;
-                        });
-                    }
-                    if (item != items.end()) {
-                        items.erase(item);
-                    }
+                    eraseInsertedItem(change->item, change->index);
+                } else if (const auto *change = std::get_if<dini::ItemInsertedChange>(&payload)) {
+                    eraseInsertedItem(change->item, change->item.listIndex.value_or(items.size()));
                 } else if (const auto *change = std::get_if<dini::ListRemovedChange>(&payload)) {
                     const auto index = std::min(change->index, items.size());
                     items.insert(items.begin() + static_cast<std::ptrdiff_t>(index), change->item);
@@ -112,7 +117,9 @@ namespace dspx {
             }
         }
 
-        FreeValueDataArray *freeValueOwnerFromAssociationValue(ModelPrivate &model, const dini::Value &value) {
+        FreeValueDataArray *freeValueOwnerFromAssociationValue(ModelPrivate &model,
+                                                                const dini::Value &value,
+                                                                bool createIfMissing = true) {
             const auto relationHandle = orm::handleFromValue(value);
             if (!relationHandle || !model.engine->contains(orm::idFromHandle(relationHandle))) {
                 return nullptr;
@@ -126,7 +133,8 @@ namespace dspx {
             if (!parameterHandle || roleValue.isNull()) {
                 return nullptr;
             }
-            auto *parameter = model.ensure<Parameter>(parameterHandle);
+            auto *parameter = createIfMissing ? model.ensure<Parameter>(parameterHandle)
+                                              : model.find<Parameter>(parameterHandle);
             if (!parameter) {
                 return nullptr;
             }
@@ -213,6 +221,10 @@ namespace dspx {
                 } else if (const auto *change = std::get_if<dini::ListRotatedChange>(&payload);
                            change && change->list == list) {
                     appendOperation(change->associationValue, i, false);
+                } else if (const auto *change = std::get_if<dini::ItemInsertedChange>(&payload);
+                           change && orm::isContainer(change->item, list)
+                           && change->item.listAssociationValue.has_value()) {
+                    appendOperation(change->item.listAssociationValue.value(), i, true);
                 }
             }
 
@@ -224,7 +236,7 @@ namespace dspx {
                     handledOperations[operationIndex] = true;
                 }
 
-                auto *owner = freeValueOwnerFromAssociationValue(model, group.associationValue);
+                auto *owner = freeValueOwnerFromAssociationValue(model, group.associationValue, false);
                 if (!owner) {
                     continue;
                 }
