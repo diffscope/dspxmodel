@@ -57,6 +57,12 @@ namespace dspx {
          */
         Q_INVOKABLE QList<DynamicMixingAnchor *> slice(int position, int length) const;
         /**
+         * @brief Gets the anchors that affect the interpolated mixing curve in a slice.
+         * @pre position >= 0.
+         * @pre length >= 0.
+         */
+        Q_INVOKABLE QList<DynamicMixingAnchor *> sliceEffective(int position, int length) const;
+        /**
          * @brief Gets whether item is contained.
          */
         Q_INVOKABLE bool contains(DynamicMixingAnchor *item) const;

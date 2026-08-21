@@ -62,6 +62,12 @@ namespace dspx {
          */
         Q_INVOKABLE QList<AnchorNode *> slice(int position, int length) const;
         /**
+         * @brief Gets the nodes that affect the interpolated curve in a slice.
+         * @pre position >= 0.
+         * @pre length >= 0.
+         */
+        Q_INVOKABLE QList<AnchorNode *> sliceEffective(int position, int length) const;
+        /**
          * @brief Gets whether item is contained.
          */
         Q_INVOKABLE bool contains(AnchorNode *item) const;

@@ -47,6 +47,27 @@ namespace dspx {
             return result;
         }
 
+        AnchorNode *queryAnchorNode(ModelPrivate *model,
+                                    Handle relationHandle,
+                                    dini::ComparisonOperator comparison,
+                                    std::int64_t x,
+                                    dini::SortDirection direction) {
+            auto filter = dini::FilterExpression::all({
+                orm::parentFilter(Schema::anchorNodeParent(), relationHandle),
+                dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::anchorNodeXColumn()),
+                                                    comparison,
+                                                    dini::Value(x))),
+            });
+            const auto view = model->engine->query(Schema::anchorNodeTable(), {
+                .filter = std::move(filter),
+                .sortKeys = orm::sortKeys(orm::anchorNodeOrderSpec(), direction),
+            });
+            if (auto snapshot = orm::firstSnapshot(view)) {
+                return model->ensure<AnchorNode>(*snapshot);
+            }
+            return nullptr;
+        }
+
     }
 
     AnchorNodeSequencePrivate::AnchorNodeSequencePrivate(AnchorNodeSequence *q, Parameter *parameter, AnchorNodeSequence::AnchorNodeRole role)
@@ -172,6 +193,66 @@ namespace dspx {
             .sortKeys = orm::sortKeys(orm::anchorNodeOrderSpec()),
         });
         return anchorNodesFromView(modelData, view);
+    }
+
+    QList<AnchorNode *> AnchorNodeSequence::sliceEffective(int position, int length) const {
+        if (position < 0 || length <= 0) {
+            return {};
+        }
+        const auto queryStart = static_cast<std::int64_t>(position);
+        const auto queryEnd = queryStart + static_cast<std::int64_t>(length);
+        Q_D(const AnchorNodeSequence);
+        const auto relation = d->relationHandle();
+        if (!relation) {
+            return {};
+        }
+        auto *modelData = ModelPrivate::get(parameter()->model());
+        auto result = slice(position, length);
+
+        auto *left = queryAnchorNode(modelData,
+                                     relation,
+                                     dini::ComparisonOperator::LessOrEqual,
+                                     queryStart,
+                                     dini::SortDirection::Descending);
+        if (left && (result.isEmpty() || result.first() != left)) {
+            result.prepend(left);
+        }
+
+        auto *right = queryAnchorNode(modelData,
+                                      relation,
+                                      dini::ComparisonOperator::GreaterOrEqual,
+                                      queryEnd,
+                                      dini::SortDirection::Ascending);
+        if (right) {
+            result.append(right);
+        }
+
+        if (result.size() < 2) {
+            return result;
+        }
+
+        auto *firstSegmentLeft = result.first();
+        auto *lastSegmentLeft = result.at(result.size() - 2);
+        auto *lastSegmentRight = result.last();
+        if (firstSegmentLeft->interpolationMode() == AnchorNode::Hermite) {
+            if (auto *reference = queryAnchorNode(modelData,
+                                                  relation,
+                                                  dini::ComparisonOperator::Less,
+                                                  static_cast<std::int64_t>(firstSegmentLeft->x()),
+                                                  dini::SortDirection::Descending)) {
+                result.prepend(reference);
+            }
+        }
+        if (lastSegmentLeft->interpolationMode() == AnchorNode::Hermite) {
+            if (auto *reference = queryAnchorNode(modelData,
+                                                  relation,
+                                                  dini::ComparisonOperator::Greater,
+                                                  static_cast<std::int64_t>(lastSegmentRight->x()),
+                                                  dini::SortDirection::Ascending)) {
+                result.append(reference);
+            }
+        }
+        return result;
     }
 
     bool AnchorNodeSequence::contains(AnchorNode *item) const {

@@ -38,6 +38,27 @@ namespace dspx {
             return result;
         }
 
+        DynamicMixingAnchor *queryDynamicMixingAnchor(ModelPrivate *model,
+                                                      Handle sourcesHandle,
+                                                      dini::ComparisonOperator comparison,
+                                                      std::int64_t position,
+                                                      dini::SortDirection direction) {
+            auto filter = dini::FilterExpression::all({
+                orm::parentFilter(Schema::dynamicMixingAnchorParent(), sourcesHandle),
+                dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::dynamicMixingAnchorPositionColumn()),
+                                                    comparison,
+                                                    dini::Value(position))),
+            });
+            const auto view = model->engine->query(Schema::dynamicMixingAnchorTable(), {
+                .filter = std::move(filter),
+                .sortKeys = orm::sortKeys(orm::dynamicMixingAnchorOrderSpec(), direction),
+            });
+            if (auto snapshot = orm::firstSnapshot(view)) {
+                return model->ensure<DynamicMixingAnchor>(*snapshot);
+            }
+            return nullptr;
+        }
+
     }
 
     DynamicMixingAnchorSequencePrivate::DynamicMixingAnchorSequencePrivate(DynamicMixingAnchorSequence *q,
@@ -127,6 +148,35 @@ namespace dspx {
             .sortKeys = orm::sortKeys(orm::dynamicMixingAnchorOrderSpec()),
         });
         return dynamicMixingAnchorsFromView(modelData, view);
+    }
+
+    QList<DynamicMixingAnchor *> DynamicMixingAnchorSequence::sliceEffective(int position, int length) const {
+        if (position < 0 || length <= 0) {
+            return {};
+        }
+        const auto queryStart = static_cast<std::int64_t>(position);
+        const auto queryEnd = queryStart + static_cast<std::int64_t>(length);
+        auto *modelData = ModelPrivate::get(sources()->model());
+        auto result = slice(position, length);
+
+        auto *left = queryDynamicMixingAnchor(modelData,
+                                              sources()->handle(),
+                                              dini::ComparisonOperator::LessOrEqual,
+                                              queryStart,
+                                              dini::SortDirection::Descending);
+        if (left && (result.isEmpty() || result.first() != left)) {
+            result.prepend(left);
+        }
+
+        auto *right = queryDynamicMixingAnchor(modelData,
+                                               sources()->handle(),
+                                               dini::ComparisonOperator::GreaterOrEqual,
+                                               queryEnd,
+                                               dini::SortDirection::Ascending);
+        if (right) {
+            result.append(right);
+        }
+        return result;
     }
 
     bool DynamicMixingAnchorSequence::contains(DynamicMixingAnchor *item) const {
