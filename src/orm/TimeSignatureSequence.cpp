@@ -101,14 +101,15 @@ namespace dspx {
     }
 
     QList<TimeSignature *> TimeSignatureSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         auto *modelData = ModelPrivate::get(model());
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::timeSignatureParent(), modelData->modelHandle),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::timeSignatureIndexColumn()), dini::ComparisonOperator::GreaterOrEqual, dini::Value(static_cast<std::int64_t>(position)))),
-            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::timeSignatureIndexColumn()), dini::ComparisonOperator::Less, dini::Value(static_cast<std::int64_t>(position + length)))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::timeSignatureIndexColumn()), dini::ComparisonOperator::Less, dini::Value(queryEnd))),
         });
         const auto view = modelData->engine->query(Schema::timeSignatureTable(), {
             .filter = std::move(filter),

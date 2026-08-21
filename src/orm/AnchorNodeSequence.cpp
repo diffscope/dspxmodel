@@ -148,9 +148,10 @@ namespace dspx {
     }
 
     QList<AnchorNode *> AnchorNodeSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         Q_D(const AnchorNodeSequence);
         const auto relation = d->relationHandle();
         if (!relation) {
@@ -160,18 +161,17 @@ namespace dspx {
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::anchorNodeParent(), relation),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::anchorNodeXColumn()),
+                                                dini::ComparisonOperator::GreaterOrEqual,
+                                                dini::Value(static_cast<std::int64_t>(position)))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::anchorNodeXColumn()),
                                                 dini::ComparisonOperator::Less,
-                                                dini::Value(static_cast<std::int64_t>(position + length)))),
+                                                dini::Value(queryEnd))),
         });
         const auto view = modelData->engine->query(Schema::anchorNodeTable(), {
             .filter = std::move(filter),
             .sortKeys = orm::sortKeys(orm::anchorNodeOrderSpec()),
         });
-        auto nodes = anchorNodesFromView(modelData, view);
-        nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [position](AnchorNode *node) {
-            return !node || node->x() < position;
-        }), nodes.end());
-        return nodes;
+        return anchorNodesFromView(modelData, view);
     }
 
     bool AnchorNodeSequence::contains(AnchorNode *item) const {

@@ -1,4 +1,5 @@
 #include <functional>
+#include <limits>
 #include <utility>
 
 #include <QJsonObject>
@@ -132,6 +133,11 @@ void OrmSmokeTest::timelineEntitiesAndSequences() {
         QCOMPARE(labels->lastItem(), label2);
         QVERIFY(labels->contains(label1));
         QCOMPARE(labels->slice(0, 30).size(), 2);
+        QCOMPARE(labels->slice(10, 10), (QList<Label *> {label1}));
+        QCOMPARE(labels->slice(20, 1), (QList<Label *> {label2}));
+        QVERIFY(labels->slice(0, 10).isEmpty());
+        QVERIFY(labels->slice(10, 0).isEmpty());
+        QVERIFY(labels->slice(std::numeric_limits<int>::max() - 1, 2).isEmpty());
         QCOMPARE(label1->labelSequence(), labels);
         (void) label1->previousItem();
         (void) label1->nextItem();
@@ -160,6 +166,9 @@ void OrmSmokeTest::timelineEntitiesAndSequences() {
         QCOMPARE(keys->lastItem(), key2);
         QVERIFY(keys->contains(key1));
         QCOMPARE(keys->slice(0, 960).size(), 2);
+        QCOMPARE(keys->slice(0, 480), (QList<KeySignature *> {key1}));
+        QCOMPARE(keys->slice(480, 1), (QList<KeySignature *> {key2}));
+        QVERIFY(keys->slice(0, 0).isEmpty());
         QCOMPARE(key1->position(), 0);
         QCOMPARE(key1->mode(), 2741);
         QCOMPARE(key1->tonality(), 0);
@@ -188,6 +197,9 @@ void OrmSmokeTest::timelineEntitiesAndSequences() {
         QCOMPARE(tempos->lastItem(), tempo2);
         QVERIFY(tempos->contains(tempo1));
         QCOMPARE(tempos->slice(0, 1200).size(), 2);
+        QCOMPARE(tempos->slice(0, 960), (QList<Tempo *> {tempo1}));
+        QCOMPARE(tempos->slice(960, 1), (QList<Tempo *> {tempo2}));
+        QVERIFY(tempos->slice(0, 0).isEmpty());
         QCOMPARE(tempo1->position(), 0);
         QCOMPARE(tempo1->value(), 120.0);
         QCOMPARE(tempo1->tempoSequence(), tempos);
@@ -216,6 +228,9 @@ void OrmSmokeTest::timelineEntitiesAndSequences() {
         QCOMPARE(times->lastItem(), time2);
         QVERIFY(times->contains(time1));
         QCOMPARE(times->slice(0, 8).size(), 2);
+        QCOMPARE(times->slice(0, 4), (QList<TimeSignature *> {time1}));
+        QCOMPARE(times->slice(4, 1), (QList<TimeSignature *> {time2}));
+        QVERIFY(times->slice(0, 0).isEmpty());
         QCOMPARE(time1->index(), 0);
         QCOMPARE(time1->numerator(), 4);
         QCOMPARE(time1->denominator(), 4);
@@ -319,6 +334,18 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(clips1->lastItem(), singingClip1);
         QVERIFY(clips1->contains(audioClip));
         QCOMPARE(clips1->slice(0, 2000).size(), 2);
+        QCOMPARE(clips1->slice(100, 100), (QList<Clip *> {audioClip}));
+        QCOMPARE(clips1->slice(460, 30), (QList<Clip *> {audioClip, singingClip1}));
+        QVERIFY(clips1->slice(470, 10).isEmpty());
+        QVERIFY(clips1->slice(1440, 1).isEmpty());
+        QVERIFY(clips1->slice(100, 0).isEmpty());
+
+        auto *zeroLengthClip = model.createAudioClip();
+        zeroLengthClip->setPosition(200);
+        zeroLengthClip->setClipLength(0);
+        QVERIFY(clips1->insertItem(zeroLengthClip));
+        QVERIFY(!clips1->slice(199, 2).contains(zeroLengthClip));
+        QVERIFY(clips1->removeItem(zeroLengthClip));
         QVERIFY(clips1->moveItem(singingClip1, clips2));
         QVERIFY(clips2->moveItem(singingClip1, clips1));
         QVERIFY(clips1->removeItem(audioClip));
@@ -381,6 +408,17 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(notes1->lastItem(), note2);
         QVERIFY(notes1->contains(note1));
         QCOMPARE(notes1->slice(0, 500).size(), 2);
+        QCOMPARE(notes1->slice(100, 20), (QList<Note *> {note1}));
+        QCOMPARE(notes1->slice(230, 20), (QList<Note *> {note1, note2}));
+        QVERIFY(notes1->slice(480, 1).isEmpty());
+        QVERIFY(notes1->slice(100, 0).isEmpty());
+
+        auto *zeroLengthNote = model.createNote();
+        zeroLengthNote->setPosition(120);
+        zeroLengthNote->setLength(0);
+        QVERIFY(notes1->insertItem(zeroLengthNote));
+        QVERIFY(!notes1->slice(119, 2).contains(zeroLengthNote));
+        QVERIFY(notes1->removeItem(zeroLengthNote));
         QVERIFY(notes2->moveItem(note3, notes1));
         QVERIFY(notes1->moveItem(note3, notes2));
         QVERIFY(notes1->removeItem(note2));
@@ -411,8 +449,12 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
 
         auto *phoneme1 = model.createOriginalPhoneme();
         auto *phoneme2 = model.createPhoneme();
+        auto *phoneme3 = model.createPhoneme();
+        auto *otherNotePhoneme = model.createPhoneme();
         verifyEntity(phoneme1, &model);
         verifyEntity(phoneme2, &model);
+        verifyEntity(phoneme3, &model);
+        verifyEntity(otherNotePhoneme, &model);
         phoneme1->setLanguage(QStringLiteral("zh"));
         phoneme1->setStart(0);
         phoneme1->setToken(QStringLiteral("l"));
@@ -421,6 +463,8 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         phoneme2->setStart(120);
         phoneme2->setToken(QStringLiteral("a"));
         phoneme2->setOnset(false);
+        phoneme3->setStart(60);
+        otherNotePhoneme->setStart(120);
 
         auto *originalPhonemes = note1->originalPhonemes();
         auto *editedPhonemes = note1->editedPhonemes();
@@ -431,11 +475,20 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(originalPhonemes->note(), note1);
         QVERIFY(originalPhonemes->insertItem(phoneme1));
         QVERIFY(editedPhonemes->insertItem(phoneme2));
+        QVERIFY(editedPhonemes->insertItem(phoneme3));
+        QVERIFY(note2->editedPhonemes()->insertItem(otherNotePhoneme));
         QCOMPARE(originalPhonemes->size(), 1);
         QCOMPARE(originalPhonemes->firstItem(), phoneme1);
         QCOMPARE(originalPhonemes->lastItem(), phoneme1);
         QVERIFY(originalPhonemes->contains(phoneme1));
         QCOMPARE(originalPhonemes->slice(0, 200).size(), 1);
+        QCOMPARE(originalPhonemes->slice(0, 1), (QList<Phoneme *> {phoneme1}));
+        QVERIFY(originalPhonemes->slice(0, 0).isEmpty());
+        QVERIFY(originalPhonemes->slice(1, 1).isEmpty());
+        QCOMPARE(editedPhonemes->slice(60, 61), (QList<Phoneme *> {phoneme3, phoneme2}));
+        QCOMPARE(editedPhonemes->slice(60, 60), (QList<Phoneme *> {phoneme3}));
+        QCOMPARE(editedPhonemes->slice(120, 1), (QList<Phoneme *> {phoneme2}));
+        QVERIFY(editedPhonemes->slice(60, 0).isEmpty());
         QVERIFY(originalPhonemes->removeItem(phoneme1));
         QVERIFY(originalPhonemes->insertItem(phoneme1));
 
@@ -529,7 +582,13 @@ void OrmSmokeTest::parametersAndDataContainers() {
         QCOMPARE(anchorTransform->lastItem(), anchor1);
         QVERIFY(anchorTransform->contains(anchor1));
         QCOMPARE(anchorTransform->slice(0, 200).size(), 1);
+        QCOMPARE(anchorTransform->slice(0, 1), (QList<AnchorNode *> {anchor1}));
+        QVERIFY(anchorTransform->slice(1, 119).isEmpty());
+        QVERIFY(anchorTransform->slice(0, 0).isEmpty());
+        QCOMPARE(anchorEdited->slice(120, 1), (QList<AnchorNode *> {anchor2}));
         QVERIFY(anchorEdited->moveItem(anchor2, anchorTransform));
+        QCOMPARE(anchorTransform->slice(0, 121), (QList<AnchorNode *> {anchor1, anchor2}));
+        QCOMPARE(anchorTransform->slice(0, 120), (QList<AnchorNode *> {anchor1}));
         QVERIFY(anchorTransform->moveItem(anchor2, anchorEdited));
         QVERIFY(anchorTransform->removeItem(anchor1));
         QVERIFY(anchorTransform->insertItem(anchor1));
@@ -645,7 +704,13 @@ void OrmSmokeTest::sourcesSingersAndDynamicMixing() {
         QCOMPARE(mixing1->lastItem(), anchor1);
         QVERIFY(mixing1->contains(anchor1));
         QCOMPARE(mixing1->slice(0, 300).size(), 1);
+        QCOMPARE(mixing1->slice(0, 1), (QList<DynamicMixingAnchor *> {anchor1}));
+        QVERIFY(mixing1->slice(1, 239).isEmpty());
+        QVERIFY(mixing1->slice(0, 0).isEmpty());
+        QCOMPARE(mixing2->slice(240, 1), (QList<DynamicMixingAnchor *> {anchor2}));
         QVERIFY(mixing2->moveItem(anchor2, mixing1));
+        QCOMPARE(mixing1->slice(0, 241), (QList<DynamicMixingAnchor *> {anchor1, anchor2}));
+        QCOMPARE(mixing1->slice(0, 240), (QList<DynamicMixingAnchor *> {anchor1}));
         QVERIFY(mixing1->moveItem(anchor2, mixing2));
         QVERIFY(mixing1->removeItem(anchor1));
         QVERIFY(mixing1->insertItem(anchor1));

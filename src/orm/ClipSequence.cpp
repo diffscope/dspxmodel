@@ -107,25 +107,25 @@ namespace dspx {
     }
 
     QList<Clip *> ClipSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         auto *modelData = ModelPrivate::get(track()->model());
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::clipParent(), track()->handle()),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::clipPositionColumn()),
                                                 dini::ComparisonOperator::Less,
-                                                dini::Value(static_cast<std::int64_t>(position + length)))),
+                                                dini::Value(queryEnd))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::clipEndColumn()),
+                                                dini::ComparisonOperator::Greater,
+                                                dini::Value(static_cast<std::int64_t>(position)))),
         });
         const auto view = modelData->engine->query(Schema::clipTable(), {
             .filter = std::move(filter),
             .sortKeys = orm::sortKeys(orm::clipOrderSpec()),
         });
-        auto clips = clipsFromView(modelData, view);
-        clips.erase(std::remove_if(clips.begin(), clips.end(), [position](Clip *clip) {
-            return !clip || clip->position() + clip->clipLength() <= position;
-        }), clips.end());
-        return clips;
+        return clipsFromView(modelData, view);
     }
 
     bool ClipSequence::contains(Clip *item) const {

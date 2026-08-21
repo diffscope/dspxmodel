@@ -1720,7 +1720,7 @@ namespace dspx {
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
                 });
-                auto clipEndColumn = clipTableBuilder.addComputedColumn({
+                clipEndColumn = clipTableBuilder.addComputedColumn({
                     .debugName = "end",
                     .type = dini::ValueType::Int64,
                     .index = dini::IndexKind::Normal,
@@ -1946,7 +1946,7 @@ namespace dspx {
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v >= 0; }
                 });
-                auto noteEndColumn = noteTableBuilder.addComputedColumn({
+                noteEndColumn = noteTableBuilder.addComputedColumn({
                     .debugName = "end",
                     .type = dini::ValueType::Int64,
                     .index = dini::IndexKind::Normal,
@@ -2340,6 +2340,7 @@ namespace dspx {
             dini::ColumnHandle clipPanColumn;
             dini::ColumnHandle clipMuteColumn;
             dini::ColumnHandle clipPositionColumn;
+            dini::ColumnHandle clipEndColumn;
             dini::ColumnHandle clipLengthColumn;
             dini::ColumnHandle clipClipStartColumn;
             dini::ColumnHandle clipClipLengthColumn;
@@ -2382,6 +2383,7 @@ namespace dspx {
             dini::ColumnHandle noteLengthColumn;
             dini::ColumnHandle noteLyricColumn;
             dini::ColumnHandle notePositionColumn;
+            dini::ColumnHandle noteEndColumn;
             dini::ColumnHandle noteEditedPronunciationColumn;
             dini::ColumnHandle noteVibratoAmplitudeColumn;
             dini::ColumnHandle noteVibratoEndColumn;
@@ -2655,6 +2657,10 @@ namespace dspx {
         return g.clipPositionColumn;
     }
 
+    dini::ColumnHandle Schema::clipEndColumn() {
+        return g.clipEndColumn;
+    }
+
     dini::ColumnHandle Schema::clipLengthColumn() {
         return g.clipLengthColumn;
     }
@@ -2825,6 +2831,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::notePositionColumn() {
         return g.notePositionColumn;
+    }
+
+    dini::ColumnHandle Schema::noteEndColumn() {
+        return g.noteEndColumn;
     }
 
     dini::ColumnHandle Schema::noteEditedPronunciationColumn() {

@@ -103,25 +103,25 @@ namespace dspx {
     }
 
     QList<Note *> NoteSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         auto *modelData = ModelPrivate::get(singingClip()->model());
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::noteParent(), singingClip()->handle()),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::notePositionColumn()),
                                                 dini::ComparisonOperator::Less,
-                                                dini::Value(static_cast<std::int64_t>(position + length)))),
+                                                dini::Value(queryEnd))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::noteEndColumn()),
+                                                dini::ComparisonOperator::Greater,
+                                                dini::Value(static_cast<std::int64_t>(position)))),
         });
         const auto view = modelData->engine->query(Schema::noteTable(), {
             .filter = std::move(filter),
             .sortKeys = orm::sortKeys(orm::noteOrderSpec()),
         });
-        auto notes = notesFromView(modelData, view);
-        notes.erase(std::remove_if(notes.begin(), notes.end(), [position](Note *note) {
-            return !note || note->position() + note->length() <= position;
-        }), notes.end());
-        return notes;
+        return notesFromView(modelData, view);
     }
 
     bool NoteSequence::contains(Note *item) const {

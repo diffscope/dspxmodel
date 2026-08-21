@@ -73,6 +73,7 @@ namespace dspx {
         static dini::ColumnHandle clipPanColumn();
         static dini::ColumnHandle clipMuteColumn();
         static dini::ColumnHandle clipPositionColumn();
+        static dini::ColumnHandle clipEndColumn();
         static dini::ColumnHandle clipLengthColumn();
         static dini::ColumnHandle clipClipStartColumn();
         static dini::ColumnHandle clipClipLengthColumn();
@@ -123,6 +124,7 @@ namespace dspx {
         static dini::ColumnHandle noteLengthColumn();
         static dini::ColumnHandle noteLyricColumn();
         static dini::ColumnHandle notePositionColumn();
+        static dini::ColumnHandle noteEndColumn();
         static dini::ColumnHandle noteEditedPronunciationColumn();
         static dini::ColumnHandle noteVibratoAmplitudeColumn();
         static dini::ColumnHandle noteVibratoEndColumn();

@@ -108,9 +108,10 @@ namespace dspx {
     }
 
     QList<DynamicMixingAnchor *> DynamicMixingAnchorSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         auto *modelData = ModelPrivate::get(sources()->model());
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::dynamicMixingAnchorParent(), sources()->handle()),
@@ -119,7 +120,7 @@ namespace dspx {
                                                 dini::Value(static_cast<std::int64_t>(position)))),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::dynamicMixingAnchorPositionColumn()),
                                                 dini::ComparisonOperator::Less,
-                                                dini::Value(static_cast<std::int64_t>(position + length)))),
+                                                dini::Value(queryEnd))),
         });
         const auto view = modelData->engine->query(Schema::dynamicMixingAnchorTable(), {
             .filter = std::move(filter),

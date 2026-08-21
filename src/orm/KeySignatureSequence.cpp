@@ -103,14 +103,15 @@ namespace dspx {
     }
 
     QList<KeySignature *> KeySignatureSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         auto *modelData = ModelPrivate::get(model());
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::keySignatureParent(), modelData->modelHandle),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::keySignaturePositionColumn()), dini::ComparisonOperator::GreaterOrEqual, dini::Value(static_cast<std::int64_t>(position)))),
-            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::keySignaturePositionColumn()), dini::ComparisonOperator::Less, dini::Value(static_cast<std::int64_t>(position + length)))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::keySignaturePositionColumn()), dini::ComparisonOperator::Less, dini::Value(queryEnd))),
         });
         const auto view = modelData->engine->query(Schema::keySignatureTable(), {
             .filter = std::move(filter),

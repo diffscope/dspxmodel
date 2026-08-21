@@ -260,15 +260,15 @@ namespace dspx {
     }
 
     QList<Phoneme *> PhonemeSequence::slice(int position, int length) const {
-        if (position < 0 || length < 0) {
+        if (position < 0 || length <= 0) {
             return {};
         }
+        const auto queryEnd = static_cast<std::int64_t>(position) + static_cast<std::int64_t>(length);
         Q_D(const PhonemeSequence);
         if (d->role == Original) {
             QList<Phoneme *> result;
-            const auto end = position + length;
             for (auto it = d->originalItems.lower_bound(std::make_pair(position, quint64 {0}));
-                 it != d->originalItems.end() && it->first.first < end;
+                 it != d->originalItems.end() && it->first.first < queryEnd;
                  ++it) {
                 result.append(it->second);
             }
@@ -282,18 +282,17 @@ namespace dspx {
         auto filter = dini::FilterExpression::all({
             orm::parentFilter(Schema::phonemeParent(), relation),
             dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::phonemeStartColumn()),
+                                                dini::ComparisonOperator::GreaterOrEqual,
+                                                dini::Value(static_cast<std::int64_t>(position)))),
+            dini::FilterExpression(dini::Filter(dini::FieldRef::column(Schema::phonemeStartColumn()),
                                                 dini::ComparisonOperator::Less,
-                                                dini::Value(static_cast<std::int64_t>(position + length)))),
+                                                dini::Value(queryEnd))),
         });
         const auto view = modelData->engine->query(Schema::phonemeTable(), {
             .filter = std::move(filter),
             .sortKeys = orm::sortKeys(orm::phonemeOrderSpec()),
         });
-        auto phonemes = phonemesFromView(modelData, view);
-        phonemes.erase(std::remove_if(phonemes.begin(), phonemes.end(), [position](Phoneme *phoneme) {
-            return !phoneme || phoneme->start() < position;
-        }), phonemes.end());
-        return phonemes;
+        return phonemesFromView(modelData, view);
     }
 
     bool PhonemeSequence::contains(Phoneme *item) const {
