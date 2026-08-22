@@ -53,6 +53,9 @@ namespace dspx {
         auto *modelData = ModelPrivate::get(track->model());
         const auto view = modelData->engine->query(Schema::clipTable(), orderedClipQuery(track->handle()));
         const auto newSize = static_cast<int>(view.count());
+        const auto trackId = orm::idFromHandle(track->handle());
+        const auto newAudioClipCount = static_cast<int>(modelData->engine->read(trackId, Schema::trackAudioClipCountColumn()).asInt64());
+        const auto newSingingClipCount = static_cast<int>(modelData->engine->read(trackId, Schema::trackSingingClipCountColumn()).asInt64());
         Clip *newFirst = nullptr;
         Clip *newLast = nullptr;
         if (auto firstSnapshot = orm::firstSnapshot(view)) {
@@ -66,9 +69,13 @@ namespace dspx {
         }
 
         const bool sizeChanged = size != newSize;
+        const bool audioClipCountChanged = audioClipCount != newAudioClipCount;
+        const bool singingClipCountChanged = singingClipCount != newSingingClipCount;
         const bool firstChanged = first != newFirst;
         const bool lastChanged = last != newLast;
         size = newSize;
+        audioClipCount = newAudioClipCount;
+        singingClipCount = newSingingClipCount;
         first = newFirst;
         last = newLast;
 
@@ -77,6 +84,12 @@ namespace dspx {
         }
         if (sizeChanged) {
             emit q->sizeChanged(size);
+        }
+        if (audioClipCountChanged) {
+            emit q->audioClipCountChanged(audioClipCount);
+        }
+        if (singingClipCountChanged) {
+            emit q->singingClipCountChanged(singingClipCount);
         }
         if (firstChanged) {
             emit q->firstItemChanged(first);
@@ -94,6 +107,16 @@ namespace dspx {
     int ClipSequence::size() const {
         Q_D(const ClipSequence);
         return d->size;
+    }
+
+    int ClipSequence::audioClipCount() const {
+        Q_D(const ClipSequence);
+        return d->audioClipCount;
+    }
+
+    int ClipSequence::singingClipCount() const {
+        Q_D(const ClipSequence);
+        return d->singingClipCount;
     }
 
     Clip *ClipSequence::firstItem() const {

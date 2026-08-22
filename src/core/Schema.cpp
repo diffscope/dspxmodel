@@ -1298,6 +1298,227 @@ namespace dspx {
             std::optional<dini::IntervalIndexHandle> intervalIndex;
         };
 
+        thread_local int clipCountUpdateDepth = 0;
+
+        struct ScopedClipCountUpdate {
+            ScopedClipCountUpdate() {
+                ++clipCountUpdateDepth;
+            }
+
+            ~ScopedClipCountUpdate() {
+                --clipCountUpdateDepth;
+            }
+        };
+
+        bool clipCountUpdateAllowed() {
+            return clipCountUpdateDepth > 0;
+        }
+
+        struct ClipCountColumnGuardHook {
+            ClipCountColumnGuardHook(dini::ColumnHandle audioClipCountColumn,
+                                     dini::ColumnHandle singingClipCountColumn)
+                : audioClipCountColumn(std::move(audioClipCountColumn)),
+                  singingClipCountColumn(std::move(singingClipCountColumn)) {
+            }
+
+            void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
+                if (ctx.origin() != dini::EventOrigin::Normal) {
+                    return;
+                }
+                for (const auto &change : changeSet.operations()) {
+                    if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
+                        const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
+                        if ((updated.column == audioClipCountColumn || updated.column == singingClipCountColumn) &&
+                            !clipCountUpdateAllowed()) {
+                            throw dini::ConstraintError("clip count columns are derived");
+                        }
+                    } else if (change.kind() == dini::ChangeOperationKind::ListInserted) {
+                        validateInitialCounts(std::get<dini::ListInsertedChange>(change.payload()).item);
+                    } else if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
+                        validateInitialCounts(std::get<dini::ItemInsertedChange>(change.payload()).item);
+                    }
+                }
+            }
+
+        private:
+            void validateInitialCounts(const dini::ItemSnapshot &item) const {
+                const auto audio = itemValue(item, audioClipCountColumn);
+                const auto singing = itemValue(item, singingClipCountColumn);
+                if ((!audio.isNull() && audio.asInt64() != 0) ||
+                    (!singing.isNull() && singing.asInt64() != 0)) {
+                    throw dini::ConstraintError("clip count columns are derived");
+                }
+            }
+
+            dini::ColumnHandle audioClipCountColumn;
+            dini::ColumnHandle singingClipCountColumn;
+        };
+
+        struct ClipCountHook {
+            struct TrackDelta {
+                dini::ItemId trackId = 0;
+                std::int64_t audio = 0;
+                std::int64_t singing = 0;
+            };
+
+            ClipCountHook(dini::TableHandle clipTable,
+                          dini::RelationHandle clipParent,
+                          dini::VariantHandle audioClipVariant,
+                          dini::VariantHandle singingClipVariant,
+                          dini::ColumnHandle audioClipCountColumn,
+                          dini::ColumnHandle singingClipCountColumn)
+                : clipTable(std::move(clipTable)),
+                  clipParent(std::move(clipParent)),
+                  audioClipVariant(std::move(audioClipVariant)),
+                  singingClipVariant(std::move(singingClipVariant)),
+                  audioClipCountColumn(std::move(audioClipCountColumn)),
+                  singingClipCountColumn(std::move(singingClipCountColumn)) {
+            }
+
+            void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
+                if (ctx.origin() != dini::EventOrigin::Normal) {
+                    return;
+                }
+
+                std::vector<TrackDelta> deltas;
+                for (const auto &change : changeSet.operations()) {
+                    if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
+                        const auto &item = std::get<dini::ItemInsertedChange>(change.payload()).item;
+                        if (isClip(item)) {
+                            addDelta(deltas, item, itemValue(item, clipParent.column()), 1);
+                        }
+                    } else if (change.kind() == dini::ChangeOperationKind::ItemRemoved) {
+                        const auto &item = std::get<dini::ItemRemovedChange>(change.payload()).item;
+                        if (isClip(item)) {
+                            addDelta(deltas, item, itemValue(item, clipParent.column()), -1);
+                        }
+                    } else if (change.kind() == dini::ChangeOperationKind::CascadeRemoved) {
+                        const auto &removed = std::get<dini::CascadeRemovedChange>(change.payload());
+                        const auto &item = removed.item;
+                        // The Track snapshot already contains its counts. Preserve them when the
+                        // Track (or one of its ancestors) is removed so undo can restore it exactly.
+                        if (isClip(item) && !parentIsRemovedByCascade(ctx,
+                                                                    itemValue(item, clipParent.column()),
+                                                                    removed.ancestorId)) {
+                            addDelta(deltas, item, itemValue(item, clipParent.column()), -1);
+                        }
+                    } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
+                        const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
+                        if (updated.column != clipParent.column()) {
+                            continue;
+                        }
+                        const auto item = ctx.engine().read(updated.itemId);
+                        addDelta(deltas, item, updated.oldValue, -1);
+                        addDelta(deltas, item, updated.newValue, 1);
+                    }
+                }
+
+                for (const auto &delta : deltas) {
+                    if (!ctx.engine().contains(delta.trackId)) {
+                        continue;
+                    }
+                    std::vector<dini::ColumnValue> values;
+                    appendUpdatedCount(ctx, values, delta.trackId, audioClipCountColumn, delta.audio);
+                    appendUpdatedCount(ctx, values, delta.trackId, singingClipCountColumn, delta.singing);
+                    if (!values.empty()) {
+                        ScopedClipCountUpdate allowed;
+                        ctx.update(delta.trackId, std::move(values));
+                    }
+                }
+            }
+
+        private:
+            bool isClip(const dini::ItemSnapshot &item) const {
+                return item.containerKind == dini::ContainerKind::Table &&
+                       item.containerId == clipTable.containerId();
+            }
+
+            static std::optional<dini::ItemId> itemIdFromValue(const dini::Value &value) {
+                if (value.isNull()) {
+                    return std::nullopt;
+                }
+                if (value.type() == dini::ValueType::UInt64) {
+                    return static_cast<dini::ItemId>(value.asUInt64());
+                }
+                if (value.type() == dini::ValueType::Int64 && value.asInt64() >= 0) {
+                    return static_cast<dini::ItemId>(value.asInt64());
+                }
+                throw dini::ConstraintError("clip parent value is invalid");
+            }
+
+            static bool parentIsRemovedByCascade(dini::TransactionContext &ctx,
+                                                 const dini::Value &parentValue,
+                                                 dini::ItemId ancestorId) {
+                auto current = itemIdFromValue(parentValue);
+                while (current.has_value()) {
+                    if (*current == ancestorId) {
+                        return true;
+                    }
+                    if (!ctx.engine().contains(*current)) {
+                        return false;
+                    }
+                    current = ctx.engine().read(*current).parentId;
+                }
+                return false;
+            }
+
+            static TrackDelta &deltaFor(std::vector<TrackDelta> &deltas, dini::ItemId trackId) {
+                auto it = std::find_if(deltas.begin(), deltas.end(), [trackId](const auto &delta) {
+                    return delta.trackId == trackId;
+                });
+                if (it != deltas.end()) {
+                    return *it;
+                }
+                deltas.push_back({.trackId = trackId});
+                return deltas.back();
+            }
+
+            void addDelta(std::vector<TrackDelta> &deltas,
+                          const dini::ItemSnapshot &item,
+                          const dini::Value &parentValue,
+                          std::int64_t amount) const {
+                const auto trackId = itemIdFromValue(parentValue);
+                if (!trackId.has_value() || !item.variant.has_value()) {
+                    return;
+                }
+                auto &delta = deltaFor(deltas, *trackId);
+                if (item.variant.value() == audioClipVariant) {
+                    delta.audio += amount;
+                } else if (item.variant.value() == singingClipVariant) {
+                    delta.singing += amount;
+                } else {
+                    throw dini::ConstraintError("unsupported clip variant");
+                }
+            }
+
+            static void appendUpdatedCount(dini::TransactionContext &ctx,
+                                           std::vector<dini::ColumnValue> &values,
+                                           dini::ItemId trackId,
+                                           const dini::ColumnHandle &column,
+                                           std::int64_t delta) {
+                if (delta == 0) {
+                    return;
+                }
+                const auto current = ctx.engine().read(trackId, column).asInt64();
+                if (current < 0 ||
+                    (delta > 0 && current > std::numeric_limits<std::int64_t>::max() - delta) ||
+                    (delta < 0 && delta < -current)) {
+                    throw dini::ConstraintError("clip count is out of range");
+                }
+                values.push_back({
+                    .column = column,
+                    .value = dini::Value(current + delta),
+                });
+            }
+
+            dini::TableHandle clipTable;
+            dini::RelationHandle clipParent;
+            dini::VariantHandle audioClipVariant;
+            dini::VariantHandle singingClipVariant;
+            dini::ColumnHandle audioClipCountColumn;
+            dini::ColumnHandle singingClipCountColumn;
+        };
+
         template <typename Builder, typename Callback>
         void addHook(Builder &builder, dini::HookStage stage, Callback &&callback) {
             dini::HookDefinition definition;
@@ -1647,12 +1868,29 @@ namespace dspx {
                     .defaultValue = false,
                     .nullable = false,
                 });
+                trackAudioClipCountColumn = trackListBuilder.addColumn({
+                    .debugName = "audioClipCount",
+                    .type = dini::ValueType::Int64,
+                    .defaultValue = INT64_C(0),
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { return value.asInt64() >= 0; },
+                });
+                trackSingingClipCountColumn = trackListBuilder.addColumn({
+                    .debugName = "singingClipCount",
+                    .type = dini::ValueType::Int64,
+                    .defaultValue = INT64_C(0),
+                    .nullable = false,
+                    .check = [](const dini::Value &value) { return value.asInt64() >= 0; },
+                });
                 trackWorkspaceColumn = trackListBuilder.addColumn({
                     .debugName = "workspace",
                     .type = dini::ValueType::Binary,
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
+                addBeforeApplyHook(trackListBuilder,
+                                   ClipCountColumnGuardHook(trackAudioClipCountColumn,
+                                                            trackSingingClipCountColumn));
             }
 
             void buildClipTable() {
@@ -1762,6 +2000,12 @@ namespace dspx {
                     .start = clipPositionColumn,
                     .end = clipEndColumn,
                 });
+                addBeforeApplyHook(clipTableBuilder, ClipCountHook(clipTable,
+                                                                   clipParent,
+                                                                   audioClipVariant,
+                                                                   singingClipVariant,
+                                                                   trackAudioClipCountColumn,
+                                                                   trackSingingClipCountColumn));
                 addBeforeApplyHook(clipTableBuilder, OrderedLinkHook(clipTable,
                                                                      clipParent,
                                                                      {clipPositionColumn, clipClipLengthColumn},
@@ -2440,6 +2684,8 @@ namespace dspx {
             dini::ColumnHandle trackMuteColumn;
             dini::ColumnHandle trackSoloColumn;
             dini::ColumnHandle trackRecordColumn;
+            dini::ColumnHandle trackAudioClipCountColumn;
+            dini::ColumnHandle trackSingingClipCountColumn;
             dini::ColumnHandle trackWorkspaceColumn;
 
             dini::ColumnHandle anchorNodeInterpolationModeColumn;
@@ -2999,6 +3245,14 @@ namespace dspx {
 
     dini::ColumnHandle Schema::trackRecordColumn() {
         return g.trackRecordColumn;
+    }
+
+    dini::ColumnHandle Schema::trackAudioClipCountColumn() {
+        return g.trackAudioClipCountColumn;
+    }
+
+    dini::ColumnHandle Schema::trackSingingClipCountColumn() {
+        return g.trackSingingClipCountColumn;
     }
 
     dini::ColumnHandle Schema::trackWorkspaceColumn() {

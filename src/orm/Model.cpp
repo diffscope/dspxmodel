@@ -440,7 +440,24 @@ namespace dspx {
             return;
         }
         if (change.item.containerKind == dini::ContainerKind::List) {
-            if (const auto *binding = listBinding(change.item.containerId); binding && binding->itemInserted) {
+            const auto *binding = listBinding(change.item.containerId);
+            if (!binding) {
+                return;
+            }
+            // Undoing a direct removal preserves list placement in ItemInserted.
+            // Route it through the same owner/cache/notification path as ListInserted.
+            if (change.item.listAssociationValue.has_value() &&
+                change.item.listIndex.has_value() &&
+                binding->listInserted) {
+                binding->listInserted(*this, dini::ListInsertedChange {
+                                                .list = binding->list,
+                                                .associationValue = change.item.listAssociationValue.value(),
+                                                .index = change.item.listIndex.value(),
+                                                .item = change.item,
+                                            });
+                return;
+            }
+            if (binding->itemInserted) {
                 binding->itemInserted(*this, change);
             }
         }

@@ -31,6 +31,8 @@ namespace dspx {
         QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(ClipSequence)
         Q_PROPERTY(int size READ size NOTIFY sizeChanged)
+        Q_PROPERTY(int audioClipCount READ audioClipCount NOTIFY audioClipCountChanged)
+        Q_PROPERTY(int singingClipCount READ singingClipCount NOTIFY singingClipCountChanged)
         Q_PROPERTY(Clip *firstItem READ firstItem NOTIFY firstItemChanged)
         Q_PROPERTY(Clip *lastItem READ lastItem NOTIFY lastItemChanged)
         Q_PROPERTY(Track *track READ track CONSTANT)
@@ -40,6 +42,14 @@ namespace dspx {
          * @brief Gets size.
          */
         int size() const;
+        /**
+         * @brief Gets audio clip count.
+         */
+        int audioClipCount() const;
+        /**
+         * @brief Gets singing clip count.
+         */
+        int singingClipCount() const;
         /**
          * @brief Gets first item.
          */
@@ -111,6 +121,8 @@ namespace dspx {
 
     signals:
         void sizeChanged(int size);
+        void audioClipCountChanged(int audioClipCount);
+        void singingClipCountChanged(int singingClipCount);
         void firstItemChanged(Clip *firstItem);
         void lastItemChanged(Clip *lastItem);
         void itemAboutToInsert(Clip *item, ClipSequence *sequenceFromWhichMoved = nullptr);

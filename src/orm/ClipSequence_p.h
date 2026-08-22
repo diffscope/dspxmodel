@@ -21,6 +21,8 @@ namespace dspx {
         ClipSequence *q_ptr = nullptr;
         Track *track = nullptr;
         int size = 0;
+        int audioClipCount = 0;
+        int singingClipCount = 0;
         Clip *first = nullptr;
         Clip *last = nullptr;
 
