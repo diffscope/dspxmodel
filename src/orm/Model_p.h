@@ -162,11 +162,14 @@ namespace dspx {
 
         template <typename T>
         T *ensure(Handle handle) {
-            if (!handle || !engine->contains(orm::idFromHandle(handle))) {
+            if (!handle) {
                 return nullptr;
             }
             if (auto it = objectMap<T>().find(handle); it != objectMap<T>().end()) {
                 return it.value();
+            }
+            if (!engine->contains(orm::idFromHandle(handle))) {
+                return nullptr;
             }
             return ensure<T>(engine->read(orm::idFromHandle(handle)));
         }
