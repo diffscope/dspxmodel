@@ -1,11 +1,6 @@
 #include "DynamicMixingAnchor.h"
 #include "DynamicMixingAnchor_p.h"
 
-#include <cstdint>
-#include <cstring>
-#include <cstddef>
-#include <utility>
-
 #include <dini/engine.h>
 #include <dini/transaction.h>
 #include <opendspx/dynamicmixinganchor.h>
@@ -13,6 +8,7 @@
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 #include <dspxmodelORM/Sources.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/DynamicMixingAnchorSequence_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
@@ -35,7 +31,7 @@ namespace dspx {
                                                                                          &DynamicMixingAnchor::positionChanged),
                 {Schema::dynamicMixingAnchorRatioColumn(), [](DynamicMixingAnchor *q, const dini::Value &value) {
                      auto *d = DynamicMixingAnchorPrivate::get(q);
-                     const auto newValue = orm::ratioFromValue(value);
+                     const auto newValue = conv::ratioFromValue(value);
                      const bool changed = d->ratio != newValue;
                      d->ratio = newValue;
                      return changed;
@@ -132,32 +128,6 @@ namespace dspx {
             return applyColumnBinding(dynamicMixingAnchorColumnBindings(), item, column, value, notify);
         }
 
-        dini::Value valueFromRatio(const QList<double> &ratio) {
-            dini::ByteArray bytes;
-            bytes.resize(static_cast<std::size_t>(ratio.size()) * sizeof(double));
-            auto *dst = bytes.data();
-            for (const auto item : ratio) {
-                std::memcpy(dst, &item, sizeof(double));
-                dst += sizeof(double);
-            }
-            return dini::Value(std::move(bytes));
-        }
-
-        QList<double> ratioFromValue(const dini::Value &value) {
-            QList<double> result;
-            if (value.isNull()) {
-                return result;
-            }
-            const auto &bytes = value.asBinary();
-            result.reserve(static_cast<int>(bytes.size() / sizeof(double)));
-            for (std::size_t i = 0; i + sizeof(double) <= bytes.size(); i += sizeof(double)) {
-                double item = 0.0;
-                std::memcpy(&item, bytes.data() + i, sizeof(double));
-                result.append(item);
-            }
-            return result;
-        }
-
     }
 
     DynamicMixingAnchorPrivate::DynamicMixingAnchorPrivate(DynamicMixingAnchor *q) : q_ptr(q) {
@@ -202,7 +172,7 @@ namespace dspx {
     }
 
     void DynamicMixingAnchor::setRatio(const QList<double> &ratio) {
-        ModelPrivate::get(model())->update(handle(), Schema::dynamicMixingAnchorRatioColumn(), orm::valueFromRatio(ratio));
+        ModelPrivate::get(model())->update(handle(), Schema::dynamicMixingAnchorRatioColumn(), conv::valueFromRatio(ratio));
     }
 
     DynamicMixingAnchor *DynamicMixingAnchor::previousItem() const {

@@ -39,6 +39,7 @@ namespace dspx {
         static dini::ListHandle trackList();
         static dini::ListHandle freeValueList();
         static dini::ListHandle vibratoPointList();
+        static dini::ListHandle audioDSPList();
 
         static dini::RelationHandle vibratoPointParent();
         static dini::RelationHandle anchorNodeParent();
@@ -58,6 +59,7 @@ namespace dspx {
         static dini::RelationHandle tempoParent();
         static dini::RelationHandle timeSignatureParent();
         static dini::RelationHandle trackParent();
+        static dini::RelationHandle audioDSPParent();
 
         static dini::VariantHandle audioClipVariant();
         static dini::VariantHandle singingClipVariant();
@@ -176,6 +178,9 @@ namespace dspx {
         static dini::ColumnHandle trackAudioClipCountColumn();
         static dini::ColumnHandle trackSingingClipCountColumn();
         static dini::ColumnHandle trackWorkspaceColumn();
+        static dini::ColumnHandle audioDSPIdColumn();
+        static dini::ColumnHandle audioDSPDataColumn();
+        static dini::ColumnHandle audioDSPEnabledColumn();
 
         static dini::ColumnHandle anchorNodeInterpolationModeColumn();
         static dini::ColumnHandle anchorNodeXColumn();

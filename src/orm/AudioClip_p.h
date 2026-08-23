@@ -19,16 +19,6 @@ namespace dspx {
         AudioPathInfo path;
     };
 
-    namespace orm {
-
-        void syncAudioClipColumns(AudioClip *item, const dini::ItemSnapshot &snapshot, bool notify);
-        bool applyAudioClipColumn(AudioClip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
-
-        dini::Value valueFromAudioPathInfo(const AudioPathInfo &path);
-        AudioPathInfo audioPathInfoFromValue(const dini::Value &value);
-
-    }
-
 }
 
 #endif // DSPXMODEL_AUDIOCLIP_P_H

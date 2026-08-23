@@ -22,7 +22,6 @@
 #include <dspxmodelORM/SingerList.h>
 #include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
-#include <dspxmodelORM/private/DynamicMixingAnchor_p.h>
 #include <dspxmodelORM/private/MixedSinger_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
@@ -132,7 +131,7 @@ namespace dspx {
             static const std::vector<orm::ColumnBinding<MixedSinger>> bindings {
                 {Schema::mixedSingerRatioColumn(), [](MixedSinger *q, const dini::Value &value) {
                      auto *d = MixedSingerPrivate::get(q);
-                     const auto newValue = orm::ratioFromValue(value);
+                     const auto newValue = conv::ratioFromValue(value);
                      const bool changed = d->ratio != newValue;
                      d->ratio = newValue;
                      return changed;
@@ -366,7 +365,7 @@ namespace dspx {
     }
 
     void MixedSinger::setRatio(const QList<double> &ratio) {
-        ModelPrivate::get(model())->update(handle(), Schema::mixedSingerRatioColumn(), orm::valueFromRatio(ratio));
+        ModelPrivate::get(model())->update(handle(), Schema::mixedSingerRatioColumn(), conv::valueFromRatio(ratio));
     }
 
     SingerList *MixedSinger::singers() const {

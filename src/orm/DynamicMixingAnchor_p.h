@@ -3,8 +3,6 @@
 
 #include <dspxmodelORM/DynamicMixingAnchor.h>
 
-#include <dini/value.h>
-
 #include <dspxmodelORM/private/ORMUtils_p.h>
 
 namespace dspx {
@@ -28,13 +26,6 @@ namespace dspx {
         mutable DynamicMixingAnchor *next = nullptr;
         DynamicMixingAnchorSequence *sequence = nullptr;
     };
-
-    namespace orm {
-
-        dini::Value valueFromRatio(const QList<double> &ratio);
-        QList<double> ratioFromValue(const dini::Value &value);
-
-    }
 
 }
 

@@ -13,6 +13,7 @@ namespace opendspx {
 
 namespace dspx {
 
+    class AudioDSPList;
     class ClipSequence;
     class TrackList;
 
@@ -35,6 +36,7 @@ namespace dspx {
         Q_PROPERTY(bool solo READ solo WRITE setSolo NOTIFY soloChanged)
         Q_PROPERTY(bool record READ record WRITE setRecord NOTIFY recordChanged)
         Q_PROPERTY(ClipSequence *clips READ clips CONSTANT)
+        Q_PROPERTY(AudioDSPList *audioDSPs READ audioDSPs CONSTANT)
         Q_PROPERTY(TrackList *trackList READ trackList NOTIFY trackListChanged)
     public:
         /**
@@ -134,6 +136,12 @@ namespace dspx {
          * @post clips() != nullptr.
          */
         ClipSequence *clips() const;
+
+        /**
+         * @brief Gets audio DSPs.
+         * @post audioDSPs() != nullptr.
+         */
+        AudioDSPList *audioDSPs() const;
 
         /**
          * @brief Gets track list.

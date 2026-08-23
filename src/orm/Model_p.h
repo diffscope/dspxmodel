@@ -17,6 +17,7 @@
 #include <dspxmodelORM/private/AnchorNode_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/AudioClip_p.h>
+#include <dspxmodelORM/private/AudioDSP_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/DynamicMixingAnchor_p.h>
 #include <dspxmodelORM/private/Label_p.h>
@@ -107,6 +108,8 @@ namespace dspx {
                 return clipObjects;
             } else if constexpr (std::is_same_v<T, AudioClip>) {
                 return audioClipObjects;
+            } else if constexpr (std::is_same_v<T, AudioDSP>) {
+                return audioDSPObjects;
             } else if constexpr (std::is_same_v<T, SingingClip>) {
                 return singingClipObjects;
             } else if constexpr (std::is_same_v<T, Sources>) {
@@ -150,6 +153,8 @@ namespace dspx {
                 return TrackPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, AudioClip>) {
                 return AudioClipPrivate::create(handle, model);
+            } else if constexpr (std::is_same_v<T, AudioDSP>) {
+                return AudioDSPPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, SingingClip>) {
                 return SingingClipPrivate::create(handle, model);
             } else if constexpr (std::is_same_v<T, Sources>) {
@@ -229,6 +234,10 @@ namespace dspx {
                 }
             } else if constexpr (std::is_same_v<T, Track>) {
                 if (!orm::isContainer(snapshot, Schema::trackList())) {
+                    return nullptr;
+                }
+            } else if constexpr (std::is_same_v<T, AudioDSP>) {
+                if (!orm::isContainer(snapshot, Schema::audioDSPList())) {
                     return nullptr;
                 }
             } else if constexpr (std::is_same_v<T, Clip>) {
@@ -335,6 +344,8 @@ namespace dspx {
                     orm::syncTimeSignatureColumns(object, snapshot, false);
                 } else if constexpr (std::is_same_v<T, Track>) {
                     orm::syncTrackColumns(object, snapshot, false);
+                } else if constexpr (std::is_same_v<T, AudioDSP>) {
+                    orm::syncAudioDSPColumns(object, snapshot, false);
                 } else if constexpr (std::is_same_v<T, AudioClip> || std::is_same_v<T, SingingClip>) {
                     orm::syncClipColumns(object, snapshot, false);
                 } else if constexpr (std::is_same_v<T, Sources>) {
@@ -400,6 +411,7 @@ namespace dspx {
         QHash<Handle, Track *> trackObjects;
         QHash<Handle, Clip *> clipObjects;
         QHash<Handle, AudioClip *> audioClipObjects;
+        QHash<Handle, AudioDSP *> audioDSPObjects;
         QHash<Handle, SingingClip *> singingClipObjects;
         QHash<Handle, Sources *> sourcesObjects;
 

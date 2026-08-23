@@ -72,25 +72,6 @@ namespace dspx {
             return result;
         }
 
-        const std::vector<orm::ColumnBinding<AudioClip>> &audioClipColumnBindings() {
-            static const std::vector<orm::ColumnBinding<AudioClip>> bindings {
-                {Schema::audioClipPathColumn(), [](AudioClip *q, const dini::Value &value) {
-                     auto *d = AudioClipPrivate::get(q);
-                     const auto newValue = orm::audioPathInfoFromValue(value);
-                     const bool changed = d->path != newValue;
-                     d->path = newValue;
-                     return changed;
-                 }, [](AudioClip *q) {
-                     emit q->pathChanged(AudioClipPrivate::get(q)->path);
-                 }},
-            };
-            return bindings;
-        }
-
-    }
-
-    namespace orm {
-
         dini::Value valueFromAudioPathInfo(const AudioPathInfo &path) {
             QByteArray bytes;
             QDataStream stream(&bytes, QIODevice::WriteOnly);
@@ -120,6 +101,25 @@ namespace dspx {
             return path;
         }
 
+        const std::vector<orm::ColumnBinding<AudioClip>> &audioClipColumnBindings() {
+            static const std::vector<orm::ColumnBinding<AudioClip>> bindings {
+                {Schema::audioClipPathColumn(), [](AudioClip *q, const dini::Value &value) {
+                     auto *d = AudioClipPrivate::get(q);
+                     const auto newValue = audioPathInfoFromValue(value);
+                     const bool changed = d->path != newValue;
+                     d->path = newValue;
+                     return changed;
+                 }, [](AudioClip *q) {
+                     emit q->pathChanged(AudioClipPrivate::get(q)->path);
+                 }},
+            };
+            return bindings;
+        }
+
+    }
+
+    namespace orm {
+
         void syncAudioClipColumns(AudioClip *item, const dini::ItemSnapshot &snapshot, bool notify) {
             syncColumnBindings(audioClipColumnBindings(), item, snapshot, notify);
         }
@@ -145,7 +145,7 @@ namespace dspx {
     }
 
     void AudioClip::setPath(const AudioPathInfo &path) {
-        ModelPrivate::get(model())->update(handle(), Schema::audioClipPathColumn(), orm::valueFromAudioPathInfo(path));
+        ModelPrivate::get(model())->update(handle(), Schema::audioClipPathColumn(), valueFromAudioPathInfo(path));
     }
 
     opendspx::AudioClip AudioClip::toOpenDSPX() const {

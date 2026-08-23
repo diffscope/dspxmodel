@@ -1546,6 +1546,7 @@ namespace dspx {
                 buildTempoTable();
                 buildTimeSignatureTable();
                 buildTrackList();
+                buildAudioDSPList();
                 buildClipTable();
                 buildSourcesMixableAndDynamicMixingAnchorTablesAndSingerList();
                 buildNoteTable();
@@ -1891,6 +1892,33 @@ namespace dspx {
                 addBeforeApplyHook(trackListBuilder,
                                    ClipCountColumnGuardHook(trackAudioClipCountColumn,
                                                             trackSingingClipCountColumn));
+            }
+
+            void buildAudioDSPList() {
+                auto audioDSPListBuilder = schemaBuilder.createList("AudioDSP");
+                audioDSPList = audioDSPListBuilder.handle();
+                audioDSPParent = audioDSPListBuilder.setAssociation({
+                    .debugName = "track",
+                    .target = trackList,
+                });
+                audioDSPIdColumn = audioDSPListBuilder.addColumn({
+                    .debugName = "id",
+                    .type = dini::ValueType::String,
+                    .defaultValue = "",
+                    .nullable = false,
+                });
+                audioDSPDataColumn = audioDSPListBuilder.addColumn({
+                    .debugName = "data",
+                    .type = dini::ValueType::Binary,
+                    .defaultValue = dini::Value(dini::ByteArray {}),
+                    .nullable = false,
+                });
+                audioDSPEnabledColumn = audioDSPListBuilder.addColumn({
+                    .debugName = "enabled",
+                    .type = dini::ValueType::Bool,
+                    .defaultValue = false,
+                    .nullable = false,
+                });
             }
 
             void buildClipTable() {
@@ -2550,6 +2578,7 @@ namespace dspx {
             dini::ListHandle trackList;
             dini::ListHandle freeValueList;
             dini::ListHandle vibratoPointList;
+            dini::ListHandle audioDSPList;
 
             dini::RelationHandle vibratoPointParent;
             dini::RelationHandle clipParent;
@@ -2569,6 +2598,7 @@ namespace dspx {
             dini::RelationHandle tempoParent;
             dini::RelationHandle timeSignatureParent;
             dini::RelationHandle trackParent;
+            dini::RelationHandle audioDSPParent;
 
             dini::VariantHandle audioClipVariant;
             dini::VariantHandle singingClipVariant;
@@ -2687,6 +2717,9 @@ namespace dspx {
             dini::ColumnHandle trackAudioClipCountColumn;
             dini::ColumnHandle trackSingingClipCountColumn;
             dini::ColumnHandle trackWorkspaceColumn;
+            dini::ColumnHandle audioDSPIdColumn;
+            dini::ColumnHandle audioDSPDataColumn;
+            dini::ColumnHandle audioDSPEnabledColumn;
 
             dini::ColumnHandle anchorNodeInterpolationModeColumn;
             dini::ColumnHandle anchorNodeXColumn;
@@ -2783,6 +2816,10 @@ namespace dspx {
         return g.vibratoPointList;
     }
 
+    dini::ListHandle Schema::audioDSPList() {
+        return g.audioDSPList;
+    }
+
     dini::RelationHandle Schema::vibratoPointParent() {
         return g.vibratoPointParent;
     }
@@ -2853,6 +2890,10 @@ namespace dspx {
 
     dini::RelationHandle Schema::trackParent() {
         return g.trackParent;
+    }
+
+    dini::RelationHandle Schema::audioDSPParent() {
+        return g.audioDSPParent;
     }
 
     dini::VariantHandle Schema::audioClipVariant() {
@@ -3257,6 +3298,18 @@ namespace dspx {
 
     dini::ColumnHandle Schema::trackWorkspaceColumn() {
         return g.trackWorkspaceColumn;
+    }
+
+    dini::ColumnHandle Schema::audioDSPIdColumn() {
+        return g.audioDSPIdColumn;
+    }
+
+    dini::ColumnHandle Schema::audioDSPDataColumn() {
+        return g.audioDSPDataColumn;
+    }
+
+    dini::ColumnHandle Schema::audioDSPEnabledColumn() {
+        return g.audioDSPEnabledColumn;
     }
 
     dini::ColumnHandle Schema::anchorNodeInterpolationModeColumn() {

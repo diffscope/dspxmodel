@@ -24,6 +24,7 @@
 #include <dspxmodelORM/VibratoPointDataArray.h>
 #include <dspxmodelORM/private/AnchorNode_p.h>
 #include <dspxmodelORM/private/AnchorNodeSequence_p.h>
+#include <dspxmodelORM/private/AudioDSP_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
@@ -269,7 +270,7 @@ namespace dspx {
         timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
         tableBindings = {&orm::modelTableBinding(), &orm::anchorNodeTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::dynamicMixingAnchorTableBinding(), &orm::noteTableBinding(), &orm::parameterTableBinding(), &orm::phonemeTableBinding(), &orm::sourcesTableBinding()};
-        listBindings = {&orm::trackListBinding(), &orm::singerListBinding(), &orm::freeValueDataArrayBinding(), &orm::vibratoPointDataArrayBinding()};
+        listBindings = {&orm::trackListBinding(), &orm::singerListBinding(), &orm::freeValueDataArrayBinding(), &orm::vibratoPointDataArrayBinding(), &orm::audioDSPListBinding()};
 
         syncModel(false);
         refreshContainers(false);
@@ -795,6 +796,12 @@ namespace dspx {
         return d->ensure<AudioClip>(orm::handleFromId(id));
     }
 
+    AudioDSP *Model::createAudioDSP() {
+        Q_D(Model);
+        const auto id = d->requireTransaction()->insert(Schema::audioDSPList(), dini::Value::null(), 0, {{}}).front();
+        return d->ensure<AudioDSP>(orm::handleFromId(id));
+    }
+
     SingingClip *Model::createSingingClip() {
         Q_D(Model);
         const auto id = d->requireTransaction()->insert(Schema::clipTable(), {
@@ -1008,6 +1015,11 @@ namespace dspx {
         }
         if (matches(AudioClip::staticMetaObject, &Clip::staticMetaObject)) {
             if (auto *object = d->ensure<AudioClip>(handle)) {
+                return object;
+            }
+        }
+        if (matches(AudioDSP::staticMetaObject)) {
+            if (auto *object = d->ensure<AudioDSP>(handle)) {
                 return object;
             }
         }

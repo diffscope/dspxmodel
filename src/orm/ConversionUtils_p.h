@@ -2,6 +2,8 @@
 #define DSPXMODEL_CONVERSIONUTILS_P_H
 
 #include <cmath>
+#include <cstddef>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -14,8 +16,10 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QList>
 
 #include <dini/types.h>
+#include <dini/value.h>
 
 namespace dspx::conv {
 
@@ -115,6 +119,32 @@ namespace dspx::conv {
 
     inline double fromDecibel(double value) {
         return std::pow(10.0, value / 20.0);
+    }
+
+    inline dini::Value valueFromRatio(const QList<double> &ratio) {
+        dini::ByteArray bytes;
+        bytes.resize(static_cast<std::size_t>(ratio.size()) * sizeof(double));
+        auto *dst = bytes.data();
+        for (const auto item : ratio) {
+            std::memcpy(dst, &item, sizeof(double));
+            dst += sizeof(double);
+        }
+        return dini::Value(std::move(bytes));
+    }
+
+    inline QList<double> ratioFromValue(const dini::Value &value) {
+        QList<double> result;
+        if (value.isNull()) {
+            return result;
+        }
+        const auto &bytes = value.asBinary();
+        result.reserve(static_cast<int>(bytes.size() / sizeof(double)));
+        for (std::size_t i = 0; i + sizeof(double) <= bytes.size(); i += sizeof(double)) {
+            double item = 0.0;
+            std::memcpy(&item, bytes.data() + i, sizeof(double));
+            result.append(item);
+        }
+        return result;
     }
 
     template <typename ...Args>

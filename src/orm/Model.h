@@ -17,6 +17,7 @@ namespace dspx {
 
     class AnchorNode;
     class AudioClip;
+    class AudioDSP;
     class Clip;
     class DynamicMixingAnchor;
     class KeySignature;
@@ -268,6 +269,12 @@ namespace dspx {
          * @post createAudioClip() != nullptr.
          */
         Q_INVOKABLE AudioClip *createAudioClip();
+        /**
+         * @brief Creates audio DSP.
+         * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
+         * @post createAudioDSP() != nullptr.
+         */
+        Q_INVOKABLE AudioDSP *createAudioDSP();
         /**
          * @brief Creates singing clip.
          * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.

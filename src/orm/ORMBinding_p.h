@@ -23,6 +23,8 @@ namespace dspx {
 
     class ModelPrivate;
     class AnchorNode;
+    class AudioClip;
+    class AudioDSP;
     class Clip;
     class DynamicMixingAnchor;
     class FreeValueDataArray;
@@ -986,9 +988,14 @@ namespace dspx {
         const ListBinding &freeValueDataArrayBinding();
         const ListBinding &singerListBinding();
         const ListBinding &vibratoPointDataArrayBinding();
+        const ListBinding &audioDSPListBinding();
 
+        void syncAudioDSPColumns(AudioDSP *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyAudioDSPColumn(AudioDSP *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncAnchorNodeColumns(AnchorNode *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyAnchorNodeColumn(AnchorNode *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncAudioClipColumns(AudioClip *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applyAudioClipColumn(AudioClip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncClipColumns(Clip *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyClipColumn(Clip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncDynamicMixingAnchorColumns(DynamicMixingAnchor *item, const dini::ItemSnapshot &snapshot, bool notify);

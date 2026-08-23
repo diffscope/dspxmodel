@@ -8,9 +8,11 @@
 #include <opendspx/model.h>
 
 #include <dspxmodelCore/Schema.h>
+#include <dspxmodelORM/AudioDSPList.h>
 #include <dspxmodelORM/ClipSequence.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/TrackList.h>
+#include <dspxmodelORM/private/AudioDSPList_p.h>
 #include <dspxmodelORM/private/ClipSequence_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
@@ -75,6 +77,8 @@ namespace dspx {
         Q_D(Track);
         d->clips = ClipSequencePrivate::create(this);
         ClipSequencePrivate::get(d->clips)->refresh(false);
+        d->audioDSPs = AudioDSPListPrivate::create(this);
+        AudioDSPListPrivate::get(d->audioDSPs)->refresh(false, false);
     }
 
     Track::~Track() = default;
@@ -156,6 +160,11 @@ namespace dspx {
         return d->clips;
     }
 
+    AudioDSPList *Track::audioDSPs() const {
+        Q_D(const Track);
+        return d->audioDSPs;
+    }
+
     TrackList *Track::trackList() const {
         Q_D(const Track);
         return d->trackList;
@@ -177,6 +186,7 @@ namespace dspx {
         diffscope["colorId"] = colorId();
         diffscope["height"] = height();
         diffscope["record"] = record();
+        diffscope["audioDSP"] = d->audioDSPs->toOpenDSPX();
         OpenDSPXConversion::convertTrackToOpenDSPX(this, target);
         return target;
     }
@@ -200,6 +210,9 @@ namespace dspx {
             }
             if (auto v = conv::optionalChain(workspace, "record"); v.isBool()) {
                 setRecord(v.toBool());
+            }
+            if (auto v = conv::optionalChain(workspace, "audioDSP"); v.isArray()) {
+                d->audioDSPs->fromOpenDSPX(v.toArray());
             }
         }
         OpenDSPXConversion::convertTrackFromOpenDSPX(this, track);

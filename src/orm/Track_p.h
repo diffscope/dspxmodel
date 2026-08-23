@@ -23,6 +23,7 @@ namespace dspx {
 
         Track *q_ptr = nullptr;
         ClipSequence *clips = nullptr;
+        AudioDSPList *audioDSPs = nullptr;
         int colorId = 0;
         double height = 0.0;
         QString name;

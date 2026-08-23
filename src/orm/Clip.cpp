@@ -16,7 +16,6 @@
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Track.h>
-#include <dspxmodelORM/private/AudioClip_p.h>
 #include <dspxmodelORM/private/ClipSequence_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
