@@ -10,6 +10,7 @@
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/AudioDSP.h>
 #include <dspxmodelORM/Model.h>
+#include <dspxmodelORM/Track.h>
 #include <dspxmodelORM/private/AudioDSP_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/ORMBinding_p.h>
@@ -20,9 +21,9 @@ namespace dspx {
 
     namespace {
 
-        dini::QuerySpec audioDSPListQuery(Handle trackHandle) {
+        dini::QuerySpec audioDSPListQuery(Handle parentHandle) {
             return dini::QuerySpec {
-                .filter = orm::parentFilter(Schema::audioDSPParent(), trackHandle),
+                .filter = orm::parentFilter(Schema::audioDSPParent(), parentHandle),
             };
         }
 
@@ -38,31 +39,61 @@ namespace dspx {
 
     }
 
-    AudioDSPListPrivate::AudioDSPListPrivate(AudioDSPList *q, Track *track) : q_ptr(q), track(track), jsIterable(new JSIterable(q, JSIterable::List)) {
+    AudioDSPListPrivate::AudioDSPListPrivate(AudioDSPList *q, Track *track)
+        : q_ptr(q), model(track ? track->model() : nullptr), track(track),
+          jsIterable(new JSIterable(q, JSIterable::List)) {
+    }
+
+    AudioDSPListPrivate::AudioDSPListPrivate(AudioDSPList *q, Model *model)
+        : q_ptr(q), model(model), jsIterable(new JSIterable(q, JSIterable::List)) {
+    }
+
+    Handle AudioDSPListPrivate::parentHandle(bool create) const {
+        if (!model) {
+            return {};
+        }
+        auto *modelData = ModelPrivate::get(model);
+        const auto column = track ? Schema::audioDSPParentTrackColumn()
+                                  : Schema::audioDSPParentModelColumn();
+        const auto ownerHandle = track ? track->handle() : model->handle();
+        const auto view = modelData->engine->query(Schema::audioDSPParentTable(), {
+            .filter = orm::equalFilter(dini::FieldRef::column(column),
+                                       orm::valueFromHandle(ownerHandle)),
+        });
+        if (auto snapshot = orm::firstSnapshot(view)) {
+            return orm::handleFromId(snapshot->id);
+        }
+        if (!create) {
+            return {};
+        }
+        const auto id = modelData->requireTransaction()->insert(Schema::audioDSPParentTable(), {
+            dini::ColumnValue {
+                .column = Schema::audioDSPParentModelColumn(),
+                .value = track ? dini::Value::null() : orm::valueFromHandle(ownerHandle),
+            },
+            dini::ColumnValue {
+                .column = Schema::audioDSPParentTrackColumn(),
+                .value = track ? orm::valueFromHandle(ownerHandle) : dini::Value::null(),
+            },
+        });
+        return orm::handleFromId(id);
+    }
+
+    dini::Value AudioDSPListPrivate::associationValue(bool create) const {
+        return orm::valueFromHandle(parentHandle(create));
     }
 
     void AudioDSPListPrivate::refresh(bool notify, bool itemsChanged) {
         Q_Q(AudioDSPList);
-        auto *modelData = ModelPrivate::get(track->model());
-        const auto view = modelData->engine->query(Schema::audioDSPList(), audioDSPListQuery(track->handle()));
-        const auto newSize = static_cast<int>(view.count());
-        AudioDSP *newFirst = nullptr;
-        AudioDSP *newLast = nullptr;
-        if (auto firstSnapshot = orm::firstSnapshot(view)) {
-            newFirst = modelData->ensure<AudioDSP>(*firstSnapshot);
-        }
-        if (newSize > 0) {
-            const auto last = view.offset(static_cast<std::size_t>(newSize - 1)).limit(1).toVector();
-            if (!last.empty()) {
-                newLast = modelData->ensure<AudioDSP>(last.front());
-            }
-        }
-
+        const auto parent = parentHandle(false);
+        auto *modelData = model ? ModelPrivate::get(model) : nullptr;
+        const auto newSize = modelData && parent
+                                 ? static_cast<int>(modelData->engine
+                                                        ->query(Schema::audioDSPList(), audioDSPListQuery(parent))
+                                                        .count())
+                                 : 0;
         const bool sizeChanged = size != newSize;
-        const bool orderChanged = first != newFirst || last != newLast || itemsChanged;
         size = newSize;
-        first = newFirst;
-        last = newLast;
 
         if (!notify) {
             return;
@@ -70,12 +101,15 @@ namespace dspx {
         if (sizeChanged) {
             emit q->sizeChanged(size);
         }
-        if (orderChanged) {
+        if (sizeChanged || itemsChanged) {
             emit q->itemsChanged();
         }
     }
 
     AudioDSPList::AudioDSPList(Track *track) : QObject(track), d_ptr(new AudioDSPListPrivate(this, track)) {
+    }
+
+    AudioDSPList::AudioDSPList(Model *model) : QObject(model), d_ptr(new AudioDSPListPrivate(this, model)) {
     }
 
     AudioDSPList::~AudioDSPList() = default;
@@ -85,8 +119,15 @@ namespace dspx {
     }
 
     QList<AudioDSP *> AudioDSPList::items() const {
-        auto *modelData = ModelPrivate::get(track()->model());
-        return audioDSPsFromView(modelData, modelData->engine->query(Schema::audioDSPList(), audioDSPListQuery(track()->handle())));
+        Q_D(const AudioDSPList);
+        const auto parent = d->parentHandle(false);
+        if (!d->model || !parent) {
+            return {};
+        }
+        auto *modelData = ModelPrivate::get(d->model);
+        return audioDSPsFromView(modelData,
+                                 modelData->engine->query(Schema::audioDSPList(),
+                                                          audioDSPListQuery(parent)));
     }
 
     bool AudioDSPList::contains(AudioDSP *item) const {
@@ -97,8 +138,13 @@ namespace dspx {
         if (index < 0) {
             return nullptr;
         }
-        auto *modelData = ModelPrivate::get(track()->model());
-        const auto values = modelData->engine->query(Schema::audioDSPList(), audioDSPListQuery(track()->handle()))
+        Q_D(const AudioDSPList);
+        const auto parent = d->parentHandle(false);
+        if (!d->model || !parent) {
+            return nullptr;
+        }
+        auto *modelData = ModelPrivate::get(d->model);
+        const auto values = modelData->engine->query(Schema::audioDSPList(), audioDSPListQuery(parent))
                                 .offset(static_cast<std::size_t>(index))
                                 .limit(1)
                                 .toVector();
@@ -112,8 +158,18 @@ namespace dspx {
         if (index < 0 || !item || item->audioDSPList()) {
             return false;
         }
-        auto *modelData = ModelPrivate::get(track()->model());
-        modelData->update(item->handle(), Schema::audioDSPParent().column(), orm::valueFromHandle(track()->handle()), dini::AssociationUpdateOptions {.targetIndex = static_cast<std::size_t>(index)});
+        Q_D(const AudioDSPList);
+        if (!d->model || item->model() != d->model) {
+            return false;
+        }
+        const auto associationValue = d->associationValue(true);
+        if (associationValue.isNull()) {
+            return false;
+        }
+        ModelPrivate::get(d->model)->update(item->handle(),
+                                            Schema::audioDSPParent().column(),
+                                            associationValue,
+                                            dini::AssociationUpdateOptions {.targetIndex = static_cast<std::size_t>(index)});
         return true;
     }
 
@@ -122,7 +178,9 @@ namespace dspx {
         if (!audioDSP) {
             return nullptr;
         }
-        ModelPrivate::get(track()->model())->update(audioDSP->handle(), Schema::audioDSPParent().column(), dini::Value::null());
+        ModelPrivate::get(audioDSP->model())->update(audioDSP->handle(),
+                                                    Schema::audioDSPParent().column(),
+                                                    dini::Value::null());
         return audioDSP;
     }
 
@@ -130,7 +188,16 @@ namespace dspx {
         if (leftIndex < 0 || middleIndex < leftIndex || rightIndex < middleIndex) {
             return false;
         }
-        ModelPrivate::get(track()->model())->rotate(Schema::audioDSPList(), orm::valueFromHandle(track()->handle()), leftIndex, middleIndex, rightIndex);
+        Q_D(const AudioDSPList);
+        const auto associationValue = d->associationValue(false);
+        if (!d->model || associationValue.isNull()) {
+            return false;
+        }
+        ModelPrivate::get(d->model)->rotate(Schema::audioDSPList(),
+                                            associationValue,
+                                            leftIndex,
+                                            middleIndex,
+                                            rightIndex);
         return true;
     }
 
@@ -148,14 +215,18 @@ namespace dspx {
     }
 
     void AudioDSPList::fromOpenDSPX(const stdc::JsonArray &audioDSPs) {
+        Q_D(AudioDSPList);
         while (size() > 0) {
             removeItem(size() - 1);
+        }
+        if (!d->model) {
+            return;
         }
         for (const auto &source : audioDSPs) {
             if (!source.isObject()) {
                 continue;
             }
-            auto audioDSP = track()->model()->createAudioDSP();
+            auto audioDSP = d->model->createAudioDSP();
             audioDSP->fromOpenDSPX(source.toObject());
             insertItem(size(), audioDSP);
         }

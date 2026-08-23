@@ -17,6 +17,7 @@
 #include <dspxmodelCore/Document.h>
 #include <dspxmodelCore/Schema.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
+#include <dspxmodelORM/AudioDSPList.h>
 #include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelORM/OpenDSPXConversion.h>
 #include <dspxmodelORM/Phoneme.h>
@@ -24,6 +25,7 @@
 #include <dspxmodelORM/VibratoPointDataArray.h>
 #include <dspxmodelORM/private/AnchorNode_p.h>
 #include <dspxmodelORM/private/AnchorNodeSequence_p.h>
+#include <dspxmodelORM/private/AudioDSPList_p.h>
 #include <dspxmodelORM/private/AudioDSP_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
@@ -269,6 +271,7 @@ namespace dspx {
         tempos = TempoSequencePrivate::create(q);
         timeSignatures = TimeSignatureSequencePrivate::create(q);
         tracks = TrackListPrivate::create(q);
+        audioDSPs = AudioDSPListPrivate::create(q);
         tableBindings = {&orm::modelTableBinding(), &orm::anchorNodeTableBinding(), &orm::labelTableBinding(), &orm::keySignatureTableBinding(), &orm::tempoTableBinding(), &orm::timeSignatureTableBinding(), &orm::clipTableBinding(), &orm::dynamicMixingAnchorTableBinding(), &orm::noteTableBinding(), &orm::parameterTableBinding(), &orm::phonemeTableBinding(), &orm::sourcesTableBinding()};
         listBindings = {&orm::trackListBinding(), &orm::singerListBinding(), &orm::freeValueDataArrayBinding(), &orm::vibratoPointDataArrayBinding(), &orm::audioDSPListBinding()};
 
@@ -304,6 +307,7 @@ namespace dspx {
         TempoSequencePrivate::get(tempos)->refresh(notify);
         TimeSignatureSequencePrivate::get(timeSignatures)->refresh(notify);
         TrackListPrivate::get(tracks)->refresh(notify, notify);
+        AudioDSPListPrivate::get(audioDSPs)->refresh(notify, notify);
     }
 
     bool ModelPrivate::isModelValue(const dini::Value &value) const {
@@ -676,6 +680,11 @@ namespace dspx {
         return d->tracks;
     }
 
+    AudioDSPList *Model::audioDSPs() const {
+        Q_D(const Model);
+        return d->audioDSPs;
+    }
+
     opendspx::Model Model::toOpenDSPX() const {
         Q_D(const Model);
         auto target = opendspx::Model{
@@ -711,6 +720,7 @@ namespace dspx {
         master["multiChannelOutput"] = multiChannelOutput();
         diffscope["master"] = std::move(master);
         diffscope["keySignatures"] = keySignatures()->toOpenDSPX();
+        diffscope["audioDSP"] = audioDSPs()->toOpenDSPX();
         OpenDSPXConversion::convertModelToOpenDSPX(this, target);
         return target;
 
@@ -745,6 +755,9 @@ namespace dspx {
             }
             if (auto v = conv::optionalChain(workspace, "keySignatures"); v.isArray()) {
                 keySignatures()->fromOpenDSPX(v);
+            }
+            if (auto v = conv::optionalChain(workspace, "audioDSP"); v.isArray()) {
+                audioDSPs()->fromOpenDSPX(v.toArray());
             }
         }
         OpenDSPXConversion::convertModelFromOpenDSPX(this, model);

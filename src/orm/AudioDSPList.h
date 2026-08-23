@@ -14,6 +14,7 @@
 namespace dspx {
 
     class AudioDSP;
+    class Model;
     class Track;
 
     class AudioDSPListPrivate;
@@ -43,7 +44,7 @@ namespace dspx {
 
         /**
          * @brief Gets whether item is contained.
-         * @pre item != nullptr && item->model() == track()->model().
+         * @pre item belongs to the same model as this list.
          */
         Q_INVOKABLE bool contains(AudioDSP *item) const;
         /**
@@ -53,22 +54,22 @@ namespace dspx {
         Q_INVOKABLE AudioDSP *item(int index) const;
         /**
          * @brief Inserts item.
-         * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre The owner model has an active transaction.
          * @pre index >= 0.
-         * @pre item != nullptr && item->model() == track()->model().
+         * @pre item belongs to the same model as this list.
          * @post If successful, item is contained in this list.
          */
         Q_INVOKABLE bool insertItem(int index, AudioDSP *item);
         /**
          * @brief Removes item.
-         * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre The owner model has an active transaction.
          * @pre index >= 0.
          * @post If successful, size may change.
          */
         Q_INVOKABLE AudioDSP *removeItem(int index);
         /**
          * @brief Rotates items.
-         * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre The owner model has an active transaction.
          * @pre leftIndex >= 0 && middleIndex >= leftIndex && rightIndex >= middleIndex.
          * @post If successful, items are rotated.
          */
@@ -76,7 +77,7 @@ namespace dspx {
 
         /**
          * @brief Gets track.
-         * @post track() != nullptr.
+         * @note Returns nullptr when this list belongs to Model.
          */
         Track *track() const;
 
@@ -87,7 +88,7 @@ namespace dspx {
         /**
          * @brief Converts from OpenDSPX audio DSP array.
          * @note Typically, this method SHOULD only be called on a newly created object.
-         * @pre track()->model()->document()->transaction() != nullptr && track()->model()->document()->transaction()->state() == dini::TransactionState::Active.
+         * @pre The owner model has an active transaction.
          * @pre audioDSPs must be valid.
          */
         void fromOpenDSPX(const stdc::JsonArray &audioDSPs);
@@ -106,6 +107,7 @@ namespace dspx {
         ~AudioDSPList() override;
 
         explicit AudioDSPList(Track *track);
+        explicit AudioDSPList(Model *model);
 
         QScopedPointer<AudioDSPListPrivate> d_ptr;
     };

@@ -18,6 +18,7 @@ namespace dspx {
     class AnchorNode;
     class AudioClip;
     class AudioDSP;
+    class AudioDSPList;
     class Clip;
     class DynamicMixingAnchor;
     class KeySignature;
@@ -63,6 +64,7 @@ namespace dspx {
         Q_PROPERTY(TempoSequence *tempos READ tempos CONSTANT)
         Q_PROPERTY(TimeSignatureSequence *timeSignatures READ timeSignatures CONSTANT)
         Q_PROPERTY(TrackList *tracks READ tracks CONSTANT)
+        Q_PROPERTY(AudioDSPList *audioDSPs READ audioDSPs CONSTANT)
     public:
         explicit Model(Document *document, QObject *parent = nullptr);
         ~Model() override;
@@ -221,6 +223,11 @@ namespace dspx {
          * @post tracks() != nullptr.
          */
         TrackList *tracks() const;
+        /**
+         * @brief Gets model-level audio DSPs.
+         * @post audioDSPs() != nullptr.
+         */
+        AudioDSPList *audioDSPs() const;
 
         /**
          * @brief Converts to OpenDSPX model.

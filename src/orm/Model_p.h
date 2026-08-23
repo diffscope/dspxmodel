@@ -389,6 +389,7 @@ namespace dspx {
         TempoSequence *tempos = nullptr;
         TimeSignatureSequence *timeSignatures = nullptr;
         TrackList *tracks = nullptr;
+        AudioDSPList *audioDSPs = nullptr;
 
         std::vector<const orm::TableBinding *> tableBindings;
         std::vector<const orm::ListBinding *> listBindings;

@@ -12,17 +12,19 @@ namespace dspx {
         Q_DECLARE_PUBLIC(AudioDSPList)
     public:
         AudioDSPListPrivate(AudioDSPList *q, Track *track);
+        AudioDSPListPrivate(AudioDSPList *q, Model *model);
 
         DSPXMODEL_DECLARE_GET(AudioDSPList)
         DSPXMODEL_FORWARD_CONSTRUCTOR(AudioDSPList)
 
+        Handle parentHandle(bool create) const;
+        dini::Value associationValue(bool create) const;
         void refresh(bool notify, bool itemsChanged);
 
         AudioDSPList *q_ptr = nullptr;
+        Model *model = nullptr;
         Track *track = nullptr;
         int size = 0;
-        AudioDSP *first = nullptr;
-        AudioDSP *last = nullptr;
 
         JSIterable *jsIterable = nullptr;
     };

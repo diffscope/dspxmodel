@@ -24,6 +24,7 @@ namespace dspx {
         static dini::TableHandle labelTable();
         static dini::TableHandle mixableTable();
         static dini::TableHandle modelTable();
+        static dini::TableHandle audioDSPParentTable();
         static dini::TableHandle noteVibratoPointRelationTable();
         static dini::TableHandle noteTable();
         static dini::TableHandle phonemeTable();
@@ -119,6 +120,8 @@ namespace dspx {
 
         static dini::ColumnHandle mixableSourcesColumn();
         static dini::ColumnHandle mixableMixedSingerColumn();
+        static dini::ColumnHandle audioDSPParentModelColumn();
+        static dini::ColumnHandle audioDSPParentTrackColumn();
 
         static dini::ColumnHandle noteCentShiftColumn();
         static dini::ColumnHandle noteKeyNumberColumn();

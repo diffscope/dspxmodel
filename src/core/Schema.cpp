@@ -299,6 +299,133 @@ namespace dspx {
             dini::VariantHandle mixedSingerVariant;
         };
 
+        struct AudioDSPParentAssociationCheckHook {
+            AudioDSPParentAssociationCheckHook(dini::TableHandle modelTable, dini::ListHandle trackList,
+                                               dini::TableHandle audioDSPParentTable,
+                                               dini::ColumnHandle modelColumn,
+                                               dini::ColumnHandle trackColumn)
+                : modelTable(std::move(modelTable)), trackList(std::move(trackList)),
+                  audioDSPParentTable(std::move(audioDSPParentTable)),
+                  modelColumn(std::move(modelColumn)), trackColumn(std::move(trackColumn)) {
+            }
+
+            void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
+                if (ctx.origin() != dini::EventOrigin::Normal) {
+                    return;
+                }
+                std::vector<dini::ItemSnapshot> updatedItems;
+                for (const auto &change : changeSet.operations()) {
+                    if (change.kind() == dini::ChangeOperationKind::ItemInserted) {
+                        const auto &inserted = std::get<dini::ItemInsertedChange>(change.payload());
+                        validate(ctx, inserted.item);
+                    } else if (change.kind() == dini::ChangeOperationKind::ColumnUpdated) {
+                        const auto &updated = std::get<dini::ColumnUpdatedChange>(change.payload());
+                        if (updated.column == modelColumn || updated.column == trackColumn) {
+                            setItemValue(itemForUpdate(ctx, updatedItems, updated.itemId),
+                                         updated.column,
+                                         updated.newValue);
+                        }
+                    }
+                }
+                for (const auto &item : updatedItems) {
+                    validate(ctx, item);
+                }
+            }
+
+        private:
+            dini::ItemSnapshot &itemForUpdate(dini::TransactionContext &ctx,
+                                              std::vector<dini::ItemSnapshot> &items,
+                                              quint64 id) const {
+                auto it = std::find_if(items.begin(), items.end(), [id](const auto &item) {
+                    return item.id == id;
+                });
+                if (it != items.end()) {
+                    return *it;
+                }
+                items.push_back(querySingle(ctx, audioDSPParentTable, id, "audio DSP parent does not exist"));
+                return items.back();
+            }
+
+            void validate(dini::TransactionContext &ctx, const dini::ItemSnapshot &item) const {
+                const auto model = itemValue(item, modelColumn);
+                const auto track = itemValue(item, trackColumn);
+                const bool hasModel = !model.isNull();
+                const bool hasTrack = !track.isNull();
+                if (hasModel == hasTrack) {
+                    throw dini::ConstraintError("audio DSP parent must reference exactly one parent");
+                }
+
+                if (hasModel) {
+                    querySingle(ctx, modelTable, model.asUInt64(), "audio DSP parent model does not exist");
+                    ensureUnique(ctx, item.id, modelColumn, model);
+                } else {
+                    querySingle(ctx, trackList, track.asUInt64(), "audio DSP parent track does not exist");
+                    ensureUnique(ctx, item.id, trackColumn, track);
+                }
+            }
+
+            void ensureUnique(dini::TransactionContext &ctx, quint64 itemId,
+                              const dini::ColumnHandle &column, const dini::Value &value) const {
+                auto result = ctx.engine().query(audioDSPParentTable, {
+                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::column(column),
+                                                                  dini::ComparisonOperator::Equal,
+                                                                  value))
+                }).toVector();
+                for (const auto &parent : result) {
+                    if (parent.id != itemId) {
+                        throw dini::ConstraintError("audio DSP virtual parent must be unique");
+                    }
+                }
+            }
+
+            dini::TableHandle modelTable;
+            dini::ListHandle trackList;
+            dini::TableHandle audioDSPParentTable;
+            dini::ColumnHandle modelColumn;
+            dini::ColumnHandle trackColumn;
+        };
+
+        struct AudioDSPParentCascadeDeleteHook {
+            AudioDSPParentCascadeDeleteHook(dini::TableHandle audioDSPParentTable,
+                                            dini::ColumnHandle virtualParentColumn)
+                : audioDSPParentTable(std::move(audioDSPParentTable)),
+                  virtualParentColumn(std::move(virtualParentColumn)) {
+            }
+
+            void operator()(dini::TransactionContext &ctx, const dini::ChangeSet &changeSet) const {
+                if (ctx.origin() != dini::EventOrigin::Normal) {
+                    return;
+                }
+                for (const auto &change : changeSet.operations()) {
+                    if (change.kind() == dini::ChangeOperationKind::ItemRemoved) {
+                        const auto &removed = std::get<dini::ItemRemovedChange>(change.payload());
+                        removeParents(ctx, removed.item.id);
+                    } else if (change.kind() == dini::ChangeOperationKind::CascadeRemoved) {
+                        const auto &removed = std::get<dini::CascadeRemovedChange>(change.payload());
+                        removeParents(ctx, removed.item.id);
+                    } else if (change.kind() == dini::ChangeOperationKind::ListRemoved) {
+                        const auto &removed = std::get<dini::ListRemovedChange>(change.payload());
+                        removeParents(ctx, removed.item.id);
+                    }
+                }
+            }
+
+        private:
+            void removeParents(dini::TransactionContext &ctx, quint64 parentId) const {
+                auto result = ctx.engine().query(audioDSPParentTable, {
+                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::column(virtualParentColumn),
+                                                                  dini::ComparisonOperator::Equal,
+                                                                  parentId))
+                }).toVector();
+                for (const auto &parent : result) {
+                    ctx.remove(parent.id);
+                }
+            }
+
+            dini::TableHandle audioDSPParentTable;
+            dini::ColumnHandle virtualParentColumn;
+        };
+
         struct PairedAssociationColumnCheckHook {
             PairedAssociationColumnCheckHook(dini::TableHandle table,
                                              dini::RelationHandle association,
@@ -1540,13 +1667,13 @@ namespace dspx {
         struct g {
 
             g() {
-                buildModelTable();
+                auto modelTableBuilder = buildModelTable();
                 buildKeySignatureTable();
                 buildLabelTable();
                 buildTempoTable();
                 buildTimeSignatureTable();
-                buildTrackList();
-                buildAudioDSPList();
+                auto trackListBuilder = buildTrackList();
+                buildAudioDSPList(modelTableBuilder, trackListBuilder);
                 buildClipTable();
                 buildSourcesMixableAndDynamicMixingAnchorTablesAndSingerList();
                 buildNoteTable();
@@ -1557,7 +1684,7 @@ namespace dspx {
                 buildAnchorNodeTable();
             }
 
-            void buildModelTable() {
+            dini::TableBuilder buildModelTable() {
                 auto modelTableBuilder = schemaBuilder.createTable("Model");
                 modelTable = modelTableBuilder.handle();
                 modelProjectNameColumn = modelTableBuilder.addColumn({
@@ -1631,6 +1758,7 @@ namespace dspx {
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
+                return modelTableBuilder;
             }
 
             void buildKeySignatureTable() {
@@ -1812,7 +1940,7 @@ namespace dspx {
                                                                               timeSignatureOrderIndex));
             }
 
-            void buildTrackList() {
+            dini::ListBuilder buildTrackList() {
                 auto trackListBuilder = schemaBuilder.createList("Track");
                 trackList = trackListBuilder.handle();
                 trackParent = trackListBuilder.setAssociation({
@@ -1892,14 +2020,31 @@ namespace dspx {
                 addBeforeApplyHook(trackListBuilder,
                                    ClipCountColumnGuardHook(trackAudioClipCountColumn,
                                                             trackSingingClipCountColumn));
+                return trackListBuilder;
             }
 
-            void buildAudioDSPList() {
+            void buildAudioDSPList(dini::TableBuilder &modelTableBuilder,
+                                   dini::ListBuilder &trackListBuilder) {
+                auto audioDSPParentTableBuilder = schemaBuilder.createTable("AudioDSPParent");
+                audioDSPParentTable = audioDSPParentTableBuilder.handle();
+                audioDSPParentModelColumn = audioDSPParentTableBuilder.addColumn({
+                    .debugName = "model",
+                    .type = dini::ValueType::UInt64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = true,
+                });
+                audioDSPParentTrackColumn = audioDSPParentTableBuilder.addColumn({
+                    .debugName = "track",
+                    .type = dini::ValueType::UInt64,
+                    .index = dini::IndexKind::Unique,
+                    .nullable = true,
+                });
+
                 auto audioDSPListBuilder = schemaBuilder.createList("AudioDSP");
                 audioDSPList = audioDSPListBuilder.handle();
                 audioDSPParent = audioDSPListBuilder.setAssociation({
-                    .debugName = "track",
-                    .target = trackList,
+                    .debugName = "parent",
+                    .target = audioDSPParentTable,
                 });
                 audioDSPIdColumn = audioDSPListBuilder.addColumn({
                     .debugName = "id",
@@ -1919,6 +2064,18 @@ namespace dspx {
                     .defaultValue = false,
                     .nullable = false,
                 });
+                addBeforeApplyHook(audioDSPParentTableBuilder,
+                                   AudioDSPParentAssociationCheckHook(modelTable,
+                                                                      trackList,
+                                                                      audioDSPParentTable,
+                                                                      audioDSPParentModelColumn,
+                                                                      audioDSPParentTrackColumn));
+                addBeforeApplyHook(modelTableBuilder,
+                                   AudioDSPParentCascadeDeleteHook(audioDSPParentTable,
+                                                                   audioDSPParentModelColumn));
+                addBeforeApplyHook(trackListBuilder,
+                                   AudioDSPParentCascadeDeleteHook(audioDSPParentTable,
+                                                                   audioDSPParentTrackColumn));
             }
 
             void buildClipTable() {
@@ -2563,6 +2720,7 @@ namespace dspx {
             dini::TableHandle labelTable;
             dini::TableHandle mixableTable;
             dini::TableHandle modelTable;
+            dini::TableHandle audioDSPParentTable;
             dini::TableHandle noteVibratoPointRelationTable;
             dini::TableHandle noteTable;
             dini::TableHandle phonemeTable;
@@ -2650,6 +2808,8 @@ namespace dspx {
 
             dini::ColumnHandle mixableSourcesColumn;
             dini::ColumnHandle mixableMixedSingerColumn;
+            dini::ColumnHandle audioDSPParentModelColumn;
+            dini::ColumnHandle audioDSPParentTrackColumn;
 
             dini::ColumnHandle noteCentShiftColumn;
             dini::ColumnHandle noteKeyNumberColumn;
@@ -2758,6 +2918,10 @@ namespace dspx {
 
     dini::TableHandle Schema::modelTable() {
         return g.modelTable;
+    }
+
+    dini::TableHandle Schema::audioDSPParentTable() {
+        return g.audioDSPParentTable;
     }
 
     dini::TableHandle Schema::noteVibratoPointRelationTable() {
@@ -3094,6 +3258,14 @@ namespace dspx {
 
     dini::ColumnHandle Schema::mixableMixedSingerColumn() {
         return g.mixableMixedSingerColumn;
+    }
+
+    dini::ColumnHandle Schema::audioDSPParentModelColumn() {
+        return g.audioDSPParentModelColumn;
+    }
+
+    dini::ColumnHandle Schema::audioDSPParentTrackColumn() {
+        return g.audioDSPParentTrackColumn;
     }
 
     dini::ColumnHandle Schema::noteCentShiftColumn() {

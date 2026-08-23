@@ -23,6 +23,29 @@ namespace dspx {
 
     namespace {
 
+        AudioDSPList *audioDSPOwnerFromParentValue(ModelPrivate &model, const dini::Value &value) {
+            const auto parentHandle = orm::handleFromValue(value);
+            if (!parentHandle || !model.engine->contains(orm::idFromHandle(parentHandle))) {
+                return nullptr;
+            }
+            const auto parent = model.engine->read(orm::idFromHandle(parentHandle));
+            if (!orm::isContainer(parent, Schema::audioDSPParentTable())) {
+                return nullptr;
+            }
+            const auto modelHandle = orm::handleFromValue(
+                orm::snapshotValue(parent, Schema::audioDSPParentModelColumn()));
+            if (modelHandle) {
+                return modelHandle == model.modelHandle ? model.audioDSPs : nullptr;
+            }
+            const auto trackHandle = orm::handleFromValue(
+                orm::snapshotValue(parent, Schema::audioDSPParentTrackColumn()));
+            if (trackHandle) {
+                auto *track = model.ensure<Track>(trackHandle);
+                return track ? TrackPrivate::get(track)->audioDSPs : nullptr;
+            }
+            return nullptr;
+        }
+
         dini::Value valueFromAudioDSPData(const QJsonValue &data) {
             return dini::Value(stdc::JsonValue(conv::jsonFromQJsonValue(data)).toCbor());
         }
@@ -47,6 +70,16 @@ namespace dspx {
                      emit q->dataChanged(AudioDSPPrivate::get(q)->data);
                  }},
                 orm::boolFieldWithSignal<AudioDSP, AudioDSPPrivate>(Schema::audioDSPEnabledColumn(), &AudioDSPPrivate::enabled, &AudioDSP::enabledChanged),
+                {Schema::audioDSPParent().column(), [](AudioDSP *q, const dini::Value &value) {
+                     auto *model = ModelPrivate::get(q->model());
+                     auto *d = AudioDSPPrivate::get(q);
+                     auto *newList = audioDSPOwnerFromParentValue(*model, value);
+                     const bool changed = d->list != newList;
+                     d->list = newList;
+                     return changed;
+                 }, [](AudioDSP *q) {
+                     emit q->audioDSPListChanged(AudioDSPPrivate::get(q)->list);
+                 }},
             };
             return bindings;
         }
@@ -73,12 +106,12 @@ namespace dspx {
                 .sync = [](AudioDSP *item, const dini::ItemSnapshot &snapshot, bool notify) { syncAudioDSPColumns(item, snapshot, notify); },
                 .applyColumn = [](AudioDSP *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) { return applyAudioDSPColumn(item, column, value, notify); },
                 .ownerForAssociationValue = [](ModelPrivate &model, const dini::Value &value) {
-                    auto *track = model.ensure<Track>(orm::handleFromValue(value));
-                    return track ? TrackPrivate::get(track)->audioDSPs : nullptr;
+                    return audioDSPOwnerFromParentValue(model, value);
                 },
                 .ownerForSnapshot = [](ModelPrivate &model, const dini::ItemSnapshot &snapshot) {
-                    auto *track = model.ensure<Track>(orm::handleFromValue(orm::snapshotValue(snapshot, Schema::audioDSPParent().column())));
-                    return track ? TrackPrivate::get(track)->audioDSPs : nullptr;
+                    return snapshot.listAssociationValue.has_value()
+                               ? audioDSPOwnerFromParentValue(model, snapshot.listAssociationValue.value())
+                               : nullptr;
                 },
                 .setOwner = [](AudioDSP *item, AudioDSPList *owner, bool notify) { AudioDSPPrivate::get(item)->setAudioDSPList(owner, notify); },
                 .refreshOwner = [](AudioDSPList *owner, bool notify, bool itemsChanged) { AudioDSPListPrivate::get(owner)->refresh(notify, itemsChanged); },
