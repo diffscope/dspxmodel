@@ -1,5 +1,6 @@
 find_package(Qt6 REQUIRED COMPONENTS Core)
 find_package(benchmark CONFIG REQUIRED)
+find_package(opendspx CONFIG REQUIRED)
 
 file(GLOB_RECURSE _benchmark_src *.cpp)
 
@@ -19,6 +20,7 @@ target_link_libraries(dspxmodelBenchmarks PRIVATE
     Qt6::Core
     benchmark::benchmark
     benchmark::benchmark_main
+    opendspx::serializer
 )
 
 add_test(
