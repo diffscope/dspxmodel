@@ -2484,7 +2484,7 @@ namespace dspx {
             }
 
             void buildVibratoPointList() {
-                auto vibratoPointListBuilder = schemaBuilder.createList("VibratoPointList");
+                auto vibratoPointListBuilder = schemaBuilder.createList("VibratoPointList", dini::ListStorageMode::Dense);
                 vibratoPointList = vibratoPointListBuilder.handle();
                 vibratoPointParent = vibratoPointListBuilder.setAssociation({
                     .debugName = "noteVibratoPointRelation",
@@ -2633,7 +2633,7 @@ namespace dspx {
             }
 
             void buildFreeValueList() {
-                auto freeValueListBuilder = schemaBuilder.createList("FreeValueList");
+                auto freeValueListBuilder = schemaBuilder.createList("FreeValueList", dini::ListStorageMode::Dense);
                 freeValueList = freeValueListBuilder.handle();
                 freeValueParent = freeValueListBuilder.setAssociation({
                     .debugName = "freeValueRelation",
