@@ -19,16 +19,6 @@ namespace dspx {
 
     namespace {
 
-        dini::QuerySpec anchorNodeRelationQuery(Handle parameterHandle, AnchorNodeSequence::AnchorNodeRole role) {
-            return dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::parameterAnchorNodeRelationParent(), parameterHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::parameterAnchorNodeRelationRoleColumn()),
-                                     dini::Value(static_cast<std::int64_t>(role))),
-                }),
-            };
-        }
-
         dini::QuerySpec orderedAnchorNodeQuery(Handle relationHandle,
                                                dini::SortDirection direction = dini::SortDirection::Ascending) {
             return dini::QuerySpec {
@@ -76,11 +66,14 @@ namespace dspx {
 
     Handle AnchorNodeSequencePrivate::relationHandle() const {
         auto *modelData = ModelPrivate::get(parameter->model());
-        if (auto relation = orm::firstSnapshot(modelData->engine->query(Schema::parameterAnchorNodeRelationTable(),
-                                                                        anchorNodeRelationQuery(parameter->handle(), role)))) {
-            return orm::handleFromId(relation->id);
-        }
-        return {};
+        return orm::resolveRoleRelation(*modelData,
+                                        cachedRelationHandle,
+                                        cachedRelationEpoch,
+                                        Schema::parameterAnchorNodeRelationTable(),
+                                        Schema::parameterAnchorNodeRelationParent(),
+                                        parameter->handle(),
+                                        Schema::parameterAnchorNodeRelationRoleColumn(),
+                                        static_cast<std::int64_t>(role));
     }
 
     dini::Value AnchorNodeSequencePrivate::associationValue() const {

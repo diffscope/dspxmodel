@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_VIBRATOPOINTDATAARRAY_P_H
 #define DSPXMODEL_VIBRATOPOINTDATAARRAY_P_H
 
+#include <cstdint>
+
 #include <dspxmodelORM/VibratoPointDataArray.h>
 
 #include <dini/value.h>
@@ -28,6 +30,8 @@ namespace dspx {
         VibratoPointDataArray *q_ptr = nullptr;
         Note *note = nullptr;
         VibratoPointDataArray::VibratoPointRole role = VibratoPointDataArray::Amplitude;
+        mutable Handle cachedRelationHandle;
+        mutable std::uint64_t cachedRelationEpoch = 0;
         QList<QPointF> items;
         int size = 0;
         bool suppressNotifications = false;

@@ -24,16 +24,6 @@ namespace dspx {
 
     namespace {
 
-        dini::QuerySpec vibratoPointRelationQuery(Handle noteHandle, VibratoPointDataArray::VibratoPointRole role) {
-            return dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::noteVibratoPointRelationParent(), noteHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::noteVibratoPointRelationRoleColumn()),
-                                     dini::Value(static_cast<std::int64_t>(role))),
-                }),
-            };
-        }
-
         dini::QuerySpec vibratoPointQuery(Handle relationHandle) {
             return dini::QuerySpec {
                 .filter = orm::parentFilter(Schema::vibratoPointParent(), relationHandle),
@@ -281,11 +271,14 @@ namespace dspx {
 
     Handle VibratoPointDataArrayPrivate::relationHandle() const {
         auto *modelData = ModelPrivate::get(note->model());
-        if (auto relation = orm::firstSnapshot(modelData->engine->query(Schema::noteVibratoPointRelationTable(),
-                                                                        vibratoPointRelationQuery(note->handle(), role)))) {
-            return orm::handleFromId(relation->id);
-        }
-        return {};
+        return orm::resolveRoleRelation(*modelData,
+                                        cachedRelationHandle,
+                                        cachedRelationEpoch,
+                                        Schema::noteVibratoPointRelationTable(),
+                                        Schema::noteVibratoPointRelationParent(),
+                                        note->handle(),
+                                        Schema::noteVibratoPointRelationRoleColumn(),
+                                        static_cast<std::int64_t>(role));
     }
 
     dini::Value VibratoPointDataArrayPrivate::associationValue() const {

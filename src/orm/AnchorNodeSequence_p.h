@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_ANCHORNODESEQUENCE_P_H
 #define DSPXMODEL_ANCHORNODESEQUENCE_P_H
 
+#include <cstdint>
+
 #include <dspxmodelORM/AnchorNodeSequence.h>
 
 #include <dini/value.h>
@@ -25,6 +27,8 @@ namespace dspx {
         AnchorNodeSequence *q_ptr = nullptr;
         Parameter *parameter = nullptr;
         AnchorNodeSequence::AnchorNodeRole role = AnchorNodeSequence::Transform;
+        mutable Handle cachedRelationHandle;
+        mutable std::uint64_t cachedRelationEpoch = 0;
         int size = 0;
         AnchorNode *first = nullptr;
         AnchorNode *last = nullptr;

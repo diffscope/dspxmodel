@@ -29,6 +29,7 @@
 #include <dspxmodelORM/private/AudioDSP_p.h>
 #include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Clip_p.h>
+#include <dspxmodelORM/private/FreeValueDataArray_p.h>
 #include <dspxmodelORM/private/KeySignature_p.h>
 #include <dspxmodelORM/private/KeySignatureSequence_p.h>
 #include <dspxmodelORM/private/Label_p.h>
@@ -45,6 +46,7 @@
 #include <dspxmodelORM/private/TimeSignatureSequence_p.h>
 #include <dspxmodelORM/private/Track_p.h>
 #include <dspxmodelORM/private/TrackList_p.h>
+#include <dspxmodelORM/private/VibratoPointDataArray_p.h>
 
 namespace dspx {
 
@@ -142,6 +144,13 @@ namespace dspx {
             dini::DocumentEngine *engine,
             const dini::ChangeSet &changeSet) {
             const auto &operations = changeSet.operations();
+            // A single-operation event is published after that operation has
+            // been applied, so the engine already is its exact after-state.
+            // Per-operation reconstruction is only needed to preserve the
+            // intermediate states of multi-operation events.
+            if (operations.size() < 2) {
+                return {};
+            }
             QHash<dini::ItemId, bool> affectedItems;
             for (const auto &operation : operations) {
                 std::visit(orm::Overloaded {
@@ -242,6 +251,48 @@ namespace dspx {
             return it == model.eventSnapshotOverrides.cend() ? nullptr : &it.value();
         }
 
+        Handle resolveRoleRelation(ModelPrivate &model,
+                                   Handle &cachedRelation,
+                                   std::uint64_t &cachedRelationEpoch,
+                                   dini::TableHandle relationTable,
+                                   dini::RelationHandle parentRelation,
+                                   Handle parentHandle,
+                                   dini::ColumnHandle roleColumn,
+                                   std::int64_t role) {
+            if (cachedRelationEpoch == model.roleRelationCacheEpoch) {
+                return cachedRelation;
+            }
+
+            if (cachedRelation) {
+                const auto relationId = orm::idFromHandle(cachedRelation);
+                if (model.engine->contains(relationId)) {
+                    const auto relation = model.engine->read(relationId);
+                    const auto currentParent = orm::handleFromValue(orm::snapshotValue(relation, parentRelation.column()));
+                    const auto currentRole = orm::snapshotValue(relation, roleColumn);
+                    if (orm::isContainer(relation, relationTable) &&
+                        currentParent == parentHandle &&
+                        !currentRole.isNull() &&
+                        currentRole.asInt64() == role) {
+                        cachedRelationEpoch = model.roleRelationCacheEpoch;
+                        return cachedRelation;
+                    }
+                }
+                cachedRelation = {};
+            }
+
+            const auto query = dini::QuerySpec {
+                .filter = dini::FilterExpression::all({
+                    orm::parentFilter(parentRelation, parentHandle),
+                    orm::equalFilter(dini::FieldRef::column(roleColumn), dini::Value(role)),
+                }),
+            };
+            if (auto relation = orm::firstSnapshot(model.engine->query(relationTable, query))) {
+                cachedRelation = orm::handleFromId(relation->id);
+            }
+            cachedRelationEpoch = model.roleRelationCacheEpoch;
+            return cachedRelation;
+        }
+
         const TableBinding &modelTableBinding() {
             static const TableBinding binding {
                 .table = Schema::modelTable(),
@@ -327,6 +378,20 @@ namespace dspx {
             return;
         }
         const auto &operations = event.changeSet.operations();
+        if (!operations.empty()) {
+            const orm::ListBinding *binding = nullptr;
+            const auto &firstPayload = operations.front().payload();
+            if (const auto *change = std::get_if<dini::ListInsertedChange>(&firstPayload)) {
+                binding = listBinding(change->list.containerId());
+            } else if (const auto *change = std::get_if<dini::ListRemovedChange>(&firstPayload)) {
+                binding = listBinding(change->list.containerId());
+            } else if (const auto *change = std::get_if<dini::ListRotatedChange>(&firstPayload)) {
+                binding = listBinding(change->list.containerId());
+            }
+            if (binding && binding->batchOperations && binding->batchOperations(*this, event.changeSet)) {
+                return;
+            }
+        }
         const auto snapshotsAfterOperations = buildEventSnapshotsAfterOperations(engine, event.changeSet);
         std::vector<bool> handledDataArrayOperations;
         std::vector<std::function<void()>> dataArrayNotifications;
@@ -437,8 +502,20 @@ namespace dspx {
         return it == listBindings.end() ? nullptr : *it;
     }
 
+    void ModelPrivate::invalidateRoleRelationCaches(dini::ContainerId containerId) {
+        if (containerId != Schema::parameterFreeValueRelation().containerId() &&
+            containerId != Schema::parameterAnchorNodeRelationTable().containerId() &&
+            containerId != Schema::noteVibratoPointRelationTable().containerId()) {
+            return;
+        }
+        if (++roleRelationCacheEpoch == 0) {
+            roleRelationCacheEpoch = 1;
+        }
+    }
+
     void ModelPrivate::applyItemInserted(const dini::ItemInsertedChange &change) {
         if (change.item.containerKind == dini::ContainerKind::Table) {
+            invalidateRoleRelationCaches(change.item.containerId);
             if (const auto *binding = tableBinding(change.item.containerId); binding && binding->itemInserted) {
                 binding->itemInserted(*this, change);
             }
@@ -470,6 +547,7 @@ namespace dspx {
 
     void ModelPrivate::applyItemRemoved(const dini::ItemSnapshot &snapshot, bool cascade) {
         if (snapshot.containerKind == dini::ContainerKind::Table) {
+            invalidateRoleRelationCaches(snapshot.containerId);
             if (const auto *binding = tableBinding(snapshot.containerId); binding && binding->itemRemoved) {
                 binding->itemRemoved(*this, snapshot, cascade);
             }
@@ -495,6 +573,7 @@ namespace dspx {
     }
 
     void ModelPrivate::applyColumnUpdated(const dini::ColumnUpdatedChange &change) {
+        invalidateRoleRelationCaches(change.column.containerId());
         if (const auto *binding = tableBinding(change.column.containerId()); binding && binding->columnUpdated) {
             binding->columnUpdated(*this, change);
             return;
@@ -826,19 +905,34 @@ namespace dspx {
     Note *Model::createNote() {
         Q_D(Model);
         auto *transaction = d->requireTransaction();
-        const auto id = transaction->insert(Schema::noteTable(), {
-            dini::ColumnValue {.column = Schema::noteParent().column(), .value = dini::Value::null()},
-        });
+        d->creatingNoteRelations = true;
+        dini::ItemId id = 0;
+        try {
+            id = transaction->insert(Schema::noteTable(), {
+                dini::ColumnValue {.column = Schema::noteParent().column(), .value = dini::Value::null()},
+            });
+        } catch (...) {
+            d->creatingNoteRelations = false;
+            throw;
+        }
+        d->creatingNoteRelations = false;
         const auto noteValue = dini::Value(static_cast<std::uint64_t>(id));
-        transaction->insert(Schema::noteVibratoPointRelationTable(), {
+        const auto amplitudeRelationId = transaction->insert(Schema::noteVibratoPointRelationTable(), {
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationParent().column(), .value = noteValue},
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(VibratoPointDataArray::Amplitude))},
         });
-        transaction->insert(Schema::noteVibratoPointRelationTable(), {
+        const auto frequencyRelationId = transaction->insert(Schema::noteVibratoPointRelationTable(), {
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationParent().column(), .value = noteValue},
             dini::ColumnValue {.column = Schema::noteVibratoPointRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(VibratoPointDataArray::Frequency))},
         });
-        return d->ensure<Note>(orm::handleFromId(id));
+        auto *note = d->ensure<Note>(orm::handleFromId(id));
+        auto *amplitude = VibratoPointDataArrayPrivate::get(note->vibratoAmplitudeControlPoints());
+        amplitude->cachedRelationHandle = orm::handleFromId(amplitudeRelationId);
+        amplitude->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        auto *frequency = VibratoPointDataArrayPrivate::get(note->vibratoFrequencyControlPoints());
+        frequency->cachedRelationHandle = orm::handleFromId(frequencyRelationId);
+        frequency->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        return note;
     }
 
     Phoneme *Model::createPhoneme() {
@@ -864,26 +958,49 @@ namespace dspx {
     Parameter *Model::createParameter() {
         Q_D(Model);
         auto *transaction = d->requireTransaction();
-        const auto id = transaction->insert(Schema::parameterTable(), {
-            dini::ColumnValue {.column = Schema::parameterParent().column(), .value = dini::Value::null()},
-            dini::ColumnValue {.column = Schema::parameterKeyColumn(), .value = dini::Value::null()},
-        });
-        const auto parameterValue = dini::Value(static_cast<std::uint64_t>(id));
-        for (int role = FreeValueDataArray::Transform; role <= FreeValueDataArray::Edited; ++role) {
-            transaction->insert(Schema::parameterFreeValueRelation(), {
-                dini::ColumnValue {.column = Schema::freeValueRelationParent().column(), .value = parameterValue},
-                dini::ColumnValue {.column = Schema::freeValueRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(role))},
+        d->creatingParameterRelations = true;
+        dini::ItemId id = 0;
+        try {
+            id = transaction->insert(Schema::parameterTable(), {
+                dini::ColumnValue {.column = Schema::parameterParent().column(), .value = dini::Value::null()},
+                dini::ColumnValue {.column = Schema::parameterKeyColumn(), .value = dini::Value::null()},
             });
+        } catch (...) {
+            d->creatingParameterRelations = false;
+            throw;
         }
-        transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
+        d->creatingParameterRelations = false;
+        const auto parameterValue = dini::Value(static_cast<std::uint64_t>(id));
+        const auto freeTransformRelationId = transaction->insert(Schema::parameterFreeValueRelation(), {
+            dini::ColumnValue {.column = Schema::freeValueRelationParent().column(), .value = parameterValue},
+            dini::ColumnValue {.column = Schema::freeValueRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(FreeValueDataArray::Transform))},
+        });
+        const auto freeEditedRelationId = transaction->insert(Schema::parameterFreeValueRelation(), {
+            dini::ColumnValue {.column = Schema::freeValueRelationParent().column(), .value = parameterValue},
+            dini::ColumnValue {.column = Schema::freeValueRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(FreeValueDataArray::Edited))},
+        });
+        const auto anchorTransformRelationId = transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
             dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationParent().column(), .value = parameterValue},
             dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(AnchorNodeSequence::Transform))},
         });
-        transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
+        const auto anchorEditedRelationId = transaction->insert(Schema::parameterAnchorNodeRelationTable(), {
             dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationParent().column(), .value = parameterValue},
             dini::ColumnValue {.column = Schema::parameterAnchorNodeRelationRoleColumn(), .value = dini::Value(static_cast<std::int64_t>(AnchorNodeSequence::Edited))},
         });
-        return d->ensure<Parameter>(orm::handleFromId(id));
+        auto *parameter = d->ensure<Parameter>(orm::handleFromId(id));
+        auto *freeTransform = FreeValueDataArrayPrivate::get(parameter->freeTransform());
+        freeTransform->cachedRelationHandle = orm::handleFromId(freeTransformRelationId);
+        freeTransform->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        auto *freeEdited = FreeValueDataArrayPrivate::get(parameter->freeEdited());
+        freeEdited->cachedRelationHandle = orm::handleFromId(freeEditedRelationId);
+        freeEdited->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        auto *anchorTransform = AnchorNodeSequencePrivate::get(parameter->anchorTransform());
+        anchorTransform->cachedRelationHandle = orm::handleFromId(anchorTransformRelationId);
+        anchorTransform->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        auto *anchorEdited = AnchorNodeSequencePrivate::get(parameter->anchorEdited());
+        anchorEdited->cachedRelationHandle = orm::handleFromId(anchorEditedRelationId);
+        anchorEdited->cachedRelationEpoch = d->roleRelationCacheEpoch;
+        return parameter;
     }
 
     AnchorNode *Model::createAnchorNode() {

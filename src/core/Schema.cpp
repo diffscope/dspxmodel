@@ -1291,18 +1291,6 @@ namespace dspx {
                 return it == virtualItems.end() ? nullptr : &*it;
             }
 
-            bool containsItem(const std::vector<dini::ItemSnapshot> &items, dini::ItemId id) const {
-                return std::any_of(items.begin(), items.end(), [&](const auto &item) {
-                    return item.id == id;
-                });
-            }
-
-            void addAffectedItem(std::vector<dini::ItemSnapshot> &items, const dini::ItemSnapshot &item) const {
-                if (!containsItem(items, item.id)) {
-                    items.push_back(item);
-                }
-            }
-
             std::vector<dini::ItemSnapshot> queryOverlapCandidates(dini::TransactionContext &ctx,
                                                                    const dini::ItemSnapshot &probe,
                                                                    const std::vector<dini::ItemSnapshot> &virtualItems,
@@ -1354,53 +1342,37 @@ namespace dspx {
                 ctx.update(itemId, overlapCountColumn, value);
             }
 
-            std::int64_t countOverlaps(dini::TransactionContext &ctx,
-                                       const dini::ItemSnapshot &item,
-                                       const std::vector<dini::ItemSnapshot> &virtualItems,
-                                       const std::set<dini::ItemId> &excludedIds) const {
-                return static_cast<std::int64_t>(queryOverlapCandidates(ctx, item, virtualItems, excludedIds).size());
+            void adjustCount(dini::TransactionContext &ctx, dini::ItemId itemId, std::int64_t delta) const {
+                const auto item = ctx.engine().read(itemId);
+                const auto count = itemValue(item, overlapCountColumn).asInt64();
+                updateCount(ctx, itemId, count + delta);
             }
 
-            void collectAffectedItems(dini::TransactionContext &ctx,
-                                      const dini::ItemSnapshot &probe,
-                                      const std::vector<dini::ItemSnapshot> &virtualItems,
-                                      const std::set<dini::ItemId> &excludedIds,
-                                      std::vector<dini::ItemSnapshot> &affectedItems) const {
-                for (const auto &item : queryOverlapCandidates(ctx, probe, virtualItems, excludedIds)) {
-                    addAffectedItem(affectedItems, item);
+            std::set<dini::ItemId> candidateIds(const std::vector<dini::ItemSnapshot> &items) const {
+                std::set<dini::ItemId> result;
+                for (const auto &item : items) {
+                    result.insert(item.id);
                 }
-            }
-
-            void refreshItems(dini::TransactionContext &ctx,
-                              const std::vector<dini::ItemSnapshot> &affectedItems,
-                              const std::vector<dini::ItemSnapshot> &virtualItems,
-                              const std::set<dini::ItemId> &excludedIds) const {
-                for (const auto &affectedItem : affectedItems) {
-                    const auto *virtualItem = virtualItemById(virtualItems, affectedItem.id);
-                    if (!virtualItem && excludedIds.find(affectedItem.id) != excludedIds.end()) {
-                        continue;
-                    }
-                    const auto &item = virtualItem ? *virtualItem : affectedItem;
-                    updateCount(ctx, item.id, countOverlaps(ctx, item, virtualItems, excludedIds));
-                }
+                return result;
             }
 
             void refreshInsertedItem(dini::TransactionContext &ctx,
                                      const dini::ItemSnapshot &item,
                                      const std::set<dini::ItemId> &excludedIds) const {
                 const std::vector<dini::ItemSnapshot> virtualItems {item};
-                std::vector<dini::ItemSnapshot> affectedItems;
-                addAffectedItem(affectedItems, item);
-                collectAffectedItems(ctx, item, virtualItems, excludedIds, affectedItems);
-                refreshItems(ctx, affectedItems, virtualItems, excludedIds);
+                const auto overlappingItems = queryOverlapCandidates(ctx, item, virtualItems, excludedIds);
+                updateCount(ctx, item.id, static_cast<std::int64_t>(overlappingItems.size()));
+                for (const auto &overlappingItem : overlappingItems) {
+                    adjustCount(ctx, overlappingItem.id, 1);
+                }
             }
 
             void refreshRemovedItem(dini::TransactionContext &ctx,
                                     const dini::ItemSnapshot &item,
                                     const std::set<dini::ItemId> &excludedIds) const {
-                std::vector<dini::ItemSnapshot> affectedItems;
-                collectAffectedItems(ctx, item, {}, excludedIds, affectedItems);
-                refreshItems(ctx, affectedItems, {}, excludedIds);
+                for (const auto &overlappingItem : queryOverlapCandidates(ctx, item, {}, excludedIds)) {
+                    adjustCount(ctx, overlappingItem.id, -1);
+                }
             }
 
             void refreshUpdatedItem(dini::TransactionContext &ctx,
@@ -1409,11 +1381,19 @@ namespace dspx {
                 auto excludedIds = removedIds;
                 excludedIds.insert(change.oldItem.id);
                 const std::vector<dini::ItemSnapshot> virtualItems {change.newItem};
-                std::vector<dini::ItemSnapshot> affectedItems;
-                addAffectedItem(affectedItems, change.newItem);
-                collectAffectedItems(ctx, change.oldItem, {}, excludedIds, affectedItems);
-                collectAffectedItems(ctx, change.newItem, virtualItems, excludedIds, affectedItems);
-                refreshItems(ctx, affectedItems, virtualItems, excludedIds);
+                const auto oldOverlaps = candidateIds(queryOverlapCandidates(ctx, change.oldItem, {}, excludedIds));
+                const auto newOverlaps = candidateIds(queryOverlapCandidates(ctx, change.newItem, virtualItems, excludedIds));
+                updateCount(ctx, change.newItem.id, static_cast<std::int64_t>(newOverlaps.size()));
+                for (const auto itemId : oldOverlaps) {
+                    if (newOverlaps.find(itemId) == newOverlaps.end()) {
+                        adjustCount(ctx, itemId, -1);
+                    }
+                }
+                for (const auto itemId : newOverlaps) {
+                    if (oldOverlaps.find(itemId) == oldOverlaps.end()) {
+                        adjustCount(ctx, itemId, 1);
+                    }
+                }
             }
 
             dini::TableHandle table;

@@ -25,16 +25,6 @@ namespace dspx {
 
     namespace {
 
-        dini::QuerySpec freeValueRelationQuery(Handle parameterHandle, FreeValueDataArray::FreeValueRole role) {
-            return dini::QuerySpec {
-                .filter = dini::FilterExpression::all({
-                    orm::parentFilter(Schema::freeValueRelationParent(), parameterHandle),
-                    orm::equalFilter(dini::FieldRef::column(Schema::freeValueRelationRoleColumn()),
-                                     dini::Value(static_cast<std::int64_t>(role))),
-                }),
-            };
-        }
-
         dini::QuerySpec freeValueQuery(Handle relationHandle) {
             return dini::QuerySpec {
                 .filter = orm::parentFilter(Schema::freeValueParent(), relationHandle),
@@ -290,11 +280,14 @@ namespace dspx {
             return {};
         }
         auto *modelData = ModelPrivate::get(parameter->model());
-        if (auto relation = orm::firstSnapshot(modelData->engine->query(Schema::parameterFreeValueRelation(),
-                                                                        freeValueRelationQuery(parameter->handle(), role)))) {
-            return orm::handleFromId(relation->id);
-        }
-        return {};
+        return orm::resolveRoleRelation(*modelData,
+                                        cachedRelationHandle,
+                                        cachedRelationEpoch,
+                                        Schema::parameterFreeValueRelation(),
+                                        Schema::freeValueRelationParent(),
+                                        parameter->handle(),
+                                        Schema::freeValueRelationRoleColumn(),
+                                        static_cast<std::int64_t>(role));
     }
 
     dini::Value FreeValueDataArrayPrivate::associationValue() const {

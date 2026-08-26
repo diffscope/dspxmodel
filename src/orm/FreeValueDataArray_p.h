@@ -1,6 +1,8 @@
 #ifndef DSPXMODEL_FREEVALUEDATAARRAY_P_H
 #define DSPXMODEL_FREEVALUEDATAARRAY_P_H
 
+#include <cstdint>
+
 #include <dspxmodelORM/FreeValueDataArray.h>
 
 #include <dini/value.h>
@@ -28,6 +30,8 @@ namespace dspx {
         FreeValueDataArray *q_ptr = nullptr;
         Parameter *parameter = nullptr;
         FreeValueDataArray::FreeValueRole role = FreeValueDataArray::Original;
+        mutable Handle cachedRelationHandle;
+        mutable std::uint64_t cachedRelationEpoch = 0;
         QList<QVariant> items;
         int size = 0;
         bool suppressNotifications = false;

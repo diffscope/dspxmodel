@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -45,6 +47,14 @@ namespace dspx {
 
         dini::DocumentEngine *getModelEngine(ModelPrivate &model);
         const dini::ItemSnapshot *currentEventSnapshot(ModelPrivate &model, dini::ItemId itemId);
+        Handle resolveRoleRelation(ModelPrivate &model,
+                                   Handle &cachedRelation,
+                                   std::uint64_t &cachedRelationEpoch,
+                                   dini::TableHandle relationTable,
+                                   dini::RelationHandle parentRelation,
+                                   Handle parentHandle,
+                                   dini::ColumnHandle roleColumn,
+                                   std::int64_t role);
 
         struct OrderSpec {
             std::vector<dini::ColumnHandle> columns;
@@ -239,6 +249,7 @@ namespace dspx {
             std::function<void(ModelPrivate &, const dini::ColumnUpdatedChange &)> columnUpdated;
             std::function<void(ModelPrivate &, const dini::ComputedColumnUpdatedChange &)> computedColumnUpdated;
             std::function<void(ModelPrivate &, const dini::ListRotatedChange &)> listRotated;
+            std::function<bool(ModelPrivate &, const dini::ChangeSet &)> batchOperations;
         };
 
         enum class MoveSemantics {
@@ -322,6 +333,17 @@ namespace dspx {
                 }) != group.changes.end();
             };
             auto processColumnUpdates = [spec, containsColumn, groupForChange, applyValue, hasChangeForColumn](ModelPrivate &model, const std::vector<dini::ColumnUpdatedChange> &changes) {
+                if (changes.size() == 1 &&
+                    !containsColumn(spec.membershipColumns, changes.front().column) &&
+                    !containsColumn(spec.orderColumns, changes.front().column) &&
+                    spec.applyColumn) {
+                    const auto &change = changes.front();
+                    if (auto *item = spec.find(model, handleFromId(change.itemId))) {
+                        spec.applyColumn(item, change.column, change.newValue, true);
+                    }
+                    return;
+                }
+
                 std::vector<UpdateGroup> groups;
                 for (const auto &change : changes) {
                     const bool membership = containsColumn(spec.membershipColumns, change.column);
@@ -958,6 +980,39 @@ namespace dspx {
                     if (shouldNotify && spec.rotated) {
                         spec.rotated(owner, left, middle, right);
                     }
+                },
+                .batchOperations = [spec, suppressed](ModelPrivate &model, const dini::ChangeSet &changeSet) {
+                    const auto &operations = changeSet.operations();
+                    if (operations.empty()) {
+                        return false;
+                    }
+
+                    std::optional<dini::Value> associationValue;
+                    for (const auto &operation : operations) {
+                        const dini::Value *operationAssociation = nullptr;
+                        const auto &payload = operation.payload();
+                        if (const auto *change = std::get_if<dini::ListInsertedChange>(&payload);
+                            change && change->list == spec.list) {
+                            operationAssociation = &change->associationValue;
+                        } else if (const auto *change = std::get_if<dini::ListRemovedChange>(&payload);
+                                   change && change->list == spec.list) {
+                            operationAssociation = &change->associationValue;
+                        } else if (const auto *change = std::get_if<dini::ListRotatedChange>(&payload);
+                                   change && change->list == spec.list) {
+                            operationAssociation = &change->associationValue;
+                        } else {
+                            return false;
+                        }
+
+                        if (!associationValue) {
+                            associationValue = *operationAssociation;
+                        } else if (*associationValue != *operationAssociation) {
+                            return false;
+                        }
+                    }
+
+                    auto *owner = spec.ownerForAssociationValue(model, *associationValue);
+                    return suppressed(owner);
                 },
             };
         }

@@ -376,10 +376,12 @@ namespace dspx {
         d->anchorTransform = AnchorNodeSequencePrivate::create(this, AnchorNodeSequence::Transform);
         d->anchorEdited = AnchorNodeSequencePrivate::create(this, AnchorNodeSequence::Edited);
         FreeValueDataArrayPrivate::get(d->original)->refresh(false, false);
-        FreeValueDataArrayPrivate::get(d->freeTransform)->refresh(false, false);
-        FreeValueDataArrayPrivate::get(d->freeEdited)->refresh(false, false);
-        AnchorNodeSequencePrivate::get(d->anchorTransform)->refresh(false);
-        AnchorNodeSequencePrivate::get(d->anchorEdited)->refresh(false);
+        if (!ModelPrivate::get(model)->creatingParameterRelations) {
+            FreeValueDataArrayPrivate::get(d->freeTransform)->refresh(false, false);
+            FreeValueDataArrayPrivate::get(d->freeEdited)->refresh(false, false);
+            AnchorNodeSequencePrivate::get(d->anchorTransform)->refresh(false);
+            AnchorNodeSequencePrivate::get(d->anchorEdited)->refresh(false);
+        }
     }
 
     Parameter::~Parameter() = default;

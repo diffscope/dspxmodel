@@ -3,6 +3,7 @@
 
 #include <dspxmodelORM/Model.h>
 
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -75,6 +76,7 @@ namespace dspx {
 
         const orm::TableBinding *tableBinding(dini::ContainerId containerId) const;
         const orm::ListBinding *listBinding(dini::ContainerId containerId) const;
+        void invalidateRoleRelationCaches(dini::ContainerId containerId);
 
         template <typename T>
         QHash<Handle, T *> &objectMap() {
@@ -383,6 +385,9 @@ namespace dspx {
         Handle modelHandle;
         dini::Subscription subscription;
         bool destroying = false;
+        bool creatingNoteRelations = false;
+        bool creatingParameterRelations = false;
+        std::uint64_t roleRelationCacheEpoch = 1;
 
         LabelSequence *labels = nullptr;
         KeySignatureSequence *keySignatures = nullptr;
