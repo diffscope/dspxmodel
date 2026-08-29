@@ -12,6 +12,7 @@
 #include <QFileDevice>
 #include <QIODevice>
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -150,7 +151,7 @@ namespace dspx {
             }
         }
 
-        QByteArray readSnapshotPayload(QIODevice *device) {
+        dini::ByteArray readSnapshotPayload(QIODevice *device) {
             ensureReadableDevice(device, "snapshot device is not readable");
             verifyHeaderMagic(readExactly(device, magicSize, "incomplete document snapshot header"),
                               snapshotMagic,
@@ -158,7 +159,23 @@ namespace dspx {
             verifyHeaderVersion(readExactly(device, 4, "incomplete document snapshot version"),
                                 "unsupported document snapshot wrapper version");
             const auto payloadSize = readUInt64(readExactly(device, 8, "incomplete document snapshot length"));
-            return readExactly(device, payloadSize, "incomplete document snapshot payload");
+            if (payloadSize > static_cast<quint64>(std::numeric_limits<std::size_t>::max())) {
+                throw dini::RecoveryError("incomplete document snapshot payload");
+            }
+            dini::ByteArray result(static_cast<std::size_t>(payloadSize));
+            std::size_t offset = 0;
+            while (offset < result.size()) {
+                const auto remaining = result.size() - offset;
+                const auto chunkSize = static_cast<qint64>(std::min<std::size_t>(
+                    remaining,
+                    static_cast<std::size_t>(std::numeric_limits<qint64>::max())));
+                const auto count = device->read(reinterpret_cast<char *>(result.data() + offset), chunkSize);
+                if (count <= 0) {
+                    throw dini::RecoveryError("incomplete document snapshot payload");
+                }
+                offset += static_cast<std::size_t>(count);
+            }
+            return result;
         }
 
         void writeCommitLogHeader(QIODevice *device) {
@@ -340,7 +357,7 @@ namespace dspx {
 
     Document *Document::restore(QIODevice *snapshotDevice, QIODevice *commitLogDevice, RestoreOptions options, QObject *parent) {
         auto d = std::make_unique<DocumentPrivate>(DocumentPrivate::InitializationMode::EmptyForRestore);
-        d->engine->restoreSnapshot(bytesFromQByteArray(readSnapshotPayload(snapshotDevice)));
+        d->engine->restoreSnapshot(readSnapshotPayload(snapshotDevice));
         replayCommitLog(d->engine.get(), commitLogDevice, options);
 
         auto document = std::unique_ptr<Document>(new Document(d.release(), parent));

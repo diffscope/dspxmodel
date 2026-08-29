@@ -1,11 +1,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <random>
 #include <utility>
 #include <vector>
 
 #include <benchmark/benchmark.h>
+
+#include <QBuffer>
 
 #include <dini/engine.h>
 #include <dini/transaction.h>
@@ -458,6 +461,32 @@ void BM_SpliceFreeValueDataArray(benchmark::State &state) {
 }
 
 BENCHMARK(BM_SpliceFreeValueDataArray)->Apply(addFreeValueDataSizes);
+
+void BM_SpliceFreeValueDataArrayLoadSnapshot(benchmark::State &state) {
+    const auto dataSize = static_cast<int>(state.range(0));
+    const auto generatedSplice = generateFreeValueSplice(dataSize);
+    for (auto _ : state) {
+        state.PauseTiming();
+        Document document;
+        Model model(&document);
+        auto *array = createFreeValueDataArray(document, model, generatedSplice.initialValues);
+        spliceFreeValueDataArray(document, array, generatedSplice.index, dataSize * 2, generatedSplice.insertedValues);
+
+        QBuffer snapshot;
+        snapshot.open(QIODevice::ReadWrite);
+        document.writeSnapshot(&snapshot);
+        snapshot.seek(0);
+        state.ResumeTiming();
+
+        std::unique_ptr<Document> restoredDocument(Document::restore(&snapshot));
+
+        benchmark::DoNotOptimize(restoredDocument.get());
+        benchmark::ClobberMemory();
+    }
+    state.SetItemsProcessed(state.iterations() * dataSize);
+}
+
+BENCHMARK(BM_SpliceFreeValueDataArrayLoadSnapshot)->Apply(addFreeValueDataSizes);
 
 void BM_SpliceInternalFreeValueDataArray(benchmark::State &state) {
     const auto dataSize = static_cast<int>(state.range(0));
