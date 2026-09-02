@@ -14,7 +14,7 @@ export class SequenceIterable {
                 }
                 
                 const value = currentItem
-                currentItem = object.nextItem(currentItem)
+                currentItem = currentItem.nextItem
                 
                 return { 
                     value: value,
