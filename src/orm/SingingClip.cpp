@@ -22,7 +22,7 @@ namespace dspx {
     }
 
     SingingClip::SingingClip(Handle handle, Model *model) : Clip(handle, model), d_ptr(new SingingClipPrivate(this)) {
-        ClipPrivate::get(static_cast<Clip *>(this))->type = Clip::Singing;
+        ClipPrivate::get(static_cast<Clip *>(this))->kind = Clip::Singing;
         d_ptr->notes = NoteSequencePrivate::create(this);
         d_ptr->parameters = ParameterMapPrivate::create(this);
         NoteSequencePrivate::get(d_ptr->notes)->refresh(false);

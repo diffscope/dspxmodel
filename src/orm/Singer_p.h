@@ -22,7 +22,7 @@ namespace dspx {
         void setWorkspace(dini::ByteArray workspace);
 
         Singer *q_ptr = nullptr;
-        Singer::SingerType type = Singer::Single;
+        Singer::SingerKind kind = Singer::Single;
         QJsonValue extra;
         dini::ByteArray workspaceData;
         SingerList *singerList = nullptr;

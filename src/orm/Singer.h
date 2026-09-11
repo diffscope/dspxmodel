@@ -28,23 +28,23 @@ namespace dspx {
         QML_ELEMENT
         QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(Singer)
-        Q_PROPERTY(SingerType type READ type CONSTANT)
+        Q_PROPERTY(SingerKind kind READ kind CONSTANT)
         Q_PROPERTY(QJsonValue extra READ extra WRITE setExtra NOTIFY extraChanged)
         Q_PROPERTY(SingerList *singerList READ singerList NOTIFY singerListChanged)
     public:
         /**
-         * @brief Singer type.
+         * @brief Singer kind.
          */
-        enum SingerType {
+        enum SingerKind {
             Single,
             Mixed,
         };
-        Q_ENUM(SingerType)
+        Q_ENUM(SingerKind)
 
         /**
-         * @brief Gets type.
+         * @brief Gets kind.
          */
-        SingerType type() const;
+        SingerKind kind() const;
 
         /**
          * @brief Gets extra.
@@ -70,7 +70,7 @@ namespace dspx {
          * @brief Converts from OpenDSPX singer.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
-         * @pre singer must be valid and have the same type as this object.
+         * @pre singer must be valid and have the same kind as this object.
          */
         void fromOpenDSPX(const std::shared_ptr<opendspx::Singer> &singer);
 

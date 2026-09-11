@@ -247,9 +247,9 @@ namespace dspx {
 
     Singer::~Singer() = default;
 
-    Singer::SingerType Singer::type() const {
+    Singer::SingerKind Singer::kind() const {
         Q_D(const Singer);
-        return d->type;
+        return d->kind;
     }
 
     QJsonValue Singer::extra() const {
@@ -267,7 +267,7 @@ namespace dspx {
     }
 
     std::shared_ptr<opendspx::Singer> Singer::toOpenDSPX() const {
-        switch (type()) {
+        switch (kind()) {
             case Single:
                 if (auto *single = qobject_cast<const SingleSinger *>(this)) {
                     return std::make_shared<opendspx::SingleSinger>(single->toOpenDSPX());
@@ -318,7 +318,7 @@ namespace dspx {
     }
 
     SingleSinger::SingleSinger(Handle handle, Model *model) : Singer(handle, model), d_ptr(new SingleSingerPrivate(this)) {
-        SingerPrivate::get(static_cast<Singer *>(this))->type = Singer::Single;
+        SingerPrivate::get(static_cast<Singer *>(this))->kind = Singer::Single;
     }
 
     SingleSinger::~SingleSinger() = default;
@@ -351,7 +351,7 @@ namespace dspx {
 
     MixedSinger::MixedSinger(Handle handle, Model *model) : Singer(handle, model), d_ptr(new MixedSingerPrivate(this)) {
         auto *singerData = SingerPrivate::get(static_cast<Singer *>(this));
-        singerData->type = Singer::Mixed;
+        singerData->kind = Singer::Mixed;
         Q_D(MixedSinger);
         d->singers = SingerListPrivate::create(this);
         SingerListPrivate::get(d->singers)->refresh(false, false);

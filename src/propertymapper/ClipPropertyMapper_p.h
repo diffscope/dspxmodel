@@ -29,7 +29,7 @@ namespace dspx {
         ClipPropertyMapperPrivate,
         dspx::Clip,
         PropertyMetadata<dspx::Clip, &dspx::Clip::name, &dspx::Clip::setName, decltype(&dspx::Clip::nameChanged)>,
-        PropertyMetadata<dspx::Clip, &dspx::Clip::type, nullptr, std::nullptr_t>,
+        PropertyMetadata<dspx::Clip, &dspx::Clip::kind, nullptr, std::nullptr_t>,
         PropertyMetadata<dspx::Clip,
             [](const dspx::Clip *clip) { return clip->clipSequence() ? clip->clipSequence()->track() : nullptr; },
             [](dspx::Clip *clip, dspx::Track *track) { if (track && clip->clipSequence()) clip->clipSequence()->moveItem(clip, track->clips()); },
@@ -112,7 +112,7 @@ namespace dspx {
 
         enum {
             NameProperty = 0,
-            TypeProperty = 1,
+            KindProperty = 1,
             AssociatedTrackProperty = 2,
             MuteProperty = 3,
             GainProperty = 4,
@@ -129,8 +129,8 @@ namespace dspx {
             Q_Q(ClipPropertyMapper);
             if constexpr (i == NameProperty) {
                 q->nameChanged();
-            } else if constexpr (i == TypeProperty) {
-                q->typeChanged();
+            } else if constexpr (i == KindProperty) {
+                q->kindChanged();
             } else if constexpr (i == AssociatedTrackProperty) {
                 q->associatedTrackChanged();
             } else if constexpr (i == MuteProperty) {

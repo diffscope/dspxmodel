@@ -48,9 +48,9 @@ namespace dspx {
         d->setValue<ClipPropertyMapperPrivate::NameProperty>(name);
     }
 
-    QVariant ClipPropertyMapper::type() const {
+    QVariant ClipPropertyMapper::kind() const {
         Q_D(const ClipPropertyMapper);
-        return d->value<ClipPropertyMapperPrivate::TypeProperty>();
+        return d->value<ClipPropertyMapperPrivate::KindProperty>();
     }
 
     QVariant ClipPropertyMapper::associatedTrack() const {

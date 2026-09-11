@@ -115,7 +115,7 @@ ClipFixture createClipFixture(OrmTestContext &context) {
 
 void verifyClipMapper(ClipPropertyMapper &mapper, SingingClip *clip, Track *track) {
     QCOMPARE(mappedValue(mapper.name()).toString(), clip->name());
-    QCOMPARE(mappedAs<Clip::ClipType>(mapper.type()), Clip::Singing);
+    QCOMPARE(mappedAs<Clip::ClipKind>(mapper.kind()), Clip::Singing);
     QCOMPARE(mappedAs<Track *>(mapper.associatedTrack()), track);
     QCOMPARE(mappedValue(mapper.mute()).toBool(), clip->mute());
     QCOMPARE(mappedValue(mapper.gain()).toDouble(), clip->gain());

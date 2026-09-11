@@ -34,7 +34,7 @@ namespace dspx {
         Q_PROPERTY(int length READ length WRITE setLength NOTIFY lengthChanged)
         Q_PROPERTY(int clipStart READ clipStart WRITE setClipStart NOTIFY clipStartChanged)
         Q_PROPERTY(int clipLength READ clipLength WRITE setClipLength NOTIFY clipLengthChanged)
-        Q_PROPERTY(ClipType type READ type CONSTANT)
+        Q_PROPERTY(ClipKind kind READ kind CONSTANT)
         Q_PROPERTY(int start READ start NOTIFY startChanged)
         Q_PROPERTY(Clip *previousItem READ previousItem NOTIFY previousItemChanged)
         Q_PROPERTY(Clip *nextItem READ nextItem NOTIFY nextItemChanged)
@@ -42,13 +42,13 @@ namespace dspx {
         Q_PROPERTY(ClipSequence *clipSequence READ clipSequence NOTIFY clipSequenceChanged)
     public:
         /**
-         * @brief Clip type.
+         * @brief Clip kind.
          */
-        enum ClipType {
+        enum ClipKind {
             Audio,
             Singing,
         };
-        Q_ENUM(ClipType)
+        Q_ENUM(ClipKind)
 
         /**
          * @brief Gets name.
@@ -157,9 +157,9 @@ namespace dspx {
         void setClipLength(int clipLength);
 
         /**
-         * @brief Gets type.
+         * @brief Gets kind.
          */
-        ClipType type() const;
+        ClipKind kind() const;
 
         /**
          * @brief Gets start.

@@ -239,9 +239,9 @@ namespace dspx {
         ModelPrivate::get(model())->update(handle(), Schema::clipClipLengthColumn(), dini::Value(static_cast<std::int64_t>(clipLength)));
     }
 
-    Clip::ClipType Clip::type() const {
+    Clip::ClipKind Clip::kind() const {
         Q_D(const Clip);
-        return d->type;
+        return d->kind;
     }
 
     int Clip::start() const {
@@ -275,7 +275,7 @@ namespace dspx {
     }
 
     std::shared_ptr<opendspx::Clip> Clip::toOpenDSPX() const {
-        switch (type()) {
+        switch (kind()) {
             case Audio:
                 if (auto *audio = qobject_cast<const AudioClip *>(this)) {
                     return std::make_shared<opendspx::AudioClip>(audio->toOpenDSPX());

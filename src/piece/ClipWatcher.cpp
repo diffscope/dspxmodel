@@ -592,10 +592,10 @@ namespace dspx {
         }
         const auto encodeSinger = [&](const auto &self, Singer *singer) -> QJsonObject {
             QJsonObject object{
-                {QStringLiteral("type"), static_cast<int>(singer->type())},
+                {QStringLiteral("type"), static_cast<int>(singer->kind())},
                 {QStringLiteral("extra"), singer->extra()},
             };
-            if (singer->type() == Singer::Single) {
+            if (singer->kind() == Singer::Single) {
                 object.insert(QStringLiteral("id"), static_cast<SingleSinger *>(singer)->id());
             } else {
                 auto mixed = static_cast<MixedSinger *>(singer);
@@ -823,7 +823,7 @@ namespace dspx {
         }
         auto changed = [this] { sourcesDirty = true; };
         QObject::connect(singer, &Singer::extraChanged, watchContext, changed);
-        if (singer->type() == Singer::Single) {
+        if (singer->kind() == Singer::Single) {
             QObject::connect(static_cast<SingleSinger *>(singer), &SingleSinger::idChanged, watchContext, changed);
             return;
         }

@@ -20,7 +20,7 @@ namespace dspx {
      *
      * A selectable clip must belong to a ClipSequence whose track belongs to
      * SelectionModel::model()->tracks(). Clips from multiple ClipSequence objects
-     * may be selected at the same time. The model tracks the selected clip type
+     * may be selected at the same time. The model tracks the selected clip kind
      * counts and the set of ClipSequence objects that contain selected clips.
      *
      * currentItem() is independent from selectedItems(); it may be set to a valid

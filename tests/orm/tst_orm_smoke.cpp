@@ -360,14 +360,14 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(audioClip->clipStart(), 10);
         QCOMPARE(audioClip->clipLength(), 470);
         QCOMPARE(audioClip->start(), -10);
-        QCOMPARE(audioClip->type(), Clip::Audio);
+        QCOMPARE(audioClip->kind(), Clip::Audio);
         QVERIFY(audioClip->path() == path);
         QVERIFY(audioClip->clipSequence() != nullptr);
         (void) audioClip->previousItem();
         (void) audioClip->nextItem();
         (void) audioClip->overlapped();
 
-        QCOMPARE(singingClip1->type(), Clip::Singing);
+        QCOMPARE(singingClip1->kind(), Clip::Singing);
         QVERIFY(singingClip1->notes() != nullptr);
         QVERIFY(singingClip1->parameters() != nullptr);
 
@@ -677,11 +677,11 @@ void OrmSmokeTest::sourcesSingersAndDynamicMixing() {
         QVERIFY(mixedChildren->removeItem(1));
         QVERIFY(mixedChildren->insertItem(1, removedSinger));
 
-        QCOMPARE(single1->type(), Singer::Single);
+        QCOMPARE(single1->kind(), Singer::Single);
         QCOMPARE(single1->extra().toObject().value(QStringLiteral("style")).toString(), QStringLiteral("bright"));
         QCOMPARE(single1->id(), QStringLiteral("singer-a"));
         QVERIFY(single1->singerList() != nullptr);
-        QCOMPARE(mixed->type(), Singer::Mixed);
+        QCOMPARE(mixed->kind(), Singer::Mixed);
         QCOMPARE(mixed->ratio(), QList<double>({0.25, 0.25}));
         QVERIFY(mixed->singers() != nullptr);
 

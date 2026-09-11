@@ -20,7 +20,7 @@ namespace dspx {
         ClipSelectionModel *q_ptr;
         SelectionModel *selectionModel;
         QSet<Clip *> selectedItems;
-        QHash<Clip *, Clip::ClipType> selectedClipTypes;
+        QHash<Clip *, Clip::ClipKind> selectedClipKinds;
         int selectedSingingClipCount = 0;
         int selectedAudioClipCount = 0;
         Clip *currentItem = nullptr;

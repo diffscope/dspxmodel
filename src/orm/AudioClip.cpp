@@ -134,7 +134,7 @@ namespace dspx {
     }
 
     AudioClip::AudioClip(Handle handle, Model *model) : Clip(handle, model), d_ptr(new AudioClipPrivate(this)) {
-        ClipPrivate::get(static_cast<Clip *>(this))->type = Clip::Audio;
+        ClipPrivate::get(static_cast<Clip *>(this))->kind = Clip::Audio;
     }
 
     AudioClip::~AudioClip() = default;

@@ -19,7 +19,7 @@ namespace dspx {
 
         Q_PROPERTY(dspx::SelectionModel *selectionModel READ selectionModel WRITE setSelectionModel NOTIFY selectionModelChanged)
         Q_PROPERTY(QVariant name READ name WRITE setName NOTIFY nameChanged)
-        Q_PROPERTY(QVariant type READ type NOTIFY typeChanged)
+        Q_PROPERTY(QVariant kind READ kind NOTIFY kindChanged)
         Q_PROPERTY(QVariant associatedTrack READ associatedTrack WRITE setAssociatedTrack NOTIFY associatedTrackChanged)
         Q_PROPERTY(QVariant mute READ mute WRITE setMute NOTIFY muteChanged)
         Q_PROPERTY(QVariant gain READ gain WRITE setGain NOTIFY gainChanged)
@@ -39,7 +39,7 @@ namespace dspx {
         QVariant name() const;
         void setName(const QVariant &name);
 
-        QVariant type() const;
+        QVariant kind() const;
 
         QVariant associatedTrack() const;
         void setAssociatedTrack(const QVariant &associatedTrack);
@@ -71,7 +71,7 @@ namespace dspx {
     signals:
         void selectionModelChanged();
         void nameChanged();
-        void typeChanged();
+        void kindChanged();
         void associatedTrackChanged();
         void muteChanged();
         void gainChanged();

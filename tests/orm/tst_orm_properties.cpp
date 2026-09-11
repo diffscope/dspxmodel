@@ -243,14 +243,14 @@ void OrmPropertiesTest::parameterSourceSingerAndAnchorProperties() {
         context.verifyEntity(singleSinger);
         singleSinger->setExtra(QJsonObject {{"vendor", QStringLiteral("test")}});
         singleSinger->setId(QStringLiteral("single-1"));
-        QCOMPARE(singleSinger->type(), Singer::Single);
+        QCOMPARE(singleSinger->kind(), Singer::Single);
         QCOMPARE(singleSinger->extra().toObject().value(QStringLiteral("vendor")).toString(), QStringLiteral("test"));
         QCOMPARE(singleSinger->id(), QStringLiteral("single-1"));
 
         auto *mixedSinger = context.model.createMixedSinger();
         context.verifyEntity(mixedSinger);
         mixedSinger->setRatio(QList<double> {0.2, 0.3});
-        QCOMPARE(mixedSinger->type(), Singer::Mixed);
+        QCOMPARE(mixedSinger->kind(), Singer::Mixed);
         QCOMPARE(mixedSinger->ratio(), QList<double>({0.2, 0.3}));
         QVERIFY(mixedSinger->singers() != nullptr);
 

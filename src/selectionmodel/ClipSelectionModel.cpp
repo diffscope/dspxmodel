@@ -125,9 +125,9 @@ namespace dspx {
         }
         connectItem(item);
         selectedItems.insert(item);
-        const auto clipType = item->type();
-        selectedClipTypes[item] = clipType;
-        switch (clipType) {
+        const auto clipKind = item->kind();
+        selectedClipKinds[item] = clipKind;
+        switch (clipKind) {
             case Clip::Singing:
                 ++selectedSingingClipCount;
                 break;
@@ -153,9 +153,9 @@ namespace dspx {
         if (!selectedItems.remove(item)) {
             return false;
         }
-        if (selectedClipTypes.contains(item)) {
-            const auto clipType = selectedClipTypes.value(item);
-            switch (clipType) {
+        if (selectedClipKinds.contains(item)) {
+            const auto clipKind = selectedClipKinds.value(item);
+            switch (clipKind) {
                 case Clip::Singing:
                     --selectedSingingClipCount;
                     break;
@@ -164,7 +164,7 @@ namespace dspx {
                     break;
             }
         }
-        selectedClipTypes.remove(item);
+        selectedClipKinds.remove(item);
         
         auto clipSeq = clipToClipSequence.value(item);
         if (clipSeq) {

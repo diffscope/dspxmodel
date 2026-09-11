@@ -30,7 +30,7 @@ namespace dspx {
         int length = 0;
         int clipStart = 0;
         int clipLength = 0;
-        Clip::ClipType type = Clip::Audio;
+        Clip::ClipKind kind = Clip::Audio;
         Handle previousHandle;
         Handle nextHandle;
         mutable Clip *previous = nullptr;
