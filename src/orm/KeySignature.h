@@ -117,14 +117,14 @@ namespace dspx {
         /**
          * @brief Converts to OpenDSPX key signature.
          */
-        stdc::JsonValue toOpenDSPX() const;
+        stdc::json::Value toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX key signature.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre keySignature must be valid.
          */
-        void fromOpenDSPX(const stdc::JsonValue &keySignature);
+        void fromOpenDSPX(const stdc::json::Value &keySignature);
 
     signals:
         void positionChanged(int position);

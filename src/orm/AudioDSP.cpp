@@ -47,14 +47,14 @@ namespace dspx {
         }
 
         dini::Value valueFromAudioDSPData(const QJsonValue &data) {
-            return dini::Value(stdc::JsonValue(conv::jsonFromQJsonValue(data)).toCbor());
+            return dini::Value(stdc::json::Value(conv::jsonFromQJsonValue(data)).toCbor());
         }
 
         QJsonValue audioDSPDataFromValue(const dini::Value &value) {
             if (value.isNull()) {
                 return {};
             }
-            return conv::qJsonValueFromJson(stdc::JsonValue::fromCbor(value.asBinary()));
+            return conv::qJsonValueFromJson(stdc::json::Value::fromCbor(value.asBinary()));
         }
 
         const std::vector<orm::ColumnBinding<AudioDSP>> &audioDSPColumnBindings() {
@@ -179,15 +179,15 @@ namespace dspx {
         return d->list;
     }
 
-    stdc::JsonObject AudioDSP::toOpenDSPX() const {
-        stdc::JsonObject result;
+    stdc::json::Object AudioDSP::toOpenDSPX() const {
+        stdc::json::Object result;
         result["id"] = id().toStdString();
         result["data"] = conv::jsonFromQJsonValue(data());
         result["enabled"] = enabled();
         return result;
     }
 
-    void AudioDSP::fromOpenDSPX(const stdc::JsonObject &audioDSP) {
+    void AudioDSP::fromOpenDSPX(const stdc::json::Object &audioDSP) {
         if (auto it = audioDSP.find("id"); it != audioDSP.end() && it->second.isString()) {
             setId(QString::fromStdString(it->second.toString()));
         }

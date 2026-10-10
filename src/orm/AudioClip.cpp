@@ -46,7 +46,7 @@ namespace dspx {
             return QString::fromLatin1(serializeVariant(value).toBase64());
         }
 
-        QVariant decodeUserData(const stdc::JsonValue &value) {
+        QVariant decodeUserData(const stdc::json::Value &value) {
             if (!value.isString()) {
                 return {};
             }
@@ -155,7 +155,7 @@ namespace dspx {
         const auto audioPathInfo = path();
         target.path = QDir(audioPathInfo.absoluteDir).filePath(audioPathInfo.fileName).toStdString();
         auto &diffscope = target.workspace["diffscope"];
-        stdc::JsonObject audio;
+        stdc::json::Object audio;
         audio["relativeDir"] = audioPathInfo.relativeDir.toStdString();
         audio["formatEntryClassName"] = audioPathInfo.formatEntryClassName.toStdString();
         audio["userData"] = encodeUserData(audioPathInfo.userData).toStdString();

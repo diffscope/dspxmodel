@@ -205,8 +205,8 @@ namespace dspx {
         return AudioDSPListPrivate::get(this)->track;
     }
 
-    stdc::JsonArray AudioDSPList::toOpenDSPX() const {
-        stdc::JsonArray result;
+    stdc::json::Array AudioDSPList::toOpenDSPX() const {
+        stdc::json::Array result;
         result.reserve(static_cast<std::size_t>(size()));
         for (auto audioDSP : items()) {
             result.push_back(audioDSP->toOpenDSPX());
@@ -214,7 +214,7 @@ namespace dspx {
         return result;
     }
 
-    void AudioDSPList::fromOpenDSPX(const stdc::JsonArray &audioDSPs) {
+    void AudioDSPList::fromOpenDSPX(const stdc::json::Array &audioDSPs) {
         Q_D(AudioDSPList);
         while (size() > 0) {
             removeItem(size() - 1);

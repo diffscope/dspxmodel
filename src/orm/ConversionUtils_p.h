@@ -47,7 +47,7 @@ namespace dspx::conv {
         inline constexpr bool is_string_like_v = is_string_like<T>::value;
 
         template <typename T>
-        bool optionalChainStep(const stdc::JsonValue *&cur, T &&arg) {
+        bool optionalChainStep(const stdc::json::Value *&cur, T &&arg) {
             using D = std::decay_t<T>;
 
             if constexpr (is_string_like_v<T>) {
@@ -148,28 +148,28 @@ namespace dspx::conv {
     }
 
     template <typename ...Args>
-    stdc::JsonValue optionalChain(const stdc::JsonValue &json, Args &&...args) {
-        const stdc::JsonValue *cur = &json;
+    stdc::json::Value optionalChain(const stdc::json::Value &json, Args &&...args) {
+        const stdc::json::Value *cur = &json;
         bool ok = (detail::optionalChainStep(cur, std::forward<Args>(args)) && ...);
         if (!ok || !cur) {
-            return stdc::JsonValue();
+            return stdc::json::Value();
         }
         return *cur;
     }
 
-    inline dini::ByteArray serializeWorkspace(const stdc::JsonObject &workspace) {
-        return stdc::JsonValue(workspace).toCbor();
+    inline dini::ByteArray serializeWorkspace(const stdc::json::Object &workspace) {
+        return stdc::json::Value(workspace).toCbor();
     }
 
-    inline stdc::JsonObject workspaceToJson(const opendspx::Workspace &workspace) {
-        stdc::JsonObject result;
+    inline stdc::json::Object workspaceToJson(const opendspx::Workspace &workspace) {
+        stdc::json::Object result;
         for (const auto &[key, value] : workspace) {
             result[key] = value;
         }
         return result;
     }
 
-    inline opendspx::Workspace workspaceFromJson(const stdc::JsonObject &workspace) {
+    inline opendspx::Workspace workspaceFromJson(const stdc::json::Object &workspace) {
         opendspx::Workspace result;
         for (const auto &[key, value] : workspace) {
             result[key] = value.toObject();
@@ -185,18 +185,18 @@ namespace dspx::conv {
         if (workspace.empty()) {
             return {};
         }
-        auto result = stdc::JsonValue::fromCbor(workspace);
+        auto result = stdc::json::Value::fromCbor(workspace);
         if (result.isObject()) {
             return workspaceFromJson(result.toObject());
         }
         return {};
     }
 
-    inline stdc::JsonValue jsonFromQJsonValue(const QJsonValue &value) {
+    inline stdc::json::Value jsonFromQJsonValue(const QJsonValue &value) {
         switch (value.type()) {
             case QJsonValue::Null:
             case QJsonValue::Undefined:
-                return stdc::JsonValue();
+                return stdc::json::Value();
             case QJsonValue::Bool:
                 return value.toBool();
             case QJsonValue::Double:
@@ -204,7 +204,7 @@ namespace dspx::conv {
             case QJsonValue::String:
                 return value.toString().toStdString();
             case QJsonValue::Array: {
-                stdc::JsonArray result;
+                stdc::json::Array result;
                 const auto array = value.toArray();
                 for (const auto &item : array) {
                     result.push_back(jsonFromQJsonValue(item));
@@ -212,7 +212,7 @@ namespace dspx::conv {
                 return result;
             }
             case QJsonValue::Object: {
-                stdc::JsonObject result;
+                stdc::json::Object result;
                 const auto object = value.toObject();
                 for (auto it = object.begin(); it != object.end(); ++it) {
                     result[it.key().toStdString()] = jsonFromQJsonValue(it.value());
@@ -220,29 +220,29 @@ namespace dspx::conv {
                 return result;
             }
         }
-        return stdc::JsonValue();
+        return stdc::json::Value();
     }
 
-    inline QJsonValue qJsonValueFromJson(const stdc::JsonValue &json) {
+    inline QJsonValue qJsonValueFromJson(const stdc::json::Value &json) {
         switch (json.type()) {
-            case stdc::JsonValue::Null:
-            case stdc::JsonValue::Binary:
+            case stdc::json::Type::Null:
+            case stdc::json::Type::Binary:
                 return {};
-            case stdc::JsonValue::Bool:
+            case stdc::json::Type::Bool:
                 return json.toBool();
-            case stdc::JsonValue::Double:
-            case stdc::JsonValue::Int:
+            case stdc::json::Type::Double:
+            case stdc::json::Type::Int:
                 return json.toDouble();
-            case stdc::JsonValue::String:
+            case stdc::json::Type::String:
                 return QString::fromStdString(json.toString());
-            case stdc::JsonValue::Array: {
+            case stdc::json::Type::Array: {
                 QJsonArray result;
                 for (const auto &item : json.toArray()) {
                     result.append(qJsonValueFromJson(item));
                 }
                 return result;
             }
-            case stdc::JsonValue::Object: {
+            case stdc::json::Type::Object: {
                 QJsonObject result;
                 for (const auto &[key, value] : json.toObject()) {
                     result.insert(QString::fromStdString(key), qJsonValueFromJson(value));

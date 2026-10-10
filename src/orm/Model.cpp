@@ -790,12 +790,12 @@ namespace dspx {
         };
         target.content.workspace = conv::deserializeWorkspace(d->workspace());
         auto &diffscope = target.content.workspace["diffscope"];
-        stdc::JsonObject loop;
+        stdc::json::Object loop;
         loop["enabled"] = loopEnabled();
         loop["start"] = loopStart();
         loop["length"] = loopLength();
         diffscope["loop"] = std::move(loop);
-        stdc::JsonObject master;
+        stdc::json::Object master;
         master["multiChannelOutput"] = multiChannelOutput();
         diffscope["master"] = std::move(master);
         diffscope["keySignatures"] = keySignatures()->toOpenDSPX();

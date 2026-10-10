@@ -145,15 +145,15 @@ namespace dspx {
         return KeySignatureSequencePrivate::get(this)->model;
     }
 
-    stdc::JsonValue KeySignatureSequence::toOpenDSPX() const {
-        stdc::JsonArray result;
+    stdc::json::Value KeySignatureSequence::toOpenDSPX() const {
+        stdc::json::Array result;
         for (auto keySignature = firstItem(); keySignature; keySignature = keySignature->nextItem()) {
             result.push_back(keySignature->toOpenDSPX());
         }
         return result;
     }
 
-    void KeySignatureSequence::fromOpenDSPX(const stdc::JsonValue &keySignatures) {
+    void KeySignatureSequence::fromOpenDSPX(const stdc::json::Value &keySignatures) {
         while (size() > 0) {
             removeItem(firstItem());
         }

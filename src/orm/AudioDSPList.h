@@ -84,14 +84,14 @@ namespace dspx {
         /**
          * @brief Converts to OpenDSPX audio DSP array.
          */
-        stdc::JsonArray toOpenDSPX() const;
+        stdc::json::Array toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX audio DSP array.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre The owner model has an active transaction.
          * @pre audioDSPs must be valid.
          */
-        void fromOpenDSPX(const stdc::JsonArray &audioDSPs);
+        void fromOpenDSPX(const stdc::json::Array &audioDSPs);
 
     signals:
         void sizeChanged(int size);

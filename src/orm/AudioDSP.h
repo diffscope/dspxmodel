@@ -70,14 +70,14 @@ namespace dspx {
         /**
          * @brief Converts to OpenDSPX audio DSP.
          */
-        stdc::JsonObject toOpenDSPX() const;
+        stdc::json::Object toOpenDSPX() const;
         /**
          * @brief Converts from OpenDSPX audio DSP.
          * @note Typically, this method SHOULD only be called on a newly created object.
          * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
          * @pre audioDSP must be valid.
          */
-        void fromOpenDSPX(const stdc::JsonObject &audioDSP);
+        void fromOpenDSPX(const stdc::json::Object &audioDSP);
 
     signals:
         void idChanged(const QString &id);

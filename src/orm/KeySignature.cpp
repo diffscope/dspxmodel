@@ -174,8 +174,8 @@ namespace dspx {
         return d->sequence;
     }
 
-    stdc::JsonValue KeySignature::toOpenDSPX() const {
-        stdc::JsonObject result;
+    stdc::json::Value KeySignature::toOpenDSPX() const {
+        stdc::json::Object result;
         result["pos"] = position();
         result["mode"] = mode();
         result["tonality"] = tonality();
@@ -183,7 +183,7 @@ namespace dspx {
         return result;
     }
 
-    void KeySignature::fromOpenDSPX(const stdc::JsonValue &keySignature) {
+    void KeySignature::fromOpenDSPX(const stdc::json::Value &keySignature) {
         if (auto v = conv::optionalChain(keySignature, "pos"); v.isInt() && v.toInt() >= 0) {
             setPosition(static_cast<int>(v.toInt()));
         }
