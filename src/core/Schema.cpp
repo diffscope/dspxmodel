@@ -81,7 +81,7 @@ namespace dspx {
 
         dini::ItemSnapshot querySingle(dini::TransactionContext &ctx, const dini::TableHandle &table, quint64 id, const char *message) {
             auto result = ctx.engine().query(table, {
-                .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, id))
+                .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, dini::Value(static_cast<std::uint64_t>(id))))
             }).toVector();
             if (result.size() != 1) {
                 throw dini::ConstraintError(message);
@@ -91,7 +91,7 @@ namespace dspx {
 
         dini::ItemSnapshot querySingle(dini::TransactionContext &ctx, const dini::ListHandle &list, quint64 id, const char *message) {
             auto result = ctx.engine().query(list, {
-                .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, id))
+                .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, dini::Value(static_cast<std::uint64_t>(id))))
             }).toVector();
             if (result.size() != 1) {
                 throw dini::ConstraintError(message);
@@ -133,7 +133,7 @@ namespace dspx {
         private:
             void queryAndCheck(dini::TransactionContext &ctx, quint64 id) const {
                 auto result = ctx.engine().query(parentTable, {
-                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, id))
+                    .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::id(), dini::ComparisonOperator::Equal, dini::Value(static_cast<std::uint64_t>(id))))
                 }).toVector();
                 Q_ASSERT(result.size() == 1);
                 const auto &item = result.front();
@@ -415,7 +415,7 @@ namespace dspx {
                 auto result = ctx.engine().query(audioDSPParentTable, {
                     .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::column(virtualParentColumn),
                                                                   dini::ComparisonOperator::Equal,
-                                                                  parentId))
+                                                                  dini::Value(static_cast<std::uint64_t>(parentId))))
                 }).toVector();
                 for (const auto &parent : result) {
                     ctx.remove(parent.id);
@@ -696,7 +696,7 @@ namespace dspx {
                 auto result = ctx.engine().query(mixableTable, {
                     .filter = dini::FilterExpression(dini::Filter(dini::FieldRef::column(virtualParentColumn),
                                                                   dini::ComparisonOperator::Equal,
-                                                                  parentId))
+                                                                  dini::Value(static_cast<std::uint64_t>(parentId))))
                 }).toVector();
                 for (const auto &mixable : result) {
                     if (skipMixableId.has_value() && mixable.id == skipMixableId.value()) {
