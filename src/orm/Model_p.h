@@ -430,7 +430,7 @@ namespace dspx {
         bool mute = false;
         bool loopEnabled = false;
         int loopStart = 0;
-        int loopLength = 1;
+        int loopLength = 1920;
         dini::ByteArray workspaceData;
     };
 

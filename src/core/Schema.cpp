@@ -1728,7 +1728,7 @@ namespace dspx {
                 modelLoopLengthColumn = modelTableBuilder.addColumn({
                     .debugName = "loopLength",
                     .type = dini::ValueType::Int64,
-                    .defaultValue = INT64_C(1),
+                    .defaultValue = INT64_C(1920),
                     .nullable = false,
                     .check = [](const dini::Value &value) { const auto v = value.asInt64(); return v > 0; }
                 });
