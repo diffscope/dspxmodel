@@ -3,7 +3,7 @@ project(dspxmodelSelectionModel
     LANGUAGES CXX
 )
 
-qm_import(Qml)
+qm_import(QtQml)
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
