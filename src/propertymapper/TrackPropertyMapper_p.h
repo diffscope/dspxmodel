@@ -32,7 +32,6 @@ namespace dspx {
         PropertyMetadata<dspx::Track, &dspx::Track::height, &dspx::Track::setHeight, decltype(&dspx::Track::heightChanged)>,
         PropertyMetadata<dspx::Track, &dspx::Track::mute, &dspx::Track::setMute, decltype(&dspx::Track::muteChanged)>,
         PropertyMetadata<dspx::Track, &dspx::Track::solo, &dspx::Track::setSolo, decltype(&dspx::Track::soloChanged)>,
-        PropertyMetadata<dspx::Track, &dspx::Track::record, &dspx::Track::setRecord, decltype(&dspx::Track::recordChanged)>,
         PropertyMetadata<dspx::Track, &dspx::Track::gain, &dspx::Track::setGain, decltype(&dspx::Track::gainChanged)>,
         PropertyMetadata<dspx::Track, &dspx::Track::pan, &dspx::Track::setPan, decltype(&dspx::Track::panChanged)>
     > {
@@ -44,7 +43,6 @@ namespace dspx {
             {&dspx::Track::heightChanged},
             {&dspx::Track::muteChanged},
             {&dspx::Track::soloChanged},
-            {&dspx::Track::recordChanged},
             {&dspx::Track::gainChanged},
             {&dspx::Track::panChanged}
         ) {}
@@ -105,9 +103,8 @@ namespace dspx {
             HeightProperty = 2,
             MuteProperty = 3,
             SoloProperty = 4,
-            RecordProperty = 5,
-            GainProperty = 6,
-            PanProperty = 7
+            GainProperty = 5,
+            PanProperty = 6
         };
 
         template<int i>
@@ -123,8 +120,6 @@ namespace dspx {
                 q->muteChanged();
             } else if constexpr (i == SoloProperty) {
                 q->soloChanged();
-            } else if constexpr (i == RecordProperty) {
-                q->recordChanged();
             } else if constexpr (i == GainProperty) {
                 q->gainChanged();
             } else if constexpr (i == PanProperty) {

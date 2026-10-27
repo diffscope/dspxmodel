@@ -34,7 +34,6 @@ namespace dspx {
         Q_PROPERTY(double pan READ pan WRITE setPan NOTIFY panChanged)
         Q_PROPERTY(bool mute READ mute WRITE setMute NOTIFY muteChanged)
         Q_PROPERTY(bool solo READ solo WRITE setSolo NOTIFY soloChanged)
-        Q_PROPERTY(bool record READ record WRITE setRecord NOTIFY recordChanged)
         Q_PROPERTY(ClipSequence *clips READ clips CONSTANT)
         Q_PROPERTY(AudioDSPList *audioDSPs READ audioDSPs CONSTANT)
         Q_PROPERTY(TrackList *trackList READ trackList NOTIFY trackListChanged)
@@ -121,17 +120,6 @@ namespace dspx {
         void setSolo(bool solo);
 
         /**
-         * @brief Gets record.
-         */
-        bool record() const;
-        /**
-         * @brief Sets record.
-         * @pre model()->document()->transaction() != nullptr && model()->document()->transaction()->state() == dini::TransactionState::Active.
-         * @post record() == record.
-         */
-        void setRecord(bool record);
-
-        /**
          * @brief Gets clips.
          * @post clips() != nullptr.
          */
@@ -168,7 +156,6 @@ namespace dspx {
         void panChanged(double pan);
         void muteChanged(bool mute);
         void soloChanged(bool solo);
-        void recordChanged(bool record);
         void trackListChanged(TrackList *trackList);
 
     private:

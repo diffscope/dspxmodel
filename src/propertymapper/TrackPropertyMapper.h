@@ -23,7 +23,6 @@ namespace dspx {
         Q_PROPERTY(QVariant height READ height WRITE setHeight NOTIFY heightChanged)
         Q_PROPERTY(QVariant mute READ mute WRITE setMute NOTIFY muteChanged)
         Q_PROPERTY(QVariant solo READ solo WRITE setSolo NOTIFY soloChanged)
-        Q_PROPERTY(QVariant record READ record WRITE setRecord NOTIFY recordChanged)
         Q_PROPERTY(QVariant gain READ gain WRITE setGain NOTIFY gainChanged)
         Q_PROPERTY(QVariant pan READ pan WRITE setPan NOTIFY panChanged)
 
@@ -49,9 +48,6 @@ namespace dspx {
         QVariant solo() const;
         void setSolo(const QVariant &solo);
 
-        QVariant record() const;
-        void setRecord(const QVariant &record);
-
         QVariant gain() const;
         void setGain(const QVariant &gain);
 
@@ -65,7 +61,6 @@ namespace dspx {
         void heightChanged();
         void muteChanged();
         void soloChanged();
-        void recordChanged();
         void gainChanged();
         void panChanged();
 

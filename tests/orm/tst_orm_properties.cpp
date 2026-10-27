@@ -116,7 +116,6 @@ void OrmPropertiesTest::trackClipNoteAndPhonemeProperties() {
         track->setPan(-0.4);
         track->setMute(false);
         track->setSolo(true);
-        track->setRecord(false);
         QCOMPARE(track->colorId(), 3);
         QCOMPARE(track->height(), 72.0);
         QCOMPARE(track->name(), QStringLiteral("Harmony"));
@@ -124,7 +123,6 @@ void OrmPropertiesTest::trackClipNoteAndPhonemeProperties() {
         QCOMPARE(track->pan(), -0.4);
         QCOMPARE(track->mute(), false);
         QCOMPARE(track->solo(), true);
-        QCOMPARE(track->record(), false);
 
         auto *audioClip = context.model.createAudioClip();
         context.verifyEntity(audioClip);

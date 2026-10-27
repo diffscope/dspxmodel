@@ -89,16 +89,6 @@ namespace dspx {
         d->setValue<TrackPropertyMapperPrivate::SoloProperty>(solo);
     }
 
-    QVariant TrackPropertyMapper::record() const {
-        Q_D(const TrackPropertyMapper);
-        return d->value<TrackPropertyMapperPrivate::RecordProperty>();
-    }
-
-    void TrackPropertyMapper::setRecord(const QVariant &record) {
-        Q_D(TrackPropertyMapper);
-        d->setValue<TrackPropertyMapperPrivate::RecordProperty>(record);
-    }
-
     QVariant TrackPropertyMapper::gain() const {
         Q_D(const TrackPropertyMapper);
         return d->value<TrackPropertyMapperPrivate::GainProperty>();

@@ -177,7 +177,6 @@ namespace dspx {
         static dini::ColumnHandle trackPanColumn();
         static dini::ColumnHandle trackMuteColumn();
         static dini::ColumnHandle trackSoloColumn();
-        static dini::ColumnHandle trackRecordColumn();
         static dini::ColumnHandle trackAudioClipCountColumn();
         static dini::ColumnHandle trackSingingClipCountColumn();
         static dini::ColumnHandle trackWorkspaceColumn();

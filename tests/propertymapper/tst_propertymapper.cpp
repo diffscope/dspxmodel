@@ -81,7 +81,6 @@ ClipFixture createClipFixture(OrmTestContext &context) {
         fixture.track->setHeight(80.0);
         fixture.track->setMute(false);
         fixture.track->setSolo(true);
-        fixture.track->setRecord(false);
         fixture.track->setGain(0.8);
         fixture.track->setPan(-0.25);
 
@@ -132,7 +131,6 @@ void verifyTrackMapper(TrackPropertyMapper &mapper, Track *track) {
     QCOMPARE(mappedValue(mapper.height()).toDouble(), track->height());
     QCOMPARE(mappedValue(mapper.mute()).toBool(), track->mute());
     QCOMPARE(mappedValue(mapper.solo()).toBool(), track->solo());
-    QCOMPARE(mappedValue(mapper.record()).toBool(), track->record());
     QCOMPARE(mappedValue(mapper.gain()).toDouble(), track->gain());
     QCOMPARE(mappedValue(mapper.pan()).toDouble(), track->pan());
 }

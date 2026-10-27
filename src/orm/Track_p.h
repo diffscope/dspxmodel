@@ -31,7 +31,6 @@ namespace dspx {
         double pan = 0.0;
         bool mute = false;
         bool solo = false;
-        bool record = false;
         dini::ByteArray workspaceData;
         TrackList *trackList = nullptr;
     };

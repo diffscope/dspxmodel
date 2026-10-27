@@ -261,7 +261,6 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         track1->setPan(0.1);
         track1->setMute(false);
         track1->setSolo(true);
-        track1->setRecord(true);
 
         auto *tracks = model.tracks();
         QCOMPARE(tracks->model(), &model);
@@ -284,7 +283,6 @@ void OrmSmokeTest::trackClipNoteAndPhonemeGraph() {
         QCOMPARE(track1->pan(), 0.1);
         QCOMPARE(track1->mute(), false);
         QCOMPARE(track1->solo(), true);
-        QCOMPARE(track1->record(), true);
         QVERIFY(track1->clips() != nullptr);
         QVERIFY(track1->trackList() != nullptr);
 

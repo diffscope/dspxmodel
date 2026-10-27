@@ -32,7 +32,6 @@ namespace dspx {
                 orm::doubleFieldWithSignal<Track, TrackPrivate>(Schema::trackPanColumn(), &TrackPrivate::pan, &Track::panChanged),
                 orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackMuteColumn(), &TrackPrivate::mute, &Track::muteChanged),
                 orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackSoloColumn(), &TrackPrivate::solo, &Track::soloChanged),
-                orm::boolFieldWithSignal<Track, TrackPrivate>(Schema::trackRecordColumn(), &TrackPrivate::record, &Track::recordChanged),
                 orm::binaryField<Track, TrackPrivate>(Schema::trackWorkspaceColumn(), &TrackPrivate::workspaceData, nullptr),
                 {Schema::trackParent().column(), [](Track *q, const dini::Value &value) {
                      auto *model = ModelPrivate::get(q->model());
@@ -146,15 +145,6 @@ namespace dspx {
         ModelPrivate::get(model())->update(handle(), Schema::trackSoloColumn(), dini::Value(solo));
     }
 
-    bool Track::record() const {
-        Q_D(const Track);
-        return d->record;
-    }
-
-    void Track::setRecord(bool record) {
-        ModelPrivate::get(model())->update(handle(), Schema::trackRecordColumn(), dini::Value(record));
-    }
-
     ClipSequence *Track::clips() const {
         Q_D(const Track);
         return d->clips;
@@ -185,7 +175,6 @@ namespace dspx {
         auto &diffscope = target.workspace["diffscope"];
         diffscope["colorId"] = colorId();
         diffscope["height"] = height();
-        diffscope["record"] = record();
         diffscope["audioDSP"] = d->audioDSPs->toOpenDSPX();
         OpenDSPXConversion::convertTrackToOpenDSPX(this, target);
         return target;
@@ -207,9 +196,6 @@ namespace dspx {
             }
             if (auto v = conv::optionalChain(workspace, "height"); v.isNumber()) {
                 setHeight(v.toDouble());
-            }
-            if (auto v = conv::optionalChain(workspace, "record"); v.isBool()) {
-                setRecord(v.toBool());
             }
             if (auto v = conv::optionalChain(workspace, "audioDSP"); v.isArray()) {
                 d->audioDSPs->fromOpenDSPX(v.toArray());

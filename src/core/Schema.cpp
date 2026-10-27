@@ -1971,12 +1971,6 @@ namespace dspx {
                     .defaultValue = false,
                     .nullable = false,
                 });
-                trackRecordColumn = trackListBuilder.addColumn({
-                    .debugName = "record",
-                    .type = dini::ValueType::Bool,
-                    .defaultValue = false,
-                    .nullable = false,
-                });
                 trackAudioClipCountColumn = trackListBuilder.addColumn({
                     .debugName = "audioClipCount",
                     .type = dini::ValueType::Int64,
@@ -2853,7 +2847,6 @@ namespace dspx {
             dini::ColumnHandle trackPanColumn;
             dini::ColumnHandle trackMuteColumn;
             dini::ColumnHandle trackSoloColumn;
-            dini::ColumnHandle trackRecordColumn;
             dini::ColumnHandle trackAudioClipCountColumn;
             dini::ColumnHandle trackSingingClipCountColumn;
             dini::ColumnHandle trackWorkspaceColumn;
@@ -3434,10 +3427,6 @@ namespace dspx {
 
     dini::ColumnHandle Schema::trackSoloColumn() {
         return g.trackSoloColumn;
-    }
-
-    dini::ColumnHandle Schema::trackRecordColumn() {
-        return g.trackRecordColumn;
     }
 
     dini::ColumnHandle Schema::trackAudioClipCountColumn() {
