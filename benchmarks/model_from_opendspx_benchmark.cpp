@@ -40,7 +40,7 @@ void BM_ModelFromOpenDspx(benchmark::State &state) {
             document.setTransaction(&transaction);
 
             state.ResumeTiming();
-            model.fromOpenDspx(openDspxModel);
+            model.fromOpenDSPX(openDspxModel);
             state.PauseTiming();
 
             benchmark::DoNotOptimize(model.tracks()->size());

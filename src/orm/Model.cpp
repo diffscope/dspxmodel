@@ -805,7 +805,7 @@ namespace dspx {
 
     }
 
-    void Model::fromOpenDspx(const opendspx::Model &model) {
+    void Model::fromOpenDSPX(const opendspx::Model &model) {
         Q_D(Model);
         d->setWorkspace(conv::serializeWorkspace(model.content.workspace));
         setProjectAuthor(QString::fromStdString(model.content.global.author));

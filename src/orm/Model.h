@@ -238,7 +238,7 @@ namespace dspx {
          * @pre document()->transaction() != nullptr && document()->transaction()->state() == dini::TransactionState::Active.
          * @pre model must be valid.
          */
-        void fromOpenDspx(const opendspx::Model &model);
+        void fromOpenDSPX(const opendspx::Model &model);
 
         /**
          * @brief Creates label.
