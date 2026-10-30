@@ -54,8 +54,10 @@ namespace dspx {
         const auto view = modelData->engine->query(Schema::clipTable(), orderedClipQuery(track->handle()));
         const auto newSize = static_cast<int>(view.count());
         const auto trackId = orm::idFromHandle(track->handle());
-        const auto newAudioClipCount = static_cast<int>(modelData->engine->read(trackId, Schema::trackAudioClipCountColumn()).asInt64());
-        const auto newSingingClipCount = static_cast<int>(modelData->engine->read(trackId, Schema::trackSingingClipCountColumn()).asInt64());
+        // Child removal notifications can follow removal of the owning track in the same change set.
+        const bool trackExists = modelData->engine->contains(trackId);
+        const auto newAudioClipCount = trackExists ? static_cast<int>(modelData->engine->read(trackId, Schema::trackAudioClipCountColumn()).asInt64()) : 0;
+        const auto newSingingClipCount = trackExists ? static_cast<int>(modelData->engine->read(trackId, Schema::trackSingingClipCountColumn()).asInt64()) : 0;
         Clip *newFirst = nullptr;
         Clip *newLast = nullptr;
         if (auto firstSnapshot = orm::firstSnapshot(view)) {

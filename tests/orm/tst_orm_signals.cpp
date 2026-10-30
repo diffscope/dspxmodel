@@ -37,6 +37,8 @@ private slots:
     void noteSequenceSignals();
     void clipSequenceCountSignalsAndStorageUpdates();
     void clipSequenceCountsSurviveUndoRedoCascadeAndRestore();
+    void clipSequenceCountsSurviveTrackInsertionUndoRedo();
+    void clipSequenceCountsResetOnTrackInsertionRollback();
     void undoInsertedNoteDoesNotReadRemovedItem();
     void undoDataArraySpliceEmitsSingleSignal();
 };
@@ -453,6 +455,77 @@ void OrmSignalsTest::clipSequenceCountsSurviveUndoRedoCascadeAndRestore() {
     QCOMPARE(replayedTrack->clips()->size(), 3);
     QCOMPARE(replayedTrack->clips()->audioClipCount(), 1);
     QCOMPARE(replayedTrack->clips()->singingClipCount(), 2);
+}
+
+void OrmSignalsTest::clipSequenceCountsSurviveTrackInsertionUndoRedo() {
+    OrmTestContext context;
+    Track *track = nullptr;
+
+    context.withTransaction([&] {
+        track = context.model.createTrack();
+        QVERIFY(context.model.tracks()->insertItem(0, track));
+        QVERIFY(track->clips()->insertItem(context.model.createAudioClip()));
+        QVERIFY(track->clips()->insertItem(context.model.createSingingClip()));
+    });
+
+    auto *clips = track->clips();
+    QCOMPARE(clips->size(), 2);
+    QCOMPARE(clips->audioClipCount(), 1);
+    QCOMPARE(clips->singingClipCount(), 1);
+    QSignalSpy audioSpy(clips, &ClipSequence::audioClipCountChanged);
+    QSignalSpy singingSpy(clips, &ClipSequence::singingClipCountChanged);
+    QVERIFY(audioSpy.isValid());
+    QVERIFY(singingSpy.isValid());
+
+    context.document.engine()->undo();
+    QCOMPARE(context.model.tracks()->size(), 0);
+    QCOMPARE(clips->size(), 0);
+    QCOMPARE(clips->audioClipCount(), 0);
+    QCOMPARE(clips->singingClipCount(), 0);
+    QVERIFY(clips->firstItem() == nullptr);
+    QVERIFY(clips->lastItem() == nullptr);
+    QCOMPARE(audioSpy.count(), 1);
+    QCOMPARE(audioSpy.at(0).at(0).toInt(), 0);
+    QCOMPARE(singingSpy.count(), 1);
+    QCOMPARE(singingSpy.at(0).at(0).toInt(), 0);
+
+    context.document.engine()->redo();
+    QCOMPARE(context.model.tracks()->size(), 1);
+    auto *restoredClips = context.model.tracks()->item(0)->clips();
+    QCOMPARE(restoredClips->size(), 2);
+    QCOMPARE(restoredClips->audioClipCount(), 1);
+    QCOMPARE(restoredClips->singingClipCount(), 1);
+    QVERIFY(restoredClips->firstItem() != nullptr);
+    QVERIFY(restoredClips->lastItem() != nullptr);
+
+    context.document.engine()->undo();
+    QCOMPARE(context.model.tracks()->size(), 0);
+    QCOMPARE(restoredClips->size(), 0);
+    QCOMPARE(restoredClips->audioClipCount(), 0);
+    QCOMPARE(restoredClips->singingClipCount(), 0);
+}
+
+void OrmSignalsTest::clipSequenceCountsResetOnTrackInsertionRollback() {
+    OrmTestContext context;
+    auto transaction = context.document.engine()->beginTransaction();
+    context.document.setTransaction(&transaction);
+    auto *track = context.model.createTrack();
+    QVERIFY(context.model.tracks()->insertItem(0, track));
+    auto *clips = track->clips();
+    QVERIFY(clips->insertItem(context.model.createAudioClip()));
+    QVERIFY(clips->insertItem(context.model.createSingingClip()));
+    QCOMPARE(clips->size(), 2);
+    QCOMPARE(clips->audioClipCount(), 1);
+    QCOMPARE(clips->singingClipCount(), 1);
+
+    transaction.rollback();
+    context.document.setTransaction(nullptr);
+    QCOMPARE(context.model.tracks()->size(), 0);
+    QCOMPARE(clips->size(), 0);
+    QCOMPARE(clips->audioClipCount(), 0);
+    QCOMPARE(clips->singingClipCount(), 0);
+    QVERIFY(clips->firstItem() == nullptr);
+    QVERIFY(clips->lastItem() == nullptr);
 }
 
 void OrmSignalsTest::undoInsertedNoteDoesNotReadRemovedItem() {
