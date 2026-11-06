@@ -1,7 +1,13 @@
 #include "SelectionModel.h"
 #include "SelectionModel_p.h"
 
-#include <dspxmodelORM/Model.h>
+#include <algorithm>
+#include <utility>
+
+#include <QPointer>
+#include <QScopeGuard>
+#include <QScopedValueRollback>
+
 #include <dspxmodelORM/AnchorNode.h>
 #include <dspxmodelORM/AnchorNodeSequence.h>
 #include <dspxmodelORM/Clip.h>
@@ -9,18 +15,21 @@
 #include <dspxmodelORM/DynamicMixingAnchorSequence.h>
 #include <dspxmodelORM/KeySignature.h>
 #include <dspxmodelORM/Label.h>
+#include <dspxmodelORM/Model.h>
 #include <dspxmodelORM/Note.h>
+#include <dspxmodelORM/NoteSequence.h>
+#include <dspxmodelORM/SingingClip.h>
 #include <dspxmodelORM/Tempo.h>
 #include <dspxmodelORM/Track.h>
-#include <dspxmodelORM/NoteSequence.h>
-#include "AnchorNodeSelectionModel_p.h"
-#include "ClipSelectionModel_p.h"
-#include "DynamicMixingAnchorSelectionModel_p.h"
-#include "KeySignatureSelectionModel_p.h"
-#include "LabelSelectionModel_p.h"
-#include "NoteSelectionModel_p.h"
-#include "TempoSelectionModel_p.h"
-#include "TrackSelectionModel_p.h"
+#include <dspxmodelSelectionModel/private/AnchorNodeSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/ClipSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/DynamicMixingAnchorSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/FreeParameterSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/KeySignatureSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/LabelSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/NoteSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/TempoSelectionModel_p.h>
+#include <dspxmodelSelectionModel/private/TrackSelectionModel_p.h>
 
 namespace dspx {
 
@@ -29,6 +38,17 @@ namespace dspx {
         QObject::connect(itemSelectionModel, &T::currentItemChanged, selectionModel, &SelectionModel::currentItemChanged);
         QObject::connect(itemSelectionModel, &T::selectedCountChanged, selectionModel, &SelectionModel::selectedCountChanged);
         QObject::connect(itemSelectionModel, &T::itemSelected, selectionModel, &SelectionModel::itemSelected);
+    }
+
+    void SelectionModelPrivate::updateHasSelection() {
+        if (applyingSelectionCommand) {
+            return;
+        }
+        const bool hasSelection = q_ptr->hasSelection();
+        if (reportedHasSelection != hasSelection) {
+            reportedHasSelection = hasSelection;
+            Q_EMIT q_ptr->hasSelectionChanged();
+        }
     }
 
     SelectionModel::SelectionModel(Model *model, QObject *parent) : QObject(parent), d_ptr(new SelectionModelPrivate) {
@@ -41,6 +61,7 @@ namespace dspx {
         connectSignals(d->clipSelectionModel, this);
         d->dynamicMixingAnchorSelectionModel = new DynamicMixingAnchorSelectionModel(this);
         connectSignals(d->dynamicMixingAnchorSelectionModel, this);
+        d->freeParameterSelectionModel = new FreeParameterSelectionModel(this);
         d->keySignatureSelectionModel = new KeySignatureSelectionModel(this);
         connectSignals(d->keySignatureSelectionModel, this);
         d->labelSelectionModel = new LabelSelectionModel(this);
@@ -51,6 +72,7 @@ namespace dspx {
         connectSignals(d->tempoSelectionModel, this);
         d->trackSelectionModel = new TrackSelectionModel(this);
         connectSignals(d->trackSelectionModel, this);
+        connect(this, &SelectionModel::selectedCountChanged, this, [d] { d->updateHasSelection(); });
     }
 
     SelectionModel::~SelectionModel() = default;
@@ -78,6 +100,11 @@ namespace dspx {
     DynamicMixingAnchorSelectionModel *SelectionModel::dynamicMixingAnchorSelectionModel() const {
         Q_D(const SelectionModel);
         return d->dynamicMixingAnchorSelectionModel;
+    }
+
+    FreeParameterSelectionModel *SelectionModel::freeParameterSelectionModel() const {
+        Q_D(const SelectionModel);
+        return d->freeParameterSelectionModel;
     }
 
     KeySignatureSelectionModel *SelectionModel::keySignatureSelectionModel() const {
@@ -150,6 +177,14 @@ namespace dspx {
         }
     }
 
+    bool SelectionModel::hasSelection() const {
+        Q_D(const SelectionModel);
+        if (d->selectionType == ST_FreeParameter) {
+            return d->freeParameterSelectionModel->hasSelection();
+        }
+        return selectedCount() > 0;
+    }
+
     bool SelectionModel::isItemSelected(QObject *item) const {
         Q_D(const SelectionModel);
         switch (d->selectionType) {
@@ -193,50 +228,74 @@ namespace dspx {
         return ST_None;
     }
 
+    void SelectionModel::clearItemSelection() {
+        Q_D(SelectionModel);
+        switch (d->selectionType) {
+            case ST_AnchorNode:
+                d->anchorNodeSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
+                break;
+            case ST_Clip:
+                d->clipSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
+                break;
+            case ST_DynamicMixingAnchor:
+                d->dynamicMixingAnchorSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
+                break;
+            case ST_KeySignature:
+                d->keySignatureSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
+                break;
+            case ST_Label:
+                d->labelSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
+                break;
+            case ST_Note:
+                d->noteSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
+                break;
+            case ST_Tempo:
+                d->tempoSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
+                break;
+            case ST_Track:
+                d->trackSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
+                break;
+            default:
+                break;
+        }
+    }
+
     void SelectionModel::select(QObject *item, SelectionCommand command, SelectionType emptySelectionType, QObject *containerItemHint) {
         Q_D(SelectionModel);
         auto targetSelectionType = selectionTypeFromItem(item);
         if (!item && targetSelectionType == ST_None) {
             targetSelectionType = emptySelectionType;
         }
+        if (targetSelectionType == ST_FreeParameter) {
+            if (command & ClearPreviousSelection) {
+                setFreeParameterRange(0, 0);
+            }
+            return;
+        }
+
+        const auto notifyHasSelection = qScopeGuard([d] { d->updateHasSelection(); });
+        const QScopedValueRollback commandGuard(d->applyingSelectionCommand, true);
         auto *oldCurrentItem = currentItem();
         bool currentItemChangedEmitted = false;
         const auto currentItemChangedConnection = QObject::connect(this, &SelectionModel::currentItemChanged, this, [&currentItemChangedEmitted]() {
             currentItemChangedEmitted = true;
         });
 
+        auto *freeSelection = d->freeParameterSelectionModel->d_func();
+        const bool clearingFreeParameter = d->selectionType == ST_FreeParameter;
+        const auto previousFreeSelection = freeSelection->state;
         if (targetSelectionType != d->selectionType) {
-            switch (d->selectionType) {
-                case ST_AnchorNode:
-                    d->anchorNodeSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
-                    break;
-                case ST_Clip:
-                    d->clipSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
-                    break;
-                case ST_DynamicMixingAnchor:
-                    d->dynamicMixingAnchorSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
-                    break;
-                case ST_KeySignature:
-                    d->keySignatureSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
-                    break;
-                case ST_Label:
-                    d->labelSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
-                    break;
-                case ST_Note:
-                    d->noteSelectionModel->d_func()->select(nullptr, ClearPreviousSelection, nullptr);
-                    break;
-                case ST_Tempo:
-                    d->tempoSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
-                    break;
-                case ST_Track:
-                    d->trackSelectionModel->d_func()->select(nullptr, ClearPreviousSelection);
-                    break;
-                default:
-                    break;
+            auto *previousItemSelectionModel = currentItemSelectionModel();
+            if (clearingFreeParameter) {
+                freeSelection->setContext(nullptr, {}, FreeValueDataArray::Edited);
+            } else {
+                clearItemSelection();
             }
             d->selectionType = targetSelectionType;
             Q_EMIT selectionTypeChanged();
-            Q_EMIT currentItemSelectionModelChanged();
+            if (previousItemSelectionModel != currentItemSelectionModel()) {
+                Q_EMIT currentItemSelectionModelChanged();
+            }
         }
 
         switch (targetSelectionType) {
@@ -275,6 +334,70 @@ namespace dspx {
         QObject::disconnect(currentItemChangedConnection);
         if (!currentItemChangedEmitted && oldCurrentItem != currentItem()) {
             Q_EMIT currentItemChanged();
+        }
+        if (clearingFreeParameter) {
+            freeSelection->notifyChanges(previousFreeSelection);
+        }
+    }
+
+    bool SelectionModel::setFreeParameterContext(SingingClip *clip, const QString &parameterId, FreeValueDataArray::FreeValueRole role) {
+        Q_D(SelectionModel);
+        auto *freeSelection = d->freeParameterSelectionModel->d_func();
+        if (parameterId.isEmpty() || (role != FreeValueDataArray::Edited && role != FreeValueDataArray::Transform) ||
+            !freeSelection->attachedTrack(clip)) {
+            return false;
+        }
+
+        const auto notifyHasSelection = qScopeGuard([d] { d->updateHasSelection(); });
+        const QScopedValueRollback commandGuard(d->applyingSelectionCommand, true);
+        const bool typeChanged = d->selectionType != ST_FreeParameter;
+        auto *previousItemSelectionModel = currentItemSelectionModel();
+        const auto previousFreeSelection = freeSelection->state;
+        QObject *previousCurrentItem = nullptr;
+        if (typeChanged) {
+            const QPointer<SingingClip> target(clip);
+            clearItemSelection();
+            if (!freeSelection->attachedTrack(target)) {
+                return false;
+            }
+            previousCurrentItem = currentItem();
+            d->selectionType = ST_FreeParameter;
+        }
+        freeSelection->setContext(clip, parameterId, role);
+        if (typeChanged) {
+            Q_EMIT selectionTypeChanged();
+            if (previousItemSelectionModel) {
+                Q_EMIT currentItemSelectionModelChanged();
+            }
+            if (previousCurrentItem) {
+                Q_EMIT currentItemChanged();
+            }
+        }
+        freeSelection->notifyChanges(previousFreeSelection);
+        return true;
+    }
+
+    void SelectionModel::setFreeParameterRange(int start, int end) {
+        Q_D(SelectionModel);
+        if (d->selectionType != ST_FreeParameter) {
+            return;
+        }
+        start = std::max(0, start);
+        end = std::max(0, end);
+        if (start > end) {
+            std::swap(start, end);
+        }
+        auto *freeSelection = d->freeParameterSelectionModel->d_func();
+        const auto previous = freeSelection->state;
+        freeSelection->state.start = start;
+        freeSelection->state.end = end;
+        freeSelection->notifyChanges(previous);
+        d->updateHasSelection();
+    }
+
+    void SelectionModel::clearFreeParameterContext() {
+        if (selectionType() == ST_FreeParameter) {
+            select(nullptr, ClearPreviousSelection);
         }
     }
 

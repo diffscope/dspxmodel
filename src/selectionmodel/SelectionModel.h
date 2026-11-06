@@ -3,17 +3,21 @@
 
 #include <QObject>
 #include <QScopedPointer>
+#include <QString>
 #include <qqmlintegration.h>
 
+#include <dspxmodelORM/FreeValueDataArray.h>
 #include <dspxmodelSelectionModel/DSPXModelSelectionModelGlobal.h>
 
 namespace dspx {
 
     class Model;
+    class SingingClip;
 
     class AnchorNodeSelectionModel;
     class ClipSelectionModel;
     class DynamicMixingAnchorSelectionModel;
+    class FreeParameterSelectionModel;
     class KeySignatureSelectionModel;
     class LabelSelectionModel;
     class NoteSelectionModel;
@@ -22,30 +26,31 @@ namespace dspx {
     class SelectionModelPrivate;
 
     /**
-     * @brief Coordinates selection across model item types.
+     * @brief Coordinates item and free parameter range selections.
      *
-     * SelectionModel owns one typed selection model per supported item type and
-     * exposes the active one through selectionType(), currentItemSelectionModel(),
-     * currentItem(), and selectedCount(). At most one item type is active at a
-     * time; selecting an item of another type clears the previously active typed
-     * selection.
+     * SelectionModel owns one model per selection type. At most one type is
+     * active at a time. Changing the type clears the previous selection and
+     * releases any active free parameter context.
      *
      * The typed models only accept items that belong to this object's model().
      * currentItem() is a focus item and does not have to be part of the selected
      * item set.
      *
-     * @see AnchorNodeSelectionModel, ClipSelectionModel, DynamicMixingAnchorSelectionModel, KeySignatureSelectionModel, LabelSelectionModel, NoteSelectionModel, TempoSelectionModel, TrackSelectionModel
+     * @see AnchorNodeSelectionModel, ClipSelectionModel, DynamicMixingAnchorSelectionModel, FreeParameterSelectionModel, KeySignatureSelectionModel, LabelSelectionModel, NoteSelectionModel, TempoSelectionModel, TrackSelectionModel
      */
     class DSPXMODEL_SELECTIONMODEL_EXPORT SelectionModel : public QObject {
         Q_OBJECT
         QML_ELEMENT
         QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(SelectionModel)
+        Q_MOC_INCLUDE(<dspxmodelORM/SingingClip.h>)
+        Q_MOC_INCLUDE(<dspxmodelSelectionModel/FreeParameterSelectionModel.h>)
         Q_PROPERTY(Model *model READ model CONSTANT)
         Q_PROPERTY(SelectionType selectionType READ selectionType NOTIFY selectionTypeChanged)
         Q_PROPERTY(AnchorNodeSelectionModel *anchorNodeSelectionModel READ anchorNodeSelectionModel CONSTANT)
         Q_PROPERTY(ClipSelectionModel *clipSelectionModel READ clipSelectionModel CONSTANT)
         Q_PROPERTY(DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel READ dynamicMixingAnchorSelectionModel CONSTANT)
+        Q_PROPERTY(FreeParameterSelectionModel *freeParameterSelectionModel READ freeParameterSelectionModel CONSTANT)
         Q_PROPERTY(KeySignatureSelectionModel *keySignatureSelectionModel READ keySignatureSelectionModel CONSTANT)
         Q_PROPERTY(LabelSelectionModel *labelSelectionModel READ labelSelectionModel CONSTANT)
         Q_PROPERTY(NoteSelectionModel *noteSelectionModel READ noteSelectionModel CONSTANT)
@@ -54,6 +59,7 @@ namespace dspx {
         Q_PROPERTY(QObject *currentItemSelectionModel READ currentItemSelectionModel NOTIFY currentItemSelectionModelChanged)
         Q_PROPERTY(QObject *currentItem READ currentItem NOTIFY currentItemChanged)
         Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectedCountChanged)
+        Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY hasSelectionChanged)
 
     public:
         /**
@@ -68,7 +74,8 @@ namespace dspx {
             ST_Tempo,
             ST_Track,
             ST_KeySignature,
-            ST_DynamicMixingAnchor
+            ST_DynamicMixingAnchor,
+            ST_FreeParameter,
         };
         Q_ENUM(SelectionType)
 
@@ -92,6 +99,7 @@ namespace dspx {
         AnchorNodeSelectionModel *anchorNodeSelectionModel() const;
         ClipSelectionModel *clipSelectionModel() const;
         DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel() const;
+        FreeParameterSelectionModel *freeParameterSelectionModel() const;
         KeySignatureSelectionModel *keySignatureSelectionModel() const;
         LabelSelectionModel *labelSelectionModel() const;
         NoteSelectionModel *noteSelectionModel() const;
@@ -99,18 +107,20 @@ namespace dspx {
         TrackSelectionModel *trackSelectionModel() const;
 
         /**
-         * @brief Gets the typed selection model for selectionType(), or nullptr.
+         * @brief Gets the active item selection model, or nullptr.
          */
         QObject *currentItemSelectionModel() const;
         /**
-         * @brief Gets the current item in the active typed selection model.
+         * @brief Gets the current item in the active item selection model, or nullptr.
          */
         QObject *currentItem() const;
         /**
-         * @brief Gets selected item count in the active typed selection model.
+         * @brief Gets the selected item count. Returns zero for a range selection.
          * @post selectedCount() >= 0.
          */
         int selectedCount() const;
+        /// Returns whether the active selection contains items or a nonempty range.
+        bool hasSelection() const;
         /**
          * @brief Gets whether item is selected by the active typed model.
          */
@@ -151,17 +161,38 @@ namespace dspx {
          * containerItemHint may be the corresponding sequence used as the empty
          * selection context.
          * Invalid hints are ignored.
+         * For ST_FreeParameter, ClearPreviousSelection clears the range if the
+         * context is active and retains the context.
          */
         Q_INVOKABLE void select(QObject *item, SelectionCommand command, SelectionType emptySelectionType = {}, QObject *containerItemHint = {});
 
-    signals:
+        /**
+         * @brief Activates an editable free parameter context.
+         * @returns True if the clip belongs to the model's tracks, the ID is
+         * nonempty, and the role is Edited or Transform. Returns false for an
+         * invalid context. Repeated activation of the same context retains its range.
+         */
+        Q_INVOKABLE bool setFreeParameterContext(SingingClip *clip, const QString &parameterId, FreeValueDataArray::FreeValueRole role = FreeValueDataArray::Edited);
+        /**
+         * @brief Sets the range in clip content ticks if a free parameter context is active.
+         *
+         * Clamps each endpoint to zero or greater and orders the endpoints.
+         * Equal endpoints represent an empty range.
+         */
+        Q_INVOKABLE void setFreeParameterRange(int start, int end);
+        /// Clears the active free parameter context and its range.
+        Q_INVOKABLE void clearFreeParameterContext();
+
+    Q_SIGNALS:
         void selectionTypeChanged();
         void currentItemSelectionModelChanged();
         void currentItemChanged();
         void selectedCountChanged();
+        void hasSelectionChanged();
         void itemSelected(QObject *item, bool selected);
 
     private:
+        void clearItemSelection();
         QScopedPointer<SelectionModelPrivate> d_ptr;
     };
 

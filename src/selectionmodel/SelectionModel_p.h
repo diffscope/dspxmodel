@@ -13,15 +13,19 @@ namespace dspx {
         Model *model;
 
         SelectionModel::SelectionType selectionType{SelectionModel::ST_None};
+        bool applyingSelectionCommand = false;
+        bool reportedHasSelection = false;
         AnchorNodeSelectionModel *anchorNodeSelectionModel;
         ClipSelectionModel *clipSelectionModel;
         DynamicMixingAnchorSelectionModel *dynamicMixingAnchorSelectionModel;
+        FreeParameterSelectionModel *freeParameterSelectionModel = nullptr;
         KeySignatureSelectionModel *keySignatureSelectionModel;
         LabelSelectionModel *labelSelectionModel;
         NoteSelectionModel *noteSelectionModel;
         TempoSelectionModel *tempoSelectionModel;
         TrackSelectionModel *trackSelectionModel;
 
+        void updateHasSelection();
     };
 
 }
