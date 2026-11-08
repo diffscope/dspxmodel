@@ -143,6 +143,16 @@ namespace dspx {
         d->setValue<ClipPropertyMapperPrivate::LengthFixedProperty>(lengthFixed);
     }
 
+    QVariant ClipPropertyMapper::defaultLanguage() const {
+        Q_D(const ClipPropertyMapper);
+        return d->value<ClipPropertyMapperPrivate::DefaultLanguageProperty>();
+    }
+
+    void ClipPropertyMapper::setDefaultLanguage(const QVariant &defaultLanguage) {
+        Q_D(ClipPropertyMapper);
+        d->setValue<ClipPropertyMapperPrivate::DefaultLanguageProperty>(defaultLanguage);
+    }
+
     void ClipPropertyMapperPrivate::setSelectionModel(dspx::SelectionModel *selectionModel_) {
         if (selectionModel == selectionModel_) {
             return;

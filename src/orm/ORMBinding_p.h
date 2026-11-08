@@ -37,6 +37,7 @@ namespace dspx {
     class ParameterMap;
     class Phoneme;
     class Singer;
+    class SingingClip;
     class Sources;
     class Tempo;
     class TimeSignature;
@@ -1051,6 +1052,8 @@ namespace dspx {
         bool applyAnchorNodeColumn(AnchorNode *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncAudioClipColumns(AudioClip *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyAudioClipColumn(AudioClip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
+        void syncSingingClipColumns(SingingClip *item, const dini::ItemSnapshot &snapshot, bool notify);
+        bool applySingingClipColumn(SingingClip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncClipColumns(Clip *item, const dini::ItemSnapshot &snapshot, bool notify);
         bool applyClipColumn(Clip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify);
         void syncDynamicMixingAnchorColumns(DynamicMixingAnchor *item, const dini::ItemSnapshot &snapshot, bool notify);

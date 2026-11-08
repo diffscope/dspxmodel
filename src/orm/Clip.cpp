@@ -124,6 +124,8 @@ namespace dspx {
             syncColumnBindings(clipColumnBindings(), item, snapshot, notify);
             if (auto *audio = qobject_cast<AudioClip *>(item)) {
                 syncAudioClipColumns(audio, snapshot, notify);
+            } else if (auto *singing = qobject_cast<SingingClip *>(item)) {
+                syncSingingClipColumns(singing, snapshot, notify);
             }
         }
 
@@ -133,6 +135,8 @@ namespace dspx {
             }
             if (auto *audio = qobject_cast<AudioClip *>(item)) {
                 return applyAudioClipColumn(audio, column, value, notify);
+            } else if (auto *singing = qobject_cast<SingingClip *>(item)) {
+                return applySingingClipColumn(singing, column, value, notify);
             }
             return false;
         }

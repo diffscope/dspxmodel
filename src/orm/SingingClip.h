@@ -1,6 +1,7 @@
 #ifndef DSPXMODEL_SINGINGCLIP_H
 #define DSPXMODEL_SINGINGCLIP_H
 
+#include <QString>
 #include <qqmlintegration.h>
 
 #include <dspxmodelORM/Clip.h>
@@ -25,10 +26,14 @@ namespace dspx {
         QML_ELEMENT
         QML_UNCREATABLE("")
         Q_DECLARE_PRIVATE(SingingClip)
+        Q_PROPERTY(QString defaultLanguage READ defaultLanguage WRITE setDefaultLanguage NOTIFY defaultLanguageChanged)
         Q_PROPERTY(Sources *sources READ sources WRITE setSources NOTIFY sourcesChanged)
         Q_PROPERTY(NoteSequence *notes READ notes CONSTANT)
         Q_PROPERTY(ParameterMap *parameters READ parameters CONSTANT)
     public:
+        QString defaultLanguage() const;
+        void setDefaultLanguage(const QString &defaultLanguage);
+
         /**
          * @brief Gets sources.
          */
@@ -66,7 +71,8 @@ namespace dspx {
          */
         void fromOpenDSPX(const opendspx::SingingClip &clip);
 
-    signals:
+    Q_SIGNALS:
+        void defaultLanguageChanged(const QString &defaultLanguage);
         void sourcesChanged(Sources *sources);
 
     private:

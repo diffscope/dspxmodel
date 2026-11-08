@@ -1,7 +1,7 @@
 #ifndef DSPXMODEL_CLIPPROPERTYMAPPER_P_H
 #define DSPXMODEL_CLIPPROPERTYMAPPER_P_H
 
-#include "ClipPropertyMapper.h"
+#include <dspxmodelPropertyMapper/ClipPropertyMapper.h>
 
 #include <dspxmodelORM/AnchorNode.h>
 #include <dspxmodelSelectionModel/AnchorNodeSelectionModel.h>
@@ -20,7 +20,7 @@
 #include <dspxmodelSelectionModel/DynamicMixingAnchorSelectionModel.h>
 #include <dspxmodelORM/Track.h>
 
-#include "PropertyMapperData_p.h"
+#include <dspxmodelPropertyMapper/private/PropertyMapperData_p.h>
 
 namespace dspx {
     class SelectionModel;
@@ -46,6 +46,12 @@ namespace dspx {
             [](const dspx::Clip *clip) { return clip->length() != 0; },
             [](dspx::Clip *clip, bool fixed) { clip->setLength(fixed ? clip->clipStart() + clip->clipLength() : 0); },
             decltype(&dspx::Clip::lengthChanged)
+        >,
+        PropertyMetadata<dspx::Clip,
+            [](const dspx::SingingClip *clip) { return clip ? clip->defaultLanguage() : QString{}; },
+            [](dspx::SingingClip *clip, const QString &language) { if (clip) clip->setDefaultLanguage(language); },
+            decltype(&dspx::SingingClip::defaultLanguageChanged),
+            [](const dspx::Clip *clip) { return qobject_cast<dspx::SingingClip *>(const_cast<dspx::Clip *>(clip)); }
         >
     > {
         Q_DECLARE_PUBLIC(ClipPropertyMapper)
@@ -61,7 +67,8 @@ namespace dspx {
             {&dspx::Clip::clipStartChanged},
             {&dspx::Clip::clipLengthChanged},
             {&dspx::Clip::lengthChanged},
-            {&dspx::Clip::lengthChanged}
+            {&dspx::Clip::lengthChanged},
+            {&dspx::SingingClip::defaultLanguageChanged}
         ) {}
 
         dspx::SelectionModel *selectionModel = nullptr;
@@ -121,7 +128,8 @@ namespace dspx {
             ClipStartProperty = 7,
             ClipLengthProperty = 8,
             LengthProperty = 9,
-            LengthFixedProperty = 10
+            LengthFixedProperty = 10,
+            DefaultLanguageProperty = 11
         };
 
         template<int i>
@@ -149,6 +157,8 @@ namespace dspx {
                 q->lengthChanged();
             } else if constexpr (i == LengthFixedProperty) {
                 q->lengthFixedChanged();
+            } else if constexpr (i == DefaultLanguageProperty) {
+                Q_EMIT q->defaultLanguageChanged();
             }
         }
     };

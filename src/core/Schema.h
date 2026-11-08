@@ -85,6 +85,7 @@ namespace dspx {
         static dini::ColumnHandle clipOverlappedCountColumn();
         static dini::ColumnHandle clipWorkspaceColumn();
         static dini::ColumnHandle audioClipPathColumn();
+        static dini::ColumnHandle singingClipDefaultLanguageColumn();
 
         static dini::ColumnHandle dynamicMixingAnchorPositionColumn();
         static dini::ColumnHandle dynamicMixingAnchorRatioColumn();

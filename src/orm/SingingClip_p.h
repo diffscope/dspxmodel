@@ -16,6 +16,7 @@ namespace dspx {
         DSPXMODEL_FORWARD_CONSTRUCTOR(SingingClip)
 
         SingingClip *q_ptr = nullptr;
+        QString defaultLanguage;
         Sources *sources = nullptr;
         bool sourcesResolved = false;
         NoteSequence *notes = nullptr;

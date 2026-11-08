@@ -29,6 +29,7 @@ namespace dspx {
         Q_PROPERTY(QVariant clipLength READ clipLength WRITE setClipLength NOTIFY clipLengthChanged)
         Q_PROPERTY(QVariant length READ length WRITE setLength NOTIFY lengthChanged)
         Q_PROPERTY(QVariant lengthFixed READ lengthFixed WRITE setLengthFixed NOTIFY lengthFixedChanged)
+        Q_PROPERTY(QVariant defaultLanguage READ defaultLanguage WRITE setDefaultLanguage NOTIFY defaultLanguageChanged)
     public:
         explicit ClipPropertyMapper(QObject *parent = nullptr);
         ~ClipPropertyMapper() override;
@@ -68,7 +69,10 @@ namespace dspx {
         QVariant lengthFixed() const;
         void setLengthFixed(const QVariant &lengthFixed);
 
-    signals:
+        QVariant defaultLanguage() const;
+        void setDefaultLanguage(const QVariant &defaultLanguage);
+
+    Q_SIGNALS:
         void selectionModelChanged();
         void nameChanged();
         void kindChanged();
@@ -81,6 +85,7 @@ namespace dspx {
         void clipLengthChanged();
         void lengthChanged();
         void lengthFixedChanged();
+        void defaultLanguageChanged();
 
     private:
         QScopedPointer<ClipPropertyMapperPrivate> d_ptr;

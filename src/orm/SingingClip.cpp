@@ -1,6 +1,8 @@
 #include "SingingClip.h"
 #include "SingingClip_p.h"
 
+#include <vector>
+
 #include <dini/engine.h>
 #include <dini/transaction.h>
 #include <opendspx/singingclip.h>
@@ -11,12 +13,37 @@
 #include <dspxmodelORM/ParameterMap.h>
 #include <dspxmodelORM/Sources.h>
 #include <dspxmodelORM/private/Clip_p.h>
+#include <dspxmodelORM/private/ConversionUtils_p.h>
 #include <dspxmodelORM/private/Model_p.h>
 #include <dspxmodelORM/private/NoteSequence_p.h>
+#include <dspxmodelORM/private/ORMBinding_p.h>
 #include <dspxmodelORM/private/ORMUtils_p.h>
 #include <dspxmodelORM/private/ParameterMap_p.h>
 
 namespace dspx {
+
+    namespace {
+
+        const std::vector<orm::ColumnBinding<SingingClip>> &singingClipColumnBindings() {
+            static const std::vector<orm::ColumnBinding<SingingClip>> bindings {
+                orm::stringFieldWithSignal<SingingClip, SingingClipPrivate>(Schema::singingClipDefaultLanguageColumn(), &SingingClipPrivate::defaultLanguage, &SingingClip::defaultLanguageChanged),
+            };
+            return bindings;
+        }
+
+    }
+
+    namespace orm {
+
+        void syncSingingClipColumns(SingingClip *item, const dini::ItemSnapshot &snapshot, bool notify) {
+            syncColumnBindings(singingClipColumnBindings(), item, snapshot, notify);
+        }
+
+        bool applySingingClipColumn(SingingClip *item, const dini::ColumnHandle &column, const dini::Value &value, bool notify) {
+            return applyColumnBinding(singingClipColumnBindings(), item, column, value, notify);
+        }
+
+    }
 
     SingingClipPrivate::SingingClipPrivate(SingingClip *q) : q_ptr(q) {
     }
@@ -30,6 +57,15 @@ namespace dspx {
     }
 
     SingingClip::~SingingClip() = default;
+
+    QString SingingClip::defaultLanguage() const {
+        Q_D(const SingingClip);
+        return d->defaultLanguage;
+    }
+
+    void SingingClip::setDefaultLanguage(const QString &defaultLanguage) {
+        ModelPrivate::get(model())->update(handle(), Schema::singingClipDefaultLanguageColumn(), orm::valueFromString(defaultLanguage));
+    }
 
     Sources *SingingClip::sources() const {
         Q_D(const SingingClip);
@@ -77,6 +113,7 @@ namespace dspx {
     opendspx::SingingClip SingingClip::toOpenDSPX() const {
         opendspx::SingingClip target;
         toOpenDSPXBase(target);
+        target.workspace["diffscope"]["defaultLanguage"] = defaultLanguage().toStdString();
         target.notes = notes()->toOpenDSPX();
         target.params = parameters()->toOpenDSPX();
         if (auto *sourceData = sources()) {
@@ -91,6 +128,13 @@ namespace dspx {
 
     void SingingClip::fromOpenDSPX(const opendspx::SingingClip &clip) {
         fromOpenDSPXBase(clip);
+        QString defaultLanguage;
+        if (auto it = clip.workspace.find("diffscope"); it != clip.workspace.end()) {
+            if (auto value = conv::optionalChain(it->second, "defaultLanguage"); value.isString()) {
+                defaultLanguage = QString::fromStdString(value.toString());
+            }
+        }
+        setDefaultLanguage(defaultLanguage);
         notes()->fromOpenDSPX(clip.notes);
         parameters()->fromOpenDSPX(clip.params);
         if (clip.sources.has_value()) {

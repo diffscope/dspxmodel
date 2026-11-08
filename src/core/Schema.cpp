@@ -2148,6 +2148,13 @@ namespace dspx {
                     .defaultValue = dini::Value(dini::ByteArray {}),
                     .nullable = false,
                 });
+                singingClipDefaultLanguageColumn = clipTableBuilder.addVariantColumn({
+                    .debugName = "defaultLanguage",
+                    .variant = singingClipVariant,
+                    .type = dini::ValueType::String,
+                    .defaultValue = "",
+                    .nullable = false,
+                });
                 auto clipOrderIndex = clipTableBuilder.addOrderedIndex({
                     .debugName = "order",
                     .groupBy = {clipParent.column()},
@@ -2755,6 +2762,7 @@ namespace dspx {
             dini::ColumnHandle clipOverlappedCountColumn;
             dini::ColumnHandle clipWorkspaceColumn;
             dini::ColumnHandle audioClipPathColumn;
+            dini::ColumnHandle singingClipDefaultLanguageColumn;
 
             dini::ColumnHandle labelPositionColumn;
             dini::ColumnHandle labelTextColumn;
@@ -3115,6 +3123,10 @@ namespace dspx {
 
     dini::ColumnHandle Schema::audioClipPathColumn() {
         return g.audioClipPathColumn;
+    }
+
+    dini::ColumnHandle Schema::singingClipDefaultLanguageColumn() {
+        return g.singingClipDefaultLanguageColumn;
     }
 
     dini::ColumnHandle Schema::dynamicMixingAnchorPositionColumn() {

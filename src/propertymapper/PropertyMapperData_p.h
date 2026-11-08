@@ -160,7 +160,9 @@ namespace dspx {
             const auto notifySignal = std::get<propertyIndex>(propertyMetadataList).notifySignal;
             if constexpr (!std::is_null_pointer_v<decltype(notifySignal)>) {
                 auto o = std::get<propertyIndex>(propertyMetadataList).propertyObjectGetter(item);
-                QObject::disconnect(o, notifySignal, q, nullptr);
+                if (o) {
+                    QObject::disconnect(o, notifySignal, q, nullptr);
+                }
             }
         }
 
@@ -254,6 +256,9 @@ namespace dspx {
             const auto notifySignal = std::get<propertyIndex>(propertyMetadataList).notifySignal;
             if constexpr (!std::is_null_pointer_v<decltype(notifySignal)>) {
                 auto o = std::get<propertyIndex>(propertyMetadataList).propertyObjectGetter(item);
+                if (!o) {
+                    return;
+                }
                 QObject::connect(o, notifySignal, q, [item, this]() {
                     const auto propertyObjectGetter = std::get<propertyIndex>(propertyMetadataList).propertyObjectGetter;
                     const auto getter = std::get<propertyIndex>(propertyMetadataList).getter;
