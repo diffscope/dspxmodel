@@ -223,6 +223,7 @@ namespace dspx {
                 }
                 throw;
             }
+            const auto schema = engine->schema();
             while (true) {
                 std::optional<quint64> recordSize;
                 try {
@@ -246,7 +247,7 @@ namespace dspx {
                     throw;
                 }
                 try {
-                    engine->replayChangeSet(dini::ChangeSet::deserialize(bytesFromQByteArray(payload)));
+                    engine->replayChangeSet(dini::ChangeSet::deserialize(bytesFromQByteArray(payload), schema));
                 } catch (const dini::DiniError &error) {
                     if (discardInvalidTail) {
                         return;
